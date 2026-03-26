@@ -1,4 +1,5 @@
 import numpy as np
+
 from SpectrumCommon.Const.AM.AMTags import (
     AM_AdultAnnRateProgressLowerCD4Tag,
     AM_AdultDistNewInfectionsCD4Tag,
@@ -338,7 +339,9 @@ _MTCT_MAPPINGS_BF = [
 ]
 
 
-def update_modvars_from_state(modvars: Modvars, output_state: dict, n_years: int, ss: dict):
+def update_modvars_from_state(
+    modvars: Modvars, output_state: dict, n_years: int, ss: dict
+):
     _map_population(modvars, output_state, n_years, ss)
     _map_hiv_population(modvars, output_state, n_years, ss)
     _map_hiv_infections(modvars, output_state, n_years, ss)
