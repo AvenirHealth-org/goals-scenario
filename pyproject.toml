@@ -47,7 +47,11 @@ python = "./.venv"
 python-version = "3.10"
 
 [tool.ty.src]
-exclude = ["src/goals_sa/_const", "src/goals_sa/_import"]
+exclude = [
+    "src/goals_sa/_const",
+    "src/goals_sa/_import",
+    "src/goals_sa/_leapfrog"
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -59,7 +63,8 @@ fix = true
 # Exclude vendored SpectrumEngine directories
 exclude = [
     "src/goals_sa/_const",
-    "src/goals_sa/_import"
+    "src/goals_sa/_import",
+    "src/goals_sa/_leapfrog"
 ]
 
 [tool.ruff.lint]

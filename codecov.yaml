@@ -10,3 +10,4 @@ coverage:
   ignore:
     - "src/goals_sa/_const"
     - "src/goals_sa/_import"
+    - "src/goals_sa/_leapfrog"

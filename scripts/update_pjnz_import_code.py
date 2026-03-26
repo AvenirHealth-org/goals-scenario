@@ -41,6 +41,7 @@ FILE_MAP: list[tuple[str, str]] = [
     ("SpectrumCommon/Const/RN", "src/goals_sa/_const/RN"),
     ("Tools/ImportExportPJNZ/DP/ImportDP.py", "src/goals_sa/_import/DP"),
     ("Tools/ImportExportPJNZ/RN", "src/goals_sa/_import/RN"),
+    ("Calc/DP/LeapfrogDataMapping.py", "src/goals_sa/_leapfrog"),
 ]
 
 GITHUB_REPO = "AvenirHealth-org/SpectrumEngine"
