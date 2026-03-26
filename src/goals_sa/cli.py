@@ -35,7 +35,7 @@ class RunConfig(BaseModel):
     def _lowercase_keys(cls, data: Any) -> Any:
         if isinstance(data, dict):
             return {k.lower(): v for k, v in data.items()}
-        return data
+        return data  # pragma: no cover
 
 
 def _version_callback(value: bool) -> None:
@@ -123,4 +123,4 @@ def _load_config(path: Path) -> RunConfig:
 
 
 def main() -> None:
-    app()
+    app()  # pragma: no cover
