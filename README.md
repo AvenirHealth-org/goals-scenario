@@ -9,7 +9,79 @@
 # Goals scenario analysis
 
 - **Github repository**: <https://github.com/avenirhealth-org/goals-sa/>
-- **Documentation** <https://avenirhealth-org.github.io/goals-sa/>
+- **Documentation**: <https://avenirhealth-org.github.io/goals-sa/>
+
+## Installation
+
+```bash
+pip install goals-sa
+```
+
+After installation, the `goals-sa` command is available on your PATH.
+
+## Quick start
+
+For full details of the CLI please see the [CLI reference](https://avenirhealth-org.github.io/goals-sa/cli/)
+
+```bash
+goals-sa --help      # or -h
+goals-sa --version   # or -v
+```
+
+### Generate scenarios
+
+```bash
+goals-sa scenarios --dest-path ./scenarios.csv
+```
+
+### Run scenario analysis
+
+Analysis is configured via a JSON config file:
+
+```bash
+goals-sa run --config-path config.json
+```
+
+#### Config file format
+
+Field names are case-insensitive.
+
+```json
+{
+  "Goals_path": "path/to/pjnz/files",
+  "Scenario_path": "path/to/scenarios/scenarios.csv",
+  "Scenario_file_name": "scenarios.csv",
+  "Output_path": "path/to/output",
+  "Output_file_name": "results.parquet",
+  "Base_year": "2025",
+  "Output_indicators": [
+    "PLHIV",
+    "New Infections",
+    "AIDS deaths",
+    "Number on ART",
+    "DALYs",
+    "Total Cost"
+  ]
+}
+```
+
+| Field | Description |
+|---|---|
+| `Goals_path` | Directory containing `.PJNZ` files |
+| `Scenario_path` | Directory containing the scenario file |
+| `Scenario_file_name` | Filename of the scenario CSV |
+| `Output_path` | Directory to write output to |
+| `Output_file_name` | Filename for the output file |
+| `Base_year` | Base year for the analysis |
+| `Output_indicators` | List of indicators to include in output |
+
+### Tab completion
+
+To install shell tab completion:
+
+```bash
+goals-sa --install-completion
+```
 
 ## Development
 
@@ -101,7 +173,7 @@ uv run tox
 
 These are also run on CI, so not the end of the world if you don't do it locally.
 
-## Vendored SpectrumEngine import code
+### Vendored SpectrumEngine import code
 
 We need to re-use some of the PJNZ import code from SpectrumEngine. At the moment, this is vendored here directly. There is a script to update the vendored code which should be run before a release. The script uses a file `./scripts/spectrum_engine_ref` to clone the specified branch or ref.
 
@@ -115,3 +187,7 @@ Run script directly
 ```bash
 uv run ./scripts/update_pjnz_import_code.py
 ```
+
+### CLI
+
+The CLI is built using [typer](https://typer.tiangolo.com/) which builds CLI docs automatically from python type hints and decorators. It also gives us some neat things like auto completion. And progress bars down the line!

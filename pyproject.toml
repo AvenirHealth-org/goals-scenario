@@ -6,6 +6,10 @@ authors = [{ name = "Rob Ashton", email = "rashton@avenirhealth.org" }]
 readme = "README.md"
 keywords = ['python']
 requires-python = ">=3.10,<4.0"
+dependencies = [
+    "typer>=0.12",
+    "pydantic>=2.0",
+]
 classifiers = [
     "Intended Audience :: Developers",
     "Programming Language :: Python",
@@ -17,6 +21,9 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
+
+[project.scripts]
+goals-sa = "goals_sa.cli:main"
 
 [project.urls]
 Homepage = "https://avenirhealth-org.github.io/goals-sa/"
