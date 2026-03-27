@@ -191,3 +191,17 @@ uv run ./scripts/update_pjnz_import_code.py
 ### CLI
 
 The CLI is built using [typer](https://typer.tiangolo.com/) which builds CLI docs automatically from python type hints and decorators. It also gives us some neat things like auto completion. And progress bars down the line!
+
+## Release process
+
+Creating a release will
+
+1. Build & push the package to PyPI
+2. Build an updated docs site
+
+To create a release you need to
+
+1. Update the version number in the `pyproject.toml` or ensure it has updated since the last release
+2. Go to the [releases page](https://github.com/AvenirHealth-org/goals-sa/releases) and "Draft a new release"
+3. Create a new tag, I usually use a tag which matches the version number you are releasing. Set a release title and text. Usually useful to include in the text a summary of the changes since the last release.
+4. Publish the release. This will trigger a GitHub action which will push the package to PyPI and update the docs site.
