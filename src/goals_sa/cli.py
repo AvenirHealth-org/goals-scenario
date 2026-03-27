@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import json
 from importlib.metadata import version as pkg_version
 from pathlib import Path
 from typing import Annotated, Any
 
+import orjson
 import typer
 from pydantic import BaseModel, ValidationError, model_validator
 
@@ -115,8 +115,8 @@ def _load_config(path: Path) -> RunConfig:
         err_msg = f"Config file must be a JSON file (.json), got: {path.suffix or '(no extension)'}"
         raise ValueError(err_msg)
     try:
-        data = json.loads(path.read_text())
-    except json.JSONDecodeError as e:
+        data = orjson.loads(path.read_text())
+    except orjson.JSONDecodeError as e:
         err_msg = f"Config file contains invalid JSON: {e}"
         raise ValueError(err_msg) from e
     return RunConfig.model_validate(data)

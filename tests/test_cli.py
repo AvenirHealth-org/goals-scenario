@@ -1,7 +1,7 @@
-import json
 from pathlib import Path
 from unittest.mock import patch
 
+import orjson
 import pytest
 from pydantic import ValidationError
 from typer.testing import CliRunner
@@ -11,7 +11,7 @@ from goals_sa.cli import RunConfig, _load_config, app
 runner = CliRunner()
 
 # A valid config dict matching the expected JSON shape.
-VALID_CONFIG = {
+VALID_CONFIG: dict[str, str | list[str]] = {
     "Goals_path": "/pjnz",
     "Scenario_path": "/scenarios",
     "Scenario_file_name": "scenarios.csv",
@@ -27,7 +27,7 @@ VALID_CONFIG = {
 
 def test_load_config_parses_valid_json(tmp_path):
     config_file = tmp_path / "config.json"
-    config_file.write_text(json.dumps(VALID_CONFIG))
+    config_file.write_bytes(orjson.dumps(VALID_CONFIG))
 
     result = _load_config(config_file)
 
@@ -42,7 +42,7 @@ def test_load_config_parses_valid_json(tmp_path):
 
 def test_load_config_accepts_uppercase_keys(tmp_path):
     config_file = tmp_path / "config.json"
-    config_file.write_text(json.dumps(VALID_CONFIG))
+    config_file.write_bytes(orjson.dumps(VALID_CONFIG))
 
     assert isinstance(_load_config(config_file), RunConfig)
 
@@ -50,14 +50,14 @@ def test_load_config_accepts_uppercase_keys(tmp_path):
 def test_load_config_accepts_lowercase_keys(tmp_path):
     lowercase = {k.lower(): v for k, v in VALID_CONFIG.items()}
     config_file = tmp_path / "config.json"
-    config_file.write_text(json.dumps(lowercase))
+    config_file.write_bytes(orjson.dumps(lowercase))
 
     assert _load_config(config_file).goals_path == "/pjnz"
 
 
 def test_load_config_raises_on_missing_fields(tmp_path):
     config_file = tmp_path / "config.json"
-    config_file.write_text(json.dumps({"Goals_path": "/pjnz"}))
+    config_file.write_bytes(orjson.dumps({"Goals_path": "/pjnz"}))
 
     with pytest.raises(ValidationError):
         _load_config(config_file)
@@ -141,7 +141,7 @@ def test_cli_run_requires_config_path():
 
 def test_cli_run_calls_run_scenario_analysis(tmp_path):
     config_file = tmp_path / "config.json"
-    config_file.write_text(json.dumps(VALID_CONFIG))
+    config_file.write_bytes(orjson.dumps(VALID_CONFIG))
 
     with patch("goals_sa.cli.run_scenario_analysis") as mock_run:
         result = runner.invoke(app, ["run", "--config-path", str(config_file)])
@@ -183,7 +183,7 @@ def test_cli_run_errors_when_config_file_missing(tmp_path):
 
 def test_cli_run_errors_on_invalid_config(tmp_path):
     config_file = tmp_path / "config.json"
-    config_file.write_text(json.dumps({"Goals_path": "/pjnz"}))
+    config_file.write_bytes(orjson.dumps({"Goals_path": "/pjnz"}))
 
     result = runner.invoke(app, ["run", "--config-path", str(config_file)])
 
@@ -193,7 +193,7 @@ def test_cli_run_errors_on_invalid_config(tmp_path):
 
 def test_cli_run_handles_errors(tmp_path):
     config_file = tmp_path / "config.json"
-    config_file.write_text(json.dumps(VALID_CONFIG))
+    config_file.write_bytes(orjson.dumps(VALID_CONFIG))
 
     with patch("goals_sa.cli.run_scenario_analysis", side_effect=RuntimeError("something went wrong")):
         result = runner.invoke(app, ["run", "--config-path", str(config_file)])
