@@ -1,14 +1,14 @@
 # CLI
 
-The `goals-sa` CLI provides two commands.
+The `goals-scenario` CLI provides two commands.
 
 ## Installation
 
 ```bash
-pip install avenir_goals_sa
+pip install avenir_goals_scenario
 ```
 
-After installation, `goals-sa` is available on your PATH.
+After installation, `goals-scenario` is available on your PATH.
 
 ## Commands
 
@@ -17,7 +17,7 @@ After installation, `goals-sa` is available on your PATH.
 Generates a scenarios file at the given path.
 
 ```bash
-goals-sa scenarios --dest-path ./scenarios.csv
+goals-scenario scenarios --dest-path ./scenarios.csv
 ```
 
 | Option | Description |
@@ -31,7 +31,7 @@ goals-sa scenarios --dest-path ./scenarios.csv
 Runs scenario analysis across a directory of PJNZ files, driven by a JSON config file.
 
 ```bash
-goals-sa run --config-path config.json
+goals-scenario run --config-path config.json
 ```
 
 | Option | Description |
@@ -81,5 +81,5 @@ Field names are case-insensitive (`Goals_path`, `goals_path`, and `GOALS_PATH` a
 ## Tab completion
 
 ```bash
-goals-sa --install-completion
+goals-scenario --install-completion
 ```

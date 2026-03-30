@@ -1,37 +1,37 @@
-# goals-sa
+# goals-scenario
 
-[![Release](https://img.shields.io/github/v/release/avenirhealth-org/goals-sa)](https://img.shields.io/github/v/release/avenirhealth-org/goals-sa)
-[![Build status](https://img.shields.io/github/actions/workflow/status/avenirhealth-org/goals-sa/main.yml?branch=main)](https://github.com/avenirhealth-org/goals-sa/actions/workflows/main.yml?query=branch%3Amain)
-[![codecov](https://codecov.io/gh/avenirhealth-org/goals-sa/branch/main/graph/badge.svg)](https://codecov.io/gh/avenirhealth-org/goals-sa)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/avenirhealth-org/goals-sa)](https://img.shields.io/github/commit-activity/m/avenirhealth-org/goals-sa)
-[![License](https://img.shields.io/github/license/avenirhealth-org/goals-sa)](https://img.shields.io/github/license/avenirhealth-org/goals-sa)
+[![Release](https://img.shields.io/github/v/release/avenirhealth-org/goals-scenario)](https://img.shields.io/github/v/release/avenirhealth-org/goals-scenario)
+[![Build status](https://img.shields.io/github/actions/workflow/status/avenirhealth-org/goals-scenario/main.yml?branch=main)](https://github.com/avenirhealth-org/goals-scenario/actions/workflows/main.yml?query=branch%3Amain)
+[![codecov](https://codecov.io/gh/avenirhealth-org/goals-scenario/branch/main/graph/badge.svg)](https://codecov.io/gh/avenirhealth-org/goals-scenario)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/avenirhealth-org/goals-scenario)](https://img.shields.io/github/commit-activity/m/avenirhealth-org/goals-scenario)
+[![License](https://img.shields.io/github/license/avenirhealth-org/goals-scenario)](https://img.shields.io/github/license/avenirhealth-org/goals-scenario)
 
 # Goals scenario analysis
 
-- **Github repository**: <https://github.com/avenirhealth-org/goals-sa/>
-- **Documentation**: <https://avenirhealth-org.github.io/goals-sa/>
+- **Github repository**: <https://github.com/avenirhealth-org/goals-scenario/>
+- **Documentation**: <https://avenirhealth-org.github.io/goals-scenario/>
 
 ## Installation
 
 ```bash
-pip install avenir_goals_sa
+pip install avenir_goals_scenario
 ```
 
-After installation, the `goals-sa` command is available on your PATH.
+After installation, the `goals-scenario` command is available on your PATH.
 
 ## Quick start
 
-For full details of the CLI please see the [CLI reference](https://avenirhealth-org.github.io/goals-sa/cli/)
+For full details of the CLI please see the [CLI reference](https://avenirhealth-org.github.io/goals-scenario/cli/)
 
 ```bash
-goals-sa --help      # or -h
-goals-sa --version   # or -v
+goals-scenario --help      # or -h
+goals-scenario --version   # or -v
 ```
 
 ### Generate scenarios
 
 ```bash
-goals-sa scenarios --dest-path ./scenarios.csv
+goals-scenario scenarios --dest-path ./scenarios.csv
 ```
 
 ### Run scenario analysis
@@ -39,7 +39,7 @@ goals-sa scenarios --dest-path ./scenarios.csv
 Analysis is configured via a JSON config file:
 
 ```bash
-goals-sa run --config-path config.json
+goals-scenario run --config-path config.json
 ```
 
 #### Config file format
@@ -80,7 +80,7 @@ Field names are case-insensitive.
 To install shell tab completion:
 
 ```bash
-goals-sa --install-completion
+goals-scenario --install-completion
 ```
 
 ## Development
@@ -202,6 +202,6 @@ Creating a release will
 To create a release you need to
 
 1. Update the version number in the `pyproject.toml` or ensure it has updated since the last release
-2. Go to the [releases page](https://github.com/AvenirHealth-org/goals-sa/releases) and "Draft a new release"
+2. Go to the [releases page](https://github.com/AvenirHealth-org/goals-scenario/releases) and "Draft a new release"
 3. Create a new tag, I usually use a tag which matches the version number you are releasing. Set a release title and text. Usually useful to include in the text a summary of the changes since the last release.
 4. Publish the release. This will trigger a GitHub action which will push the package to PyPI and update the docs site.

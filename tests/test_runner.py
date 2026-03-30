@@ -1,6 +1,6 @@
 import pytest
 
-from avenir_goals_sa.runner import find_pjnz_files, run_scenario_analysis
+from avenir_goals_scenario.runner import find_pjnz_files, run_scenario_analysis
 
 
 def test_find_pjnz_files_returns_files(tmp_path):

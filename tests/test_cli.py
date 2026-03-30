@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
-from avenir_goals_sa.cli import RunConfig, _load_config, app
+from avenir_goals_scenario.cli import RunConfig, _load_config, app
 
 runner = CliRunner()
 
@@ -70,14 +70,14 @@ def test_cli_version_long():
     result = runner.invoke(app, ["--version"])
 
     assert result.exit_code == 0
-    assert "goals-sa" in result.output
+    assert "goals-scenario" in result.output
 
 
 def test_cli_version_short():
     result = runner.invoke(app, ["-v"])
 
     assert result.exit_code == 0
-    assert "goals-sa" in result.output
+    assert "goals-scenario" in result.output
 
 
 # --- CLI: -h / --help ---
@@ -107,7 +107,7 @@ def test_cli_scenarios_requires_dest_path():
 def test_cli_scenarios_calls_generate_scenarios(tmp_path):
     dest = tmp_path / "out.csv"
 
-    with patch("avenir_goals_sa.cli.generate_scenarios") as mock_gen:
+    with patch("avenir_goals_scenario.cli.generate_scenarios") as mock_gen:
         result = runner.invoke(app, ["scenarios", "--dest-path", str(dest)])
 
     assert result.exit_code == 0
@@ -115,7 +115,7 @@ def test_cli_scenarios_calls_generate_scenarios(tmp_path):
 
 
 def test_cli_scenarios_handles_errors():
-    with patch("avenir_goals_sa.cli.generate_scenarios", side_effect=RuntimeError("something went wrong")):
+    with patch("avenir_goals_scenario.cli.generate_scenarios", side_effect=RuntimeError("something went wrong")):
         result = runner.invoke(app, ["scenarios", "--dest-path", "/x/out.csv"])
 
     assert result.exit_code == 1
@@ -123,7 +123,7 @@ def test_cli_scenarios_handles_errors():
 
 
 def test_cli_scenarios_handles_error_without_message():
-    with patch("avenir_goals_sa.cli.generate_scenarios", side_effect=NotImplementedError()):
+    with patch("avenir_goals_scenario.cli.generate_scenarios", side_effect=NotImplementedError()):
         result = runner.invoke(app, ["scenarios", "--dest-path", "/x/out.csv"])
 
     assert result.exit_code == 1
@@ -143,7 +143,7 @@ def test_cli_run_calls_run_scenario_analysis(tmp_path):
     config_file = tmp_path / "config.json"
     config_file.write_bytes(orjson.dumps(VALID_CONFIG))
 
-    with patch("avenir_goals_sa.cli.run_scenario_analysis") as mock_run:
+    with patch("avenir_goals_scenario.cli.run_scenario_analysis") as mock_run:
         result = runner.invoke(app, ["run", "--config-path", str(config_file)])
 
     assert result.exit_code == 0
@@ -195,7 +195,7 @@ def test_cli_run_handles_errors(tmp_path):
     config_file = tmp_path / "config.json"
     config_file.write_bytes(orjson.dumps(VALID_CONFIG))
 
-    with patch("avenir_goals_sa.cli.run_scenario_analysis", side_effect=RuntimeError("something went wrong")):
+    with patch("avenir_goals_scenario.cli.run_scenario_analysis", side_effect=RuntimeError("something went wrong")):
         result = runner.invoke(app, ["run", "--config-path", str(config_file)])
 
     assert result.exit_code == 1

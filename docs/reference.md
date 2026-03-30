@@ -1,2 +1,2 @@
-::: avenir_goals_sa.generate_scenarios
-::: avenir_goals_sa.run_scenario_analysis
+::: avenir_goals_scenario.generate_scenarios
+::: avenir_goals_scenario.run_scenario_analysis
