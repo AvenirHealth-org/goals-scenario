@@ -18,4 +18,4 @@ COPY . /app
 # Sync the project
 RUN uv sync --frozen
 
-CMD [ "python", "goals_sa/foo.py" ]
+CMD [ "python", "goals_scenario/foo.py" ]

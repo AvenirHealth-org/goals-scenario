@@ -21,7 +21,7 @@ wheels = [
 ]
 
 [[package]]
-name = "avenir-goals-sa"
+name = "avenir-goals-scenario"
 version = "0.0.2"
 source = { editable = "." }
 dependencies = [

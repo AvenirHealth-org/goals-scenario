@@ -1,10 +1,10 @@
-site_name: goals-sa
-repo_url: https://github.com/avenirhealth-org/goals-sa
-site_url: https://avenirhealth-org.github.io/goals-sa
+site_name: goals-scenario
+repo_url: https://github.com/avenirhealth-org/goals-scenario
+site_url: https://avenirhealth-org.github.io/goals-scenario
 site_description: Goals scenario analysis
 site_author: Rob Ashton
 edit_uri: edit/main/docs/
-repo_name: avenirhealth-org/goals-sa
+repo_name: avenirhealth-org/goals-scenario
 copyright: Maintained by <a href="https://www.avenirhealth.org/">Avenir Health</a>.
 
 nav:
@@ -44,9 +44,9 @@ theme:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/avenirhealth-org/goals-sa
+      link: https://github.com/avenirhealth-org/goals-scenario
     - icon: fontawesome/brands/python
-      link: https://pypi.org/project/goals-sa
+      link: https://pypi.org/project/goals-scenario
 
 markdown_extensions:
   - toc:

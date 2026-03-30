@@ -8,8 +8,8 @@ import orjson
 import typer
 from pydantic import BaseModel, ValidationError, model_validator
 
-from avenir_goals_sa.runner import run_scenario_analysis
-from avenir_goals_sa.scenarios import generate_scenarios
+from avenir_goals_scenario.runner import run_scenario_analysis
+from avenir_goals_scenario.scenarios import generate_scenarios
 
 _CONTEXT = {"help_option_names": ["-h", "--help"]}
 
@@ -40,7 +40,7 @@ class RunConfig(BaseModel):
 
 def _version_callback(value: bool) -> None:
     if value:
-        typer.echo(f"goals-sa {pkg_version('avenir-goals-sa')}")
+        typer.echo(f"goals-scenario {pkg_version('avenir-goals-scenario')}")
         raise typer.Exit() from None
 
 
