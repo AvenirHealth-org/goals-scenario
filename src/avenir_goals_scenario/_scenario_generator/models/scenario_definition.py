@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 import numpy as np
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class NormalDistParameters(BaseModel):
@@ -15,8 +15,12 @@ class NormalDistParameters(BaseModel):
       1. Define a new model with a ``distribution: Literal["uniform"]`` field and a ``sample()`` method.
       2. Update the ``ParameterDist`` type alias to a discriminated union:
          ``Annotated[NormalDistParameters | UniformDistParameters, Field(discriminator="distribution")]``
-      3. Update ``InterventionDef._apply_parameter_constraints`` if new constraints are needed.
+      3. Add ``"uniform"`` to ``_inject_distribution_default`` in ``InterventionDef`` if the new type
+         should also be the default for files that omit the ``distribution`` key.
+      4. Update ``InterventionDef._apply_parameter_constraints`` if new constraints are needed.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     distribution: Literal["normal"] = "normal"
     mean: float
@@ -50,6 +54,8 @@ _PROPORTION_MAX: float = 1.0
 
 
 class InterventionDef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     product: str
     target_population: list[str]
     sex: str
@@ -60,8 +66,22 @@ class InterventionDef(BaseModel):
     def _convert_pop_to_array(cls, v: Any) -> list[str]:
         if isinstance(v, str):
             return [v]
-        else:
-            return v
+        return v  # type: ignore[return-value]
+
+    @field_validator("parameters", mode="before")
+    @classmethod
+    def _inject_distribution_default(cls, v: Any) -> Any:
+        """Inject ``distribution: "normal"`` into any parameter dict that omits it.
+
+        By default we assume "normal" distribution, but want to support more types
+        in the future.
+        """
+        if isinstance(v, dict):
+            return {
+                name: {"distribution": "normal", **p} if isinstance(p, dict) and "distribution" not in p else p
+                for name, p in v.items()
+            }
+        return v
 
     @model_validator(mode="after")
     def _apply_parameter_constraints(self) -> InterventionDef:
@@ -84,11 +104,15 @@ class InterventionDef(BaseModel):
 
 
 class SingleScenarioDef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     id: int
     interventions: list[InterventionDef] = Field(min_length=1)
 
 
 class CombinedScenarioDef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     id: int
     combines: list[int] = Field(min_length=2)
 
@@ -101,6 +125,8 @@ class ScenarioDefinition(BaseModel):
 
 
 class ScenarioInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     scenario_definitions: list[CombinedScenarioDef | SingleScenarioDef]
 
     @model_validator(mode="after")

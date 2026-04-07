@@ -1,5 +1,3 @@
-"""Tests for the scenario generator."""
-
 from __future__ import annotations
 
 import numpy as np
@@ -166,6 +164,44 @@ def test_proportion_params_get_bounds():
     efficacy = iv.parameters["efficacy"]
     assert efficacy.min_value == 0.0
     assert efficacy.max_value == 1.0
+
+
+def test_distribution_default_injected_when_key_absent():
+    # Files written before the distribution field existed should still parse.
+    data = {**PREP_PILL_INTERVENTION}
+    # Confirm raw data has no distribution key (as old files won't).
+    assert "distribution" not in data["parameters"]["efficacy"]
+    iv = InterventionDef.model_validate(data)
+    assert iv.parameters["efficacy"].distribution == "normal"
+
+
+def test_distribution_preserved_when_key_present():
+    data = {
+        **PREP_PILL_INTERVENTION,
+        "parameters": {
+            **PREP_PILL_INTERVENTION["parameters"],
+            "efficacy": {"distribution": "normal", "mean": 0.95, "sd": 0.03},
+        },
+    }
+    iv = InterventionDef.model_validate(data)
+    assert iv.parameters["efficacy"].distribution == "normal"
+
+
+def test_extra_fields_rejected_on_parameter_dist():
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        NormalDistParameters(mean=0.9, sd=0.01, typo_field=True)
+
+
+def test_extra_fields_rejected_on_intervention_def():
+    bad = {**PREP_PILL_INTERVENTION, "unexpected_key": "oops"}
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        InterventionDef.model_validate(bad)
+
+
+def test_extra_fields_rejected_on_scenario_input():
+    bad = {**MINIMAL_INPUT, "unexpected_key": "oops"}
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        ScenarioInput.model_validate(bad)
 
 
 # ---------------------------------------------------------------------------
