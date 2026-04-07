@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import csv
 import re
 from pathlib import Path
@@ -73,18 +71,46 @@ def gen_simulations(
 
 _COMBINED_PATTERN = re.compile(r"^\d+(\+\d+)+$")
 
+_EXPECTED_COLUMNS = frozenset({
+    "number",
+    "product",
+    "efficacy mean",
+    "efficacy std",
+    "adherence mean",
+    "adherence std",
+    "target coverage mean",
+    "target coverage std",
+    "target year mean",
+    "target year std",
+    "target population",
+    "sex",
+})
+
+
+def _validate_csv_columns(fieldnames: list[str]) -> None:
+    actual = frozenset(fieldnames)
+    unknown = actual - _EXPECTED_COLUMNS
+    missing = _EXPECTED_COLUMNS - actual
+    errors: list[str] = []
+    if unknown:
+        errors.append(f"Unknown column(s): {sorted(unknown)}. Expected columns: {sorted(_EXPECTED_COLUMNS)}")
+    if missing:
+        errors.append(f"Missing column(s): {sorted(missing)}")
+    if errors:
+        raise ValueError("\n".join(errors))
+
 
 def _parse_scenario_csv(path: Path) -> ScenarioInput:
     scenario_defs: list[dict] = []
     try:
-        with path.open(newline="", encoding="utf-8") as f:
-            reader = csv.reader(f)
-            next(reader)  # skip header
+        with path.open(mode="r", newline="") as f:
+            reader = csv.DictReader(f)
+            fieldnames = [field.strip().lower() for field in (reader.fieldnames or [])]
+            reader.fieldnames = fieldnames
+            _validate_csv_columns(fieldnames)
             for row in reader:
-                if not row or not row[0].strip():
-                    continue
-                row_id = int(row[0].strip())
-                product = row[1].strip()
+                row_id = int(row["number"])
+                product = row["product"]
                 if _COMBINED_PATTERN.match(product):
                     combines = [int(x) for x in product.split("+")]
                     scenario_defs.append({"id": row_id, "combines": combines})
@@ -94,13 +120,22 @@ def _parse_scenario_csv(path: Path) -> ScenarioInput:
                         "interventions": [
                             {
                                 "product": product,
-                                "target_population": [row[10].strip()],
-                                "sex": row[11].strip(),
+                                "target_population": [row["target population"]],
+                                "sex": row["sex"],
                                 "parameters": {
-                                    "efficacy": {"mean": float(row[2]), "sd": float(row[3])},
-                                    "adherence": {"mean": float(row[4]), "sd": float(row[5])},
-                                    "target_coverage": {"mean": float(row[6]), "sd": float(row[7])},
-                                    "target_year": {"mean": float(row[8]), "sd": float(row[9])},
+                                    "efficacy": {"mean": float(row["efficacy mean"]), "sd": float(row["efficacy std"])},
+                                    "adherence": {
+                                        "mean": float(row["adherence mean"]),
+                                        "sd": float(row["adherence std"]),
+                                    },
+                                    "target_coverage": {
+                                        "mean": float(row["target coverage mean"]),
+                                        "sd": float(row["target coverage std"]),
+                                    },
+                                    "target_year": {
+                                        "mean": float(row["target year mean"]),
+                                        "sd": float(row["target year std"]),
+                                    },
                                 },
                             }
                         ],

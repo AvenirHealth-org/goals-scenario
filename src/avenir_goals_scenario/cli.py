@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from importlib.metadata import version as pkg_version
 from pathlib import Path
 from typing import Annotated, Any

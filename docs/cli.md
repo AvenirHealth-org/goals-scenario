@@ -39,19 +39,19 @@ Each row is either a single-intervention scenario (all columns populated) or a c
 |---|---|
 | `Number` | Unique integer scenario ID |
 | `Product` | Intervention name, or `X+Y+Z` to combine scenarios X, Y and Z |
-| `Efficacy` | Mean efficacy |
-| `STD` | Efficacy standard deviation |
-| `Adherence` | Mean adherence |
-| `STD` | Adherence standard deviation |
-| `Target Coverage` | Mean target coverage |
-| `STD` | Target coverage standard deviation |
-| `Target Year` | Mean target year |
-| `STD` | Target year standard deviation |
+| `Efficacy mean` | Mean efficacy |
+| `Efficacy STD` | Efficacy standard deviation |
+| `Adherence mean` | Mean adherence |
+| `Adherence STD` | Adherence standard deviation |
+| `Target Coverage mean` | Mean target coverage |
+| `Target Coverage STD` | Target coverage standard deviation |
+| `Target Year mean` | Mean target year |
+| `Target Year STD` | Target year standard deviation |
 | `Target Population` | Population group (e.g. `Key pops`, `General pop`, `PLHIV`) |
 | `Sex` | `Both`, `Female`, or `Male` |
 
 ```
-Number,Product,Efficacy,STD,Adherence,STD,Target Coverage,STD,Target Year,STD,Target Population,Sex
+Number,Product,Efficacy mean,Efficacy STD,Adherence mean,Adherence STD,Target Coverage mean,Target Coverage STD,Target Year mean,Target Year STD,Target Population,Sex
 1,One month pill for PrEP,0.95,0.03,0.95,0.03,0.20,0.05,2028,2,Key pops,Both
 2,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,Key pops,Both
 ...

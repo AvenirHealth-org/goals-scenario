@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-from typing import Any
+from typing import Any, Self
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -54,10 +52,10 @@ class InterventionDef(BaseModel):
     def _convert_pop_to_array(cls, v: Any) -> list[str]:
         if isinstance(v, str):
             return [v]
-        return v  # type: ignore[return-value]
+        return v
 
     @model_validator(mode="after")
-    def _apply_parameter_constraints(self) -> InterventionDef:
+    def _apply_parameter_constraints(self) -> Self:
         """Set integer/bounds constraints based on parameter names."""
         updated: dict[str, NormalDistParameters] = {}
         for name, dist in self.parameters.items():
@@ -71,7 +69,7 @@ class InterventionDef(BaseModel):
                     changes["max_value"] = _PROPORTION_MAX
                 if changes:
                     updated[name] = dist.model_copy(update=changes)
-        if updated:
+
             self.parameters = {**self.parameters, **updated}
         return self
 
@@ -103,7 +101,7 @@ class ScenarioInput(BaseModel):
     scenario_definitions: list[CombinedScenarioDef | SingleScenarioDef]
 
     @model_validator(mode="after")
-    def _validate_combines(self) -> ScenarioInput:
+    def _validate_combines(self) -> Self:
         all_ids = [s.id for s in self.scenario_definitions]
 
         if len(all_ids) != len(set(all_ids)):

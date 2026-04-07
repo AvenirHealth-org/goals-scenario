@@ -31,59 +31,42 @@ goals-scenario --version
 ### Generate scenario simulations
 
 ```bash
-goals-scenario simulations scenario_definition.json scenario_simulations.json
+goals-scenario simulations scenario_definition.csv scenario_simulations.json
 # optionally override the number of simulations (default 100):
-goals-scenario simulations scenario_definition.json scenario_simulations.json -n 500
+goals-scenario simulations scenario_definition.csv scenario_simulations.json -n 500
 ```
 
 #### File formats
 
-Scenario definition
+Scenario definition CSV
 
-```json
-{
-  "scenario_definitions": [
-    {
-      "id": 1,
-      "interventions": [
-        {
-          "product": "One month pill for PrEP",
-          "target_population": ["People who inject drugs (PWID)", "Men who have sex with men"],
-          "sex": "both",
-          "parameters": {
-            "efficacy":        { "mean": 0.95, "sd": 0.03 },
-            "adherence":       { "mean": 0.95, "sd": 0.03 },
-            "target_coverage": { "mean": 0.20, "sd": 0.05 },
-            "target_year":     { "mean": 2028, "sd": 2    }
-          }
-        }
-      ]
-    },
-    {
-      "id": 2,
-      "interventions": [
-        {
-          "product": "Daily PrEP",
-          "target_population": ["People who inject drugs (PWID)", "Men who have sex with men"],
-          "sex": "both",
-          "parameters": {
-            "efficacy":        { "mean": 0.95, "sd": 0.03 },
-            "adherence":       { "mean": 0.80, "sd": 0.20 },
-            "target_coverage": { "mean": 0.10, "sd": 0.05 },
-            "target_year":     { "mean": 2027, "sd": 2    }
-          }
-        }
-      ]
-    },
-    ...
-    {
-      "id": 25,
-      "combines": [1, 2]
-    },
-    ...
-  ]
-}
+Each row is either a single-intervention scenario (all columns populated) or a combined scenario
+(the `Product` column contains the IDs to combine joined by `+`, all other columns empty).
+Column headers are case-insensitive.
+
 ```
+Number,Product,Efficacy mean,Efficacy STD,Adherence mean,Adherence STD,Target Coverage mean,Target Coverage STD,Target Year mean,Target Year STD,Target Population,Sex
+1,One month pill for PrEP,0.95,0.03,0.95,0.03,0.20,0.05,2028,2,Key pops,Both
+2,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,Key pops,Both
+...
+25,1+2,,,,,,,,,,
+...
+```
+
+| Column | Description |
+|---|---|
+| `Number` | Unique integer scenario ID |
+| `Product` | Intervention name, or `X+Y+Z` to combine scenarios X, Y and Z |
+| `Efficacy mean` | Mean efficacy |
+| `Efficacy STD` | Efficacy standard deviation |
+| `Adherence mean` | Mean adherence |
+| `Adherence STD` | Adherence standard deviation |
+| `Target Coverage mean` | Mean target coverage |
+| `Target Coverage STD` | Target coverage standard deviation |
+| `Target Year mean` | Mean target year |
+| `Target Year STD` | Target year standard deviation |
+| `Target Population` | Population group (e.g. `Key pops`, `General pop`, `PLHIV`) |
+| `Sex` | `Both`, `Female`, or `Male` |
 
 Scenario simulations
 
@@ -93,7 +76,7 @@ Scenario simulations
     {
       "scenario_id": 1,
       "interventions": [
-        { "id": "prep_pill", "product": "One month pill for PrEP", "target_population": ["People who inject drugs (PWID)", "Men who have sex with men"], "sex": "both" }
+        { "id": "prep_pill", "product": "One month pill for PrEP", "target_population": ["Key pops"], "sex": "Both" }
       ],
       "simulations": [
         {
@@ -108,13 +91,13 @@ Scenario simulations
     {
       "scenario_id": 25,
       "interventions": [
-        { "id": "prep_pill", "product": "One month pill for PrEP", "target_population": ["People who inject drugs (PWID)", "Men who have sex with men"], "sex": "both" },
-        { "id": "daily_prep", "product": "Daily PrEP", "target_population": ["People who inject drugs (PWID)", "Men who have sex with men"], "sex": "both" }
+        { "id": "one_month_pill_for_prep", "product": "One month pill for PrEP", "target_population": ["Key pops"], "sex": "Both" },
+        { "id": "daily_prep", "product": "Daily PrEP", "target_population": ["Key pops"], "sex": "Both" }
       ],
       "simulations": [
         {
-          "prep_pill":  { "efficacy": 0.976158, "adherence": 0.9425262, "target_coverage": 0.202123, "target_year": 2028 },
-          "daily_prep": { "efficacy": 0.96213,  "adherence": 0.951231,  "target_coverage": 0.19862,  "target_year": 2028 }
+          "one_month_pill_for_prep": { "efficacy": 0.976158, "adherence": 0.9425262, "target_coverage": 0.202123, "target_year": 2028 },
+          "daily_prep":              { "efficacy": 0.96213,  "adherence": 0.951231,  "target_coverage": 0.19862,  "target_year": 2028 }
         }
       ]
     },

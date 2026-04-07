@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import numpy as np
 import pytest
 from pydantic import ValidationError
@@ -104,12 +102,19 @@ def test_sample_target_year_floor_at_1970():
         assert dist.sample(rng) >= 1970
 
 
-def test_sample_proportion_clamped_to_0_1():
-    dist = NormalDistParameters(mean=0.5, sd=5.0, min_value=0.0, max_value=1.0)
+def test_sample_proportion_no_clamp():
+    dist = NormalDistParameters(mean=0.0, sd=5.0)
+    rng = np.random.default_rng(0)
+    samples = [dist.sample(rng) for _ in range(100)]
+    assert any(sample < 0.0 for sample in samples)
+
+
+def test_sample_proportion_clamped_to_custom_values():
+    dist = NormalDistParameters(mean=0.5, sd=5.0, min_value=1.0, max_value=2.0)
     rng = np.random.default_rng(0)
     for _ in range(100):
         v = dist.sample(rng)
-        assert 0.0 <= v <= 1.0
+        assert 1.0 <= v <= 2.0
 
 
 def test_sample_returns_float_when_not_integer():
@@ -355,18 +360,13 @@ def test_reproducible_with_same_seed():
 # load_scenario_definition
 # ---------------------------------------------------------------------------
 
-_CSV_HEADER = "Number,Product,Efficacy,STD,Adherence,STD,Target Coverage,STD,Target Year,STD,Target Population,Sex\n"
-
-_MINIMAL_CSV = _CSV_HEADER + (
-    "1,One month pill for PrEP,0.95,0.03,0.95,0.03,0.20,0.05,2028,2,key_pops,both\n"
-    "2,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops,both\n"
-)
+from scenario_csv import COMBINED_CSV, CSV_HEADER  # noqa: E402
 
 
 def test_load_valid_file(write_csv):
-    path = write_csv(_MINIMAL_CSV, "scenario_definition.csv")
+    path = write_csv(COMBINED_CSV, "scenario_definition.csv")
     definition = load_scenario_definition(path)
-    assert len(definition.scenario_definitions) == 2
+    assert len(definition.scenario_definitions) == 3
 
 
 def test_load_missing_file_raises(tmp_path):
@@ -383,14 +383,51 @@ def test_load_non_csv_extension_raises(tmp_path):
 
 def test_load_invalid_csv_raises(tmp_path):
     path = tmp_path / "bad.csv"
-    path.write_text(_CSV_HEADER + "1,Daily PrEP,not-a-number,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops,both\n")
+    path.write_text(CSV_HEADER + "1,Daily PrEP,not-a-number,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops,both\n")
     with pytest.raises(ValueError, match="Invalid scenario definition"):
         load_scenario_definition(path)
 
 
 def test_load_invalid_schema_raises(write_csv):
     # Combined row references a non-existent single scenario ID.
-    content = _CSV_HEADER + ("1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops,both\n99,1+42,,,,,,,,,,\n")
+    content = CSV_HEADER + "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops,both\n99,1+42,,,,,,,,,,\n"
     path = write_csv(content)
     with pytest.raises(ValueError, match="Invalid scenario definition"):
+        load_scenario_definition(path)
+
+
+# ---------------------------------------------------------------------------
+# Column validation
+# ---------------------------------------------------------------------------
+
+
+def test_load_unknown_column_raises(write_csv):
+    bad_header = CSV_HEADER.rstrip("\n") + ",Extra column\n"
+    content = bad_header + "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops,both,oops\n"
+    path = write_csv(content)
+    with pytest.raises(ValueError, match="Unknown column"):
+        load_scenario_definition(path)
+
+
+def test_load_unknown_column_error_includes_expected(write_csv):
+    bad_header = CSV_HEADER.rstrip("\n") + ",Typo col\n"
+    content = bad_header + "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops,both,x\n"
+    path = write_csv(content)
+    with pytest.raises(ValueError, match="Expected columns"):
+        load_scenario_definition(path)
+
+
+def test_load_missing_column_raises(write_csv):
+    bad_header = CSV_HEADER.replace(",Sex\n", "\n")
+    content = bad_header + "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops\n"
+    path = write_csv(content)
+    with pytest.raises(ValueError, match="Missing column"):
+        load_scenario_definition(path)
+
+
+def test_load_missing_column_error_names_missing(write_csv):
+    bad_header = CSV_HEADER.replace(",Sex\n", "\n")
+    content = bad_header + "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops\n"
+    path = write_csv(content)
+    with pytest.raises(ValueError, match="sex"):
         load_scenario_definition(path)
