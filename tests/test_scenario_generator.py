@@ -316,6 +316,14 @@ def test_target_year_is_int_in_output():
     assert isinstance(year, int)
 
 
+def test_target_year_value_is_near_mean():
+    # Regression: target_year was clamped to 1.0 due to `is` instead of `==` in constraint logic.
+    definition = ScenarioInput.model_validate(MINIMAL_INPUT)
+    output = gen_simulations(definition, n_simulations=50, rng=np.random.default_rng(0))
+    years = [sim["one_month_pill_for_prep"].root["target_year"] for sim in output.scenarios[0].simulations]
+    assert all(2020 <= y <= 2040 for y in years), f"Unexpected target_year values: {years}"
+
+
 def test_output_is_scenario_output_instance():
     definition = ScenarioInput.model_validate(MINIMAL_INPUT)
     output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())

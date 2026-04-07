@@ -68,7 +68,7 @@ class InterventionDef(BaseModel):
         """Set integer/bounds constraints based on parameter names."""
         updated: dict[str, ParameterDist] = {}
         for name, dist in self.parameters.items():
-            if name is _TARGET_YEAR_PARAM_NAME:
+            if name == _TARGET_YEAR_PARAM_NAME:
                 updated[name] = dist.model_copy(update={"integer": True, "min_value": _YEAR_MIN})
             else:
                 changes: dict[str, float] = {}

@@ -17,13 +17,14 @@ After installation, `goals-scenario` is available on your PATH.
 Generates a scenario simulations file from a scenario definition.
 
 ```bash
-goals-scenario simulations --definition-path scenario_definition.json --simulations-path scenario_simulations.json
+goals-scenario simulations scenario_definition.json scenario_simulations.json
 ```
 
-| Option | Description |
+| Argument / Option | Description |
 |---|---|
-| `--definition-path` | Path to the input scenario definition file |
-| `--simulations-path` | Path to write the scenario simulations file to |
+| `DEFINITION_PATH` | Path to the input scenario definition file (positional) |
+| `SIMULATIONS_PATH` | Path to write the scenario simulations file to (positional) |
+| `-n`, `--n-simulations` | Number of simulations per scenario (default: 100) |
 
 ---
 
@@ -119,12 +120,12 @@ Scenario simulations
 Runs scenario analysis across a directory of PJNZ files, driven by a JSON config file.
 
 ```bash
-goals-scenario run --config-path config.json
+goals-scenario run config.json
 ```
 
-| Option | Description |
+| Argument | Description |
 |---|---|
-| `--config-path` | Path to a JSON config file |
+| `CONFIG_PATH` | Path to a JSON config file (positional) |
 
 #### Config file format
 
@@ -159,7 +160,7 @@ Field names are case-insensitive (`Goals_path`, `goals_path`, and `GOALS_PATH` a
 
 | Option | Description |
 |---|---|
-| `--version`, `-v` | Show version and exit |
+| `--version` | Show version and exit |
 | `--help`, `-h` | Show help and exit |
 
 ## Tab completion

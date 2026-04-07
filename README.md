@@ -31,7 +31,9 @@ goals-scenario --version   # or -v
 ### Generate scenario simulations
 
 ```bash
-goals-scenario simulations --definition-path=scenario_definition.json --simulations-path=scenario_simulations.json
+goals-scenario simulations scenario_definition.json scenario_simulations.json
+# optionally override the number of simulations (default 100):
+goals-scenario simulations scenario_definition.json scenario_simulations.json -n 500
 ```
 
 #### File formats
@@ -126,7 +128,7 @@ Scenario simulations
 Analysis is configured via a JSON config file:
 
 ```bash
-goals-scenario run --config-path config.json
+goals-scenario run config.json
 ```
 
 #### Config file format

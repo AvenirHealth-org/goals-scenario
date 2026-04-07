@@ -48,7 +48,7 @@ def _version_callback(value: bool) -> None:
 def _app_callback(
     version: Annotated[
         bool | None,
-        typer.Option("-v", "--version", help="Show version and exit.", callback=_version_callback, is_eager=True),
+        typer.Option("--version", help="Show version and exit.", callback=_version_callback, is_eager=True),
     ] = None,
 ) -> None:
     pass
@@ -61,24 +61,24 @@ def _fmt_error(e: Exception) -> str:
 
 @app.command()
 def simulations(
-    definition_path: Annotated[
-        Path, typer.Option("--definition-path", help="Path to the input scenario definition file.")
-    ],
-    simulations_path: Annotated[
-        Path, typer.Option("--simulations-path", help="Path to write the scenario simulations file to.")
-    ],
+    definition_path: Annotated[Path, typer.Argument(help="Path to the input scenario definition file.")],
+    simulations_path: Annotated[Path, typer.Argument(help="Path to write the scenario simulations file to.")],
+    n_simulations: Annotated[
+        int, typer.Option("-n", "--n-simulations", help="Number of simulations to generate for each scenario.")
+    ] = 100,
 ) -> None:
     """Generate a scenario simulations file from a scenario definition."""
     try:
-        generate_simulations(definition_path, simulations_path)
+        generate_simulations(definition_path, simulations_path, n_simulations)
     except Exception as e:
         typer.echo(f"Error: {_fmt_error(e)}", err=True)
         raise typer.Exit(code=1) from None
+    typer.echo(f"Done. Simulations saved to {simulations_path.resolve()}")
 
 
 @app.command()
 def run(
-    config_path: Annotated[Path, typer.Option("--config-path", help="Path to a JSON config file.")],
+    config_path: Annotated[Path, typer.Argument(help="Path to a JSON config file.")],
 ) -> None:
     """Run scenario analysis using a JSON config file."""
     try:
@@ -90,15 +90,17 @@ def run(
         typer.echo(f"Error: {_fmt_error(e)}", err=True)
         raise typer.Exit(code=1) from None
 
+    output_path = Path(config.output_path) / config.output_file_name
     try:
         run_scenario_analysis(
             pjnz_dir=Path(config.goals_path),
             scenarios_path=Path(config.scenario_path) / config.scenario_file_name,
-            output_path=Path(config.output_path) / config.output_file_name,
+            output_path=output_path,
         )
     except Exception as e:
         typer.echo(f"Error: {_fmt_error(e)}", err=True)
         raise typer.Exit(code=1) from None
+    typer.echo(f"Done. Output saved to {output_path.resolve()}")
 
 
 def _load_config(path: Path) -> RunConfig:
