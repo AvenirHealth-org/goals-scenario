@@ -9,7 +9,7 @@ import typer
 from pydantic import BaseModel, ValidationError, model_validator
 
 from avenir_goals_scenario.runner import run_scenario_analysis
-from avenir_goals_scenario.scenarios import generate_scenarios
+from avenir_goals_scenario.scenarios import generate_simulations
 
 _CONTEXT = {"help_option_names": ["-h", "--help"]}
 
@@ -60,12 +60,17 @@ def _fmt_error(e: Exception) -> str:
 
 
 @app.command()
-def scenarios(
-    dest_path: Annotated[Path, typer.Option("--dest-path", help="Path to write the generated scenarios file to.")],
+def simulations(
+    definition_path: Annotated[
+        Path, typer.Option("--definition-path", help="Path to the input scenario definition file.")
+    ],
+    simulations_path: Annotated[
+        Path, typer.Option("--simulations-path", help="Path to write the scenario simulations file to.")
+    ],
 ) -> None:
-    """Generate a scenarios file."""
+    """Generate a scenario simulations file from a scenario definition."""
     try:
-        generate_scenarios(dest_path)
+        generate_simulations(definition_path, simulations_path)
     except Exception as e:
         typer.echo(f"Error: {_fmt_error(e)}", err=True)
         raise typer.Exit(code=1) from None

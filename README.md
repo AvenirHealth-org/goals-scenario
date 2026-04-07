@@ -28,15 +28,15 @@ goals-scenario --help      # or -h
 goals-scenario --version   # or -v
 ```
 
-### Generate scenarios
+### Generate scenario simulations
 
 ```bash
-goals-scenario scenarios --input=scenario_specification.json --dest-path=scenario_descriptor.json
+goals-scenario simulations --definition-path=scenario_definition.json --simulations-path=scenario_simulations.json
 ```
 
 #### File formats
 
-Scenario specification
+Scenario definition
 
 ```json
 {
@@ -83,7 +83,7 @@ Scenario specification
 }
 ```
 
-Scenario descriptor
+Scenario simulations
 
 ```json
 {
@@ -107,7 +107,7 @@ Scenario descriptor
       "scenario_id": 25,
       "interventions": [
         { "id": "prep_pill", "product": "One month pill for PrEP", "target_population": ["People who inject drugs (PWID)", "Men who have sex with men"], "sex": "both" },
-        { "id": "daily_prep", "product": "Daily PrEP", "target_population": "key_pops", "sex": "both" }
+        { "id": "daily_prep", "product": "Daily PrEP", "target_population": ["People who inject drugs (PWID)", "Men who have sex with men"], "sex": "both" }
       ],
       "simulations": [
         {
@@ -136,7 +136,7 @@ Field names are case-insensitive.
 ```json
 {
   "Goals_path": "path/to/pjnz.files",
-  "Scenario_path": "path/to/scenario_descriptor.json",
+  "Scenario_path": "path/to/scenario_simulations.json",
   "Output_path": "path/to/scenario_output.?",
   "Base_year": "2025",
   "Output_indicators": [
@@ -153,7 +153,7 @@ Field names are case-insensitive.
 | Field | Description |
 |---|---|
 | `Goals_path` | Directory containing `.PJNZ` files |
-| `Scenario_path` | Path to scenario descriptor JSON file |
+| `Scenario_path` | Path to scenario simulations JSON file |
 | `Output_path` | Path to write output to |
 | `Base_year` | Base year for the analysis |
 | `Output_indicators` | List of indicators to include in output |
