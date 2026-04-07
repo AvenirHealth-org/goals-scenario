@@ -25,7 +25,7 @@ For full details of the CLI please see the [CLI reference](https://avenirhealth-
 
 ```bash
 goals-scenario --help      # or -h
-goals-scenario --version   # or -v
+goals-scenario --version
 ```
 
 ### Generate scenario simulations
