@@ -1,5 +1,4 @@
-
-#Constants for modvar tags
+# Constants for modvar tags
 import SpectrumCommon.Const.DP as dpconst
 import SpectrumCommon.Const.HV as hvconst
 from Tools.ImportPJNZ.Importer import GB_ImportProjectionFromFile
