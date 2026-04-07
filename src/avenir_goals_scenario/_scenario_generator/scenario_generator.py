@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import csv
 import re
 from pathlib import Path
 
 import numpy as np
-import orjson
 from pydantic import ValidationError
 
 from avenir_goals_scenario._scenario_generator.models.scenario_definition import ScenarioInput
@@ -71,31 +71,66 @@ def gen_simulations(
     )
 
 
+_COMBINED_PATTERN = re.compile(r"^\d+(\+\d+)+$")
+
+
+def _parse_scenario_csv(path: Path) -> ScenarioInput:
+    scenario_defs: list[dict] = []
+    try:
+        with path.open(newline="", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            next(reader)  # skip header
+            for row in reader:
+                if not row or not row[0].strip():
+                    continue
+                row_id = int(row[0].strip())
+                product = row[1].strip()
+                if _COMBINED_PATTERN.match(product):
+                    combines = [int(x) for x in product.split("+")]
+                    scenario_defs.append({"id": row_id, "combines": combines})
+                else:
+                    scenario_defs.append({
+                        "id": row_id,
+                        "interventions": [
+                            {
+                                "product": product,
+                                "target_population": [row[10].strip()],
+                                "sex": row[11].strip(),
+                                "parameters": {
+                                    "efficacy": {"mean": float(row[2]), "sd": float(row[3])},
+                                    "adherence": {"mean": float(row[4]), "sd": float(row[5])},
+                                    "target_coverage": {"mean": float(row[6]), "sd": float(row[7])},
+                                    "target_year": {"mean": float(row[8]), "sd": float(row[9])},
+                                },
+                            }
+                        ],
+                    })
+    except (ValueError, IndexError) as e:
+        msg = f"Invalid scenario definition: {e}"
+        raise ValueError(msg) from e
+
+    try:
+        return ScenarioInput.model_validate({"scenario_definitions": scenario_defs})
+    except ValidationError as e:
+        msg = f"Invalid scenario definition:\n{e}"
+        raise ValueError(msg) from e
+
+
 def load_scenario_definition(path: Path) -> ScenarioInput:
-    """Load and validate a scenario definition JSON file.
+    """Load and validate a scenario definition CSV file.
 
     Args:
-        path: Path to the JSON file.
+        path: Path to the CSV file.
 
     Raises:
         FileNotFoundError: If the file does not exist.
-        ValueError: If the file is not ``.json``, contains invalid JSON, or fails schema validation.
+        ValueError: If the file is not ``.csv`` or its contents fail schema validation.
     """
-    if path.suffix.lower() != ".json":
-        msg = f"Input file must be a JSON file (.json), got: {path.suffix or '(no extension)'}"
+    if path.suffix.lower() != ".csv":
+        msg = f"Input file must be a CSV file (.csv), got: {path.suffix or '(no extension)'}"
         raise ValueError(msg)
     if not path.exists():
         msg = f"Input file not found: {path}"
         raise FileNotFoundError(msg)
 
-    try:
-        data = orjson.loads(path.read_bytes())
-    except orjson.JSONDecodeError as e:
-        msg = f"Input file contains invalid JSON: {e}"
-        raise ValueError(msg) from e
-
-    try:
-        return ScenarioInput.model_validate(data)
-    except ValidationError as e:
-        msg = f"Invalid scenario definition:\n{e}"
-        raise ValueError(msg) from e
+    return _parse_scenario_csv(path)

@@ -17,3 +17,15 @@ def write_json(tmp_path: Path):
         return path
 
     return _write
+
+
+@pytest.fixture
+def write_csv(tmp_path: Path):
+    """Factory fixture: writes CSV text to a temp file, returns the path."""
+
+    def _write(content: str, filename: str = "input.csv") -> Path:
+        path = tmp_path / filename
+        path.write_text(content, encoding="utf-8")
+        return path
+
+    return _write

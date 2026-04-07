@@ -17,12 +17,12 @@ After installation, `goals-scenario` is available on your PATH.
 Generates a scenario simulations file from a scenario definition.
 
 ```bash
-goals-scenario simulations scenario_definition.json scenario_simulations.json
+goals-scenario simulations scenario_definition.csv scenario_simulations.json
 ```
 
 | Argument / Option | Description |
 |---|---|
-| `DEFINITION_PATH` | Path to the input scenario definition file (positional) |
+| `DEFINITION_PATH` | Path to the input scenario definition CSV file (positional) |
 | `SIMULATIONS_PATH` | Path to write the scenario simulations file to (positional) |
 | `-n`, `--n-simulations` | Number of simulations per scenario (default: 100) |
 
@@ -30,51 +30,33 @@ goals-scenario simulations scenario_definition.json scenario_simulations.json
 
 #### File formats
 
-Scenario definition
+Scenario definition CSV
 
-```json
-{
-  "scenario_definitions": [
-    {
-      "id": 1,
-      "interventions": [
-        {
-          "product": "One month pill for PrEP",
-          "target_population": ["People who inject drugs (PWID)", "Men who have sex with men"],
-          "sex": "both",
-          "parameters": {
-            "efficacy":        { "mean": 0.95, "sd": 0.03 },
-            "adherence":       { "mean": 0.95, "sd": 0.03 },
-            "target_coverage": { "mean": 0.20, "sd": 0.05 },
-            "target_year":     { "mean": 2028, "sd": 2    }
-          }
-        }
-      ]
-    },
-    {
-      "id": 2,
-      "interventions": [
-        {
-          "product": "Daily PrEP",
-          "target_population": ["People who inject drugs (PWID)", "Men who have sex with men"],
-          "sex": "both",
-          "parameters": {
-            "efficacy":        { "mean": 0.95, "sd": 0.03 },
-            "adherence":       { "mean": 0.80, "sd": 0.20 },
-            "target_coverage": { "mean": 0.10, "sd": 0.05 },
-            "target_year":     { "mean": 2027, "sd": 2    }
-          }
-        }
-      ]
-    },
-    ...
-    {
-      "id": 25,
-      "combines": [1, 2]
-    },
-    ...
-  ]
-}
+Each row is either a single-intervention scenario (all columns populated) or a combined scenario
+(the `Product` column contains the IDs to combine joined by `+`, all other columns empty).
+
+| Column | Description |
+|---|---|
+| `Number` | Unique integer scenario ID |
+| `Product` | Intervention name, or `X+Y+Z` to combine scenarios X, Y and Z |
+| `Efficacy` | Mean efficacy |
+| `STD` | Efficacy standard deviation |
+| `Adherence` | Mean adherence |
+| `STD` | Adherence standard deviation |
+| `Target Coverage` | Mean target coverage |
+| `STD` | Target coverage standard deviation |
+| `Target Year` | Mean target year |
+| `STD` | Target year standard deviation |
+| `Target Population` | Population group (e.g. `Key pops`, `General pop`, `PLHIV`) |
+| `Sex` | `Both`, `Female`, or `Male` |
+
+```
+Number,Product,Efficacy,STD,Adherence,STD,Target Coverage,STD,Target Year,STD,Target Population,Sex
+1,One month pill for PrEP,0.95,0.03,0.95,0.03,0.20,0.05,2028,2,Key pops,Both
+2,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,Key pops,Both
+...
+25,1+2,,,,,,,,,,
+...
 ```
 
 Scenario simulations

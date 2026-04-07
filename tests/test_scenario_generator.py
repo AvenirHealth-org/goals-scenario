@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import numpy as np
-import orjson
 import pytest
 from pydantic import ValidationError
 
@@ -166,30 +165,9 @@ def test_proportion_params_get_bounds():
     assert efficacy.max_value == 1.0
 
 
-def test_distribution_default_injected_when_key_absent():
-    # Files written before the distribution field existed should still parse.
-    data = {**PREP_PILL_INTERVENTION}
-    # Confirm raw data has no distribution key (as old files won't).
-    assert "distribution" not in data["parameters"]["efficacy"]
-    iv = InterventionDef.model_validate(data)
-    assert iv.parameters["efficacy"].distribution == "normal"
-
-
-def test_distribution_preserved_when_key_present():
-    data = {
-        **PREP_PILL_INTERVENTION,
-        "parameters": {
-            **PREP_PILL_INTERVENTION["parameters"],
-            "efficacy": {"distribution": "normal", "mean": 0.95, "sd": 0.03},
-        },
-    }
-    iv = InterventionDef.model_validate(data)
-    assert iv.parameters["efficacy"].distribution == "normal"
-
-
 def test_extra_fields_rejected_on_parameter_dist():
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        NormalDistParameters(mean=0.9, sd=0.01, typo_field=True)
+        NormalDistParameters(mean=0.9, sd=0.01, typo_field=True)  # ty: ignore
 
 
 def test_extra_fields_rejected_on_intervention_def():
@@ -377,33 +355,42 @@ def test_reproducible_with_same_seed():
 # load_scenario_definition
 # ---------------------------------------------------------------------------
 
+_CSV_HEADER = "Number,Product,Efficacy,STD,Adherence,STD,Target Coverage,STD,Target Year,STD,Target Population,Sex\n"
 
-def test_load_valid_file(write_json):
-    path = write_json(MINIMAL_INPUT, "scenario_definition.json")
+_MINIMAL_CSV = _CSV_HEADER + (
+    "1,One month pill for PrEP,0.95,0.03,0.95,0.03,0.20,0.05,2028,2,key_pops,both\n"
+    "2,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops,both\n"
+)
+
+
+def test_load_valid_file(write_csv):
+    path = write_csv(_MINIMAL_CSV, "scenario_definition.csv")
     definition = load_scenario_definition(path)
     assert len(definition.scenario_definitions) == 2
 
 
 def test_load_missing_file_raises(tmp_path):
     with pytest.raises(FileNotFoundError, match="not found"):
-        load_scenario_definition(tmp_path / "missing.json")
+        load_scenario_definition(tmp_path / "missing.csv")
 
 
-def test_load_non_json_extension_raises(tmp_path):
-    path = tmp_path / "input.csv"
-    path.write_bytes(orjson.dumps({}))
-    with pytest.raises(ValueError, match=r"\.json"):
+def test_load_non_csv_extension_raises(tmp_path):
+    path = tmp_path / "input.json"
+    path.write_text("{}")
+    with pytest.raises(ValueError, match=r"\.csv"):
         load_scenario_definition(path)
 
 
-def test_load_invalid_json_raises(tmp_path):
-    path = tmp_path / "bad.json"
-    path.write_bytes(b"{not valid json")
-    with pytest.raises(ValueError, match="invalid JSON"):
+def test_load_invalid_csv_raises(tmp_path):
+    path = tmp_path / "bad.csv"
+    path.write_text(_CSV_HEADER + "1,Daily PrEP,not-a-number,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops,both\n")
+    with pytest.raises(ValueError, match="Invalid scenario definition"):
         load_scenario_definition(path)
 
 
-def test_load_invalid_schema_raises(write_json):
-    path = write_json({"scenario_definitions": [{"id": "not-an-int"}]})
+def test_load_invalid_schema_raises(write_csv):
+    # Combined row references a non-existent single scenario ID.
+    content = _CSV_HEADER + ("1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops,both\n99,1+42,,,,,,,,,,\n")
+    path = write_csv(content)
     with pytest.raises(ValueError, match="Invalid scenario definition"):
         load_scenario_definition(path)

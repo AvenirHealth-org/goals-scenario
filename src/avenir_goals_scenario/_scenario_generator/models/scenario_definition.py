@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -10,19 +10,10 @@ class NormalDistParameters(BaseModel):
     """Parameters for a normal distribution.
 
     Sampling draws from N(mean, sd), optionally clamped and rounded to int.
-
-    To add a new distribution type (e.g. Uniform):
-      1. Define a new model with a ``distribution: Literal["uniform"]`` field and a ``sample()`` method.
-      2. Update the ``ParameterDist`` type alias to a discriminated union:
-         ``Annotated[NormalDistParameters | UniformDistParameters, Field(discriminator="distribution")]``
-      3. Add ``"uniform"`` to ``_inject_distribution_default`` in ``InterventionDef`` if the new type
-         should also be the default for files that omit the ``distribution`` key.
-      4. Update ``InterventionDef._apply_parameter_constraints`` if new constraints are needed.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    distribution: Literal["normal"] = "normal"
     mean: float
     sd: float = Field(ge=0)
     integer: bool = False
@@ -41,9 +32,6 @@ class NormalDistParameters(BaseModel):
         return float(raw)
 
 
-# Extend this union as more distribution types are added.
-ParameterDist = NormalDistParameters
-
 # Parameters that produce integer outputs.
 _TARGET_YEAR_PARAM_NAME = "target_year"
 # Floor applied to target_year samples.
@@ -59,7 +47,7 @@ class InterventionDef(BaseModel):
     product: str
     target_population: list[str]
     sex: str
-    parameters: dict[str, ParameterDist]
+    parameters: dict[str, NormalDistParameters]
 
     @field_validator("target_population", mode="before")
     @classmethod
@@ -68,25 +56,10 @@ class InterventionDef(BaseModel):
             return [v]
         return v  # type: ignore[return-value]
 
-    @field_validator("parameters", mode="before")
-    @classmethod
-    def _inject_distribution_default(cls, v: Any) -> Any:
-        """Inject ``distribution: "normal"`` into any parameter dict that omits it.
-
-        By default we assume "normal" distribution, but want to support more types
-        in the future.
-        """
-        if isinstance(v, dict):
-            return {
-                name: {"distribution": "normal", **p} if isinstance(p, dict) and "distribution" not in p else p
-                for name, p in v.items()
-            }
-        return v
-
     @model_validator(mode="after")
     def _apply_parameter_constraints(self) -> InterventionDef:
         """Set integer/bounds constraints based on parameter names."""
-        updated: dict[str, ParameterDist] = {}
+        updated: dict[str, NormalDistParameters] = {}
         for name, dist in self.parameters.items():
             if name == _TARGET_YEAR_PARAM_NAME:
                 updated[name] = dist.model_copy(update={"integer": True, "min_value": _YEAR_MIN})

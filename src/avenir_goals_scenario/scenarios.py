@@ -21,14 +21,14 @@ def generate_simulations(
     each scenario, and writes the result as JSON to ``simulations_path``.
 
     Args:
-        definition_path: Path to the input JSON scenario definitions file.
+        definition_path: Path to the input CSV scenario definitions file.
         simulations_path: Path where the generated scenario simulations JSON will be written.
         n_simulations: Number of simulations drawn per scenario.
 
     Raises:
         FileNotFoundError: If ``definition_path`` does not exist, or the parent
             directory of ``simulations_path`` does not exist.
-        ValueError: If ``definition_path`` is not a valid ``.json`` file or its
+        ValueError: If ``definition_path`` is not a valid ``.csv`` file or its
             contents fail schema validation.
     """
     definition_path = Path(definition_path).resolve()
