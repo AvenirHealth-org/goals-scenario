@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Goals Scenario Architecture" id="main">
-    <mxGraphModel dx="1414" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="950" math="0" shadow="0">
+    <mxGraphModel dx="2054" dy="1114" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="950" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -60,10 +60,10 @@
         <mxCell id="pkg_goals" parent="1" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;fontStyle=1;" value="avenir-goals-scenario" vertex="1">
           <mxGeometry height="55" width="240" x="755" y="350" as="geometry" />
         </mxCell>
-        <mxCell id="user_py" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;align=left;" value="&lt;b&gt;Python API&lt;/b&gt;&lt;br&gt;from avenir_goals_scenario import generate_scenarios, run_scenario_analysis&lt;br&gt;# generate_scenarios takes scenario specification file and outputs scenario descriptor&lt;br&gt;generate_scenarios(&#39;scenario_specification.json&#39;, &quot;scenario_descriptor.json&quot;)&lt;br&gt;# run_scenario_analysis takes scenario_descriptor, applies each scenario to a PJNZ in turn and runs # the model&lt;br&gt;run_scenario_analysis(&quot;pjnz_dir/&quot;, &quot;scenario_descriptor.json&quot;, &quot;output_dir/&quot;)" vertex="1">
+        <mxCell id="user_py" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;align=left;" value="&lt;b&gt;Python API&lt;/b&gt;&lt;br&gt;from avenir_goals_scenario import generate_simulations, run_scenario_analysis&lt;br&gt;# generate_simulations takes scenario definition file and outputs scenario simulations file&lt;br&gt;generate_simulations(&#39;scenario_description.json&#39;, &quot;scenario_simulations.json&quot;)&lt;br&gt;# run_scenario_analysis takes goals simulations, applies each simulation for each scenario to&amp;nbsp;&lt;br&gt;# a PJNZ in turn and runs&lt;br&gt;run_scenario_analysis(&quot;pjnz_dir/&quot;, &quot;scenario_simulations.json&quot;, &quot;output_dir/&quot;)" vertex="1">
           <mxGeometry height="117" width="450" x="270" y="568" as="geometry" />
         </mxCell>
-        <mxCell id="user_cli" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;align=left;" value="&lt;b&gt;CLI&lt;/b&gt;&lt;br&gt;$ goals-scenario scenarios --input=scenario_specification.json --dest-path=scenario_descriptor.json&lt;br&gt;$ goals-scenario run --config-path=config.json&lt;br&gt;&lt;i&gt;config.json: { scenarios_path, pjnz_dir, output_dir }&lt;/i&gt;" vertex="1">
+        <mxCell id="user_cli" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;align=left;" value="&lt;b&gt;CLI&lt;/b&gt;&lt;br&gt;$ goals-scenario simulations scenario_description.json scenario_simulations.json&lt;br&gt;$ goals-scenario run config.json&lt;br&gt;&lt;i&gt;config.json: { scenarios_path, pjnz_dir, output_dir, base_year, output_indicators }&lt;/i&gt;" vertex="1">
           <mxGeometry height="117" width="450" x="750" y="568" as="geometry" />
         </mxCell>
         <mxCell id="e_pub_leapfrog" edge="1" parent="1" source="repo_leapfrog" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#6c8ebf;fontStyle=2;fontSize=9;endArrow=open;endFill=0;" target="pkg_leapfrog" value="publishes (incl. compiled binaries)">
