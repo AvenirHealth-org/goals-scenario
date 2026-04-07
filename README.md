@@ -31,7 +31,94 @@ goals-scenario --version   # or -v
 ### Generate scenarios
 
 ```bash
-goals-scenario scenarios --dest-path ./scenarios.csv
+goals-scenario scenarios --input=scenario_specification.json --dest-path=scenario_descriptor.json
+```
+
+#### File formats
+
+Scenario specification
+
+```json
+{
+  "scenario_definitions": [
+    {
+      "id": 1,
+      "interventions": [
+        {
+          "product": "One month pill for PrEP",
+          "target_population": ["People who inject drugs (PWID)", "Men who have sex with men"],
+          "sex": "both",
+          "parameters": {
+            "efficacy":        { "mean": 0.95, "sd": 0.03 },
+            "adherence":       { "mean": 0.95, "sd": 0.03 },
+            "target_coverage": { "mean": 0.20, "sd": 0.05 },
+            "target_year":     { "mean": 2028, "sd": 2    }
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "interventions": [
+        {
+          "product": "Daily PrEP",
+          "target_population": ["People who inject drugs (PWID)", "Men who have sex with men"],
+          "sex": "both",
+          "parameters": {
+            "efficacy":        { "mean": 0.95, "sd": 0.03 },
+            "adherence":       { "mean": 0.80, "sd": 0.20 },
+            "target_coverage": { "mean": 0.10, "sd": 0.05 },
+            "target_year":     { "mean": 2027, "sd": 2    }
+          }
+        }
+      ]
+    },
+    ...
+    {
+      "id": 25,
+      "combines": [1, 2]
+    },
+    ...
+  ]
+}
+```
+
+Scenario descriptor
+
+```json
+{
+  "scenarios": [
+    {
+      "scenario_id": 1,
+      "interventions": [
+        { "id": "prep_pill", "product": "One month pill for PrEP", "target_population": ["People who inject drugs (PWID)", "Men who have sex with men"], "sex": "both" }
+      ],
+      "simulations": [
+        {
+          "prep_pill": { "efficacy": 0.976158, "adherence": 0.9425262, "target_coverage": 0.202123, "target_year": 2028 }
+        },
+        {
+          "prep_pill": { "efficacy": 0.96213, "adherence": 0.951231, "target_coverage": 0.19862, "target_year": 2028 }
+        }
+      ]
+    },
+    ...
+    {
+      "scenario_id": 25,
+      "interventions": [
+        { "id": "prep_pill", "product": "One month pill for PrEP", "target_population": ["People who inject drugs (PWID)", "Men who have sex with men"], "sex": "both" },
+        { "id": "daily_prep", "product": "Daily PrEP", "target_population": "key_pops", "sex": "both" }
+      ],
+      "simulations": [
+        {
+          "prep_pill":  { "efficacy": 0.976158, "adherence": 0.9425262, "target_coverage": 0.202123, "target_year": 2028 },
+          "daily_prep": { "efficacy": 0.96213,  "adherence": 0.951231,  "target_coverage": 0.19862,  "target_year": 2028 }
+        }
+      ]
+    },
+    ...
+  ]
+}
 ```
 
 ### Run scenario analysis
@@ -48,11 +135,9 @@ Field names are case-insensitive.
 
 ```json
 {
-  "Goals_path": "path/to/pjnz/files",
-  "Scenario_path": "path/to/scenarios/scenarios.csv",
-  "Scenario_file_name": "scenarios.csv",
-  "Output_path": "path/to/output",
-  "Output_file_name": "results.parquet",
+  "Goals_path": "path/to/pjnz.files",
+  "Scenario_path": "path/to/scenario_descriptor.json",
+  "Output_path": "path/to/scenario_output.?",
   "Base_year": "2025",
   "Output_indicators": [
     "PLHIV",
@@ -68,10 +153,8 @@ Field names are case-insensitive.
 | Field | Description |
 |---|---|
 | `Goals_path` | Directory containing `.PJNZ` files |
-| `Scenario_path` | Directory containing the scenario file |
-| `Scenario_file_name` | Filename of the scenario CSV |
-| `Output_path` | Directory to write output to |
-| `Output_file_name` | Filename for the output file |
+| `Scenario_path` | Path to scenario descriptor JSON file |
+| `Output_path` | Path to write output to |
 | `Base_year` | Base year for the analysis |
 | `Output_indicators` | List of indicators to include in output |
 
@@ -84,6 +167,10 @@ goals-scenario --install-completion
 ```
 
 ## Development
+
+### Architecture
+
+![architecture diagram](images/goals_scenario_architecture.png)
 
 ### Prerequisites
 
