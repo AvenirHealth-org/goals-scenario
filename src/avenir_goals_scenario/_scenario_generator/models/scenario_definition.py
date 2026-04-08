@@ -68,7 +68,7 @@ class InterventionDef(BaseModel):
                 if changes:
                     updated[name] = dist.model_copy(update=changes)
 
-            self.parameters = {**self.parameters, **updated}
+        self.parameters = {**self.parameters, **updated}
         return self
 
 

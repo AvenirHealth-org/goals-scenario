@@ -126,55 +126,67 @@ def _validate_consistent_rows(scenario_id: int, rows: list[dict]) -> None:
                 raise ValueError(msg)
 
 
-def _parse_scenario_csv(path: Path) -> ScenarioInput:
+def _build_scenario_def(scenario_id: int, rows: list[dict]) -> dict:
+    first = rows[0]
+    product = first["product"]
+    if _COMBINED_PATTERN.match(product):
+        combines = [int(x) for x in product.split("+")]
+        scenario = {"id": scenario_id, "combines": combines}
+    else:
+        _validate_consistent_rows(scenario_id, rows)
+        scenario = {
+            "id": scenario_id,
+            "interventions": [
+                {
+                    "product": product,
+                    "targets": [{"population": r["target population"], "sex": r["sex"]} for r in rows],
+                    "parameters": {
+                        "efficacy": {"mean": float(first["efficacy mean"]), "sd": float(first["efficacy std"])},
+                        "adherence": {
+                            "mean": float(first["adherence mean"]),
+                            "sd": float(first["adherence std"]),
+                        },
+                        "target_coverage": {
+                            "mean": float(first["target coverage mean"]),
+                            "sd": float(first["target coverage std"]),
+                        },
+                        "target_year": {
+                            "mean": float(first["target year mean"]),
+                            "sd": float(first["target year std"]),
+                        },
+                    },
+                }
+            ],
+        }
+
+    return scenario
+
+
+def _read_csv_groups(path: Path) -> dict[int, list[dict]]:
+    """Open a scenario CSV and return rows grouped by scenario ID."""
     groups: dict[int, list[dict]] = {}
-    try:
-        with path.open(mode="r", newline="") as f:
-            reader = csv.DictReader(f)
-            fieldnames = [field.strip().lower() for field in (reader.fieldnames or [])]
-            reader.fieldnames = fieldnames
-            _validate_csv_columns(fieldnames)
-            for raw_row in reader:
-                row = {k: v.strip() for k, v in raw_row.items()}
+    with path.open(mode="r", newline="") as f:
+        reader = csv.DictReader(f)
+        fieldnames = [field.strip().lower() for field in (reader.fieldnames or [])]
+        reader.fieldnames = fieldnames
+        _validate_csv_columns(fieldnames)
+        for raw_row in reader:
+            row = {k: v.strip() for k, v in raw_row.items()}
+            try:
                 scenario_id = int(row["number"])
-                if scenario_id not in groups:
-                    groups[scenario_id] = []
-                groups[scenario_id].append(row)
+            except ValueError as e:
+                msg = f"Row {reader.line_num}: 'Number' must be an integer, got {row['number']!r}"
+                raise ValueError(msg) from e
+            if scenario_id not in groups:
+                groups[scenario_id] = []
+            groups[scenario_id].append(row)
+    return groups
 
-        scenario_defs: list[dict] = []
-        for scenario_id, rows in groups.items():
-            first = rows[0]
-            product = first["product"]
-            if _COMBINED_PATTERN.match(product):
-                combines = [int(x) for x in product.split("+")]
-                scenario_defs.append({"id": scenario_id, "combines": combines})
-            else:
-                _validate_consistent_rows(scenario_id, rows)
-                scenario_defs.append({
-                    "id": scenario_id,
-                    "interventions": [
-                        {
-                            "product": product,
-                            "targets": [{"population": r["target population"], "sex": r["sex"]} for r in rows],
-                            "parameters": {
-                                "efficacy": {"mean": float(first["efficacy mean"]), "sd": float(first["efficacy std"])},
-                                "adherence": {
-                                    "mean": float(first["adherence mean"]),
-                                    "sd": float(first["adherence std"]),
-                                },
-                                "target_coverage": {
-                                    "mean": float(first["target coverage mean"]),
-                                    "sd": float(first["target coverage std"]),
-                                },
-                                "target_year": {
-                                    "mean": float(first["target year mean"]),
-                                    "sd": float(first["target year std"]),
-                                },
-                            },
-                        }
-                    ],
-                })
 
+def _parse_scenario_csv(path: Path) -> ScenarioInput:
+    try:
+        groups = _read_csv_groups(path)
+        scenario_defs = [_build_scenario_def(scenario_id, rows) for scenario_id, rows in groups.items()]
     except (ValueError, IndexError) as e:
         msg = f"Invalid scenario definition: {e}"
         raise ValueError(msg) from e

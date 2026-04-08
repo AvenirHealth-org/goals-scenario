@@ -12,7 +12,12 @@ check: ## Run code quality tools.
 	@uv run pre-commit run -a
 	@echo "🚀 Static type checking: Running ty"
 	@uv run ty check
+
+.PHONY: audit
+audit: ## Run pip-audit.
 	@echo "🚀 Vulnerability check: Running pip-audit"
+## CVE-2026-4539: safe to ignore, pygments author says not a problem and
+## is a flase positive. Will be fixed come pygments 2.20 though.
 	@uv run pip-audit --desc -s osv --ignore-vuln CVE-2026-4539
 
 .PHONY: test

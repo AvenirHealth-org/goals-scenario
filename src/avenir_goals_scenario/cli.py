@@ -4,7 +4,7 @@ from typing import Annotated, Any
 
 import orjson
 import typer
-from pydantic import BaseModel, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
 from avenir_goals_scenario.runner import run_scenario_analysis
 from avenir_goals_scenario.scenarios import generate_simulations
@@ -20,12 +20,14 @@ class RunConfig(BaseModel):
     Field names are case-insensitive: Goals_path, goals_path, GOALS_PATH all work.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     goals_path: str
     scenario_path: str
     scenario_file_name: str
     output_path: str
     output_file_name: str
-    base_year: str
+    base_year: int
     output_indicators: list[str]
 
     @model_validator(mode="before")
@@ -33,7 +35,7 @@ class RunConfig(BaseModel):
     def _lowercase_keys(cls, data: Any) -> Any:
         if isinstance(data, dict):
             return {k.lower(): v for k, v in data.items()}
-        return data  # pragma: no cover
+        return data
 
 
 def _version_callback(value: bool) -> None:
@@ -120,7 +122,7 @@ def _load_config(path: Path) -> RunConfig:
         err_msg = f"Config file must be a JSON file (.json), got: {path.suffix or '(no extension)'}"
         raise ValueError(err_msg)
     try:
-        data = orjson.loads(path.read_text())
+        data = orjson.loads(path.read_bytes())
     except orjson.JSONDecodeError as e:
         err_msg = f"Config file contains invalid JSON: {e}"
         raise ValueError(err_msg) from e

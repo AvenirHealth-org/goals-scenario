@@ -36,7 +36,7 @@ def test_load_config_parses_valid_json(tmp_path):
     assert result.scenario_file_name == "scenarios.csv"
     assert result.output_path == "/output"
     assert result.output_file_name == "results.parquet"
-    assert result.base_year == "2025"
+    assert result.base_year == 2025
     assert result.output_indicators == ["PLHIV", "New Infections"]
 
 
@@ -53,6 +53,11 @@ def test_load_config_accepts_lowercase_keys(tmp_path):
     config_file.write_bytes(orjson.dumps(lowercase))
 
     assert _load_config(config_file).goals_path == "/pjnz"
+
+
+def test_load_config_non_dict_input_raises():
+    with pytest.raises(ValidationError):
+        RunConfig.model_validate(["not", "a", "dict"])
 
 
 def test_load_config_raises_on_missing_fields(tmp_path):

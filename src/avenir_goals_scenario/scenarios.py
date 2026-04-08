@@ -38,4 +38,4 @@ def generate_simulations(
 
     definition = load_scenario_definition(definition_path)
     output = gen_simulations(definition, n_simulations=n_simulations)
-    simulations_path.write_bytes(orjson.dumps(output.model_dump(), option=orjson.OPT_INDENT_2))
+    simulations_path.write_bytes(orjson.dumps(output.model_dump(mode="json"), option=orjson.OPT_INDENT_2))
