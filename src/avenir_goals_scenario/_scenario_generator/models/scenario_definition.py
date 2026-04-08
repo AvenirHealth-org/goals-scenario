@@ -1,7 +1,6 @@
-from typing import Self
-
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from typing_extensions import Self
 
 
 class NormalDistParameters(BaseModel):
