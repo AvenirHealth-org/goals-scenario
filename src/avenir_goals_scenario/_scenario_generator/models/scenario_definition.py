@@ -1,7 +1,7 @@
-from typing import Any, Self
+from typing import Self
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class NormalDistParameters(BaseModel):
@@ -39,20 +39,19 @@ _PROPORTION_MIN: float = 0.0
 _PROPORTION_MAX: float = 1.0
 
 
+class PopulationTarget(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    population: str
+    sex: str
+
+
 class InterventionDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     product: str
-    target_population: list[str]
-    sex: str
+    targets: list[PopulationTarget] = Field(min_length=1)
     parameters: dict[str, NormalDistParameters]
-
-    @field_validator("target_population", mode="before")
-    @classmethod
-    def _convert_pop_to_array(cls, v: Any) -> list[str]:
-        if isinstance(v, str):
-            return [v]
-        return v
 
     @model_validator(mode="after")
     def _apply_parameter_constraints(self) -> Self:

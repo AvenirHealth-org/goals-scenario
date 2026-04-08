@@ -24,8 +24,10 @@ from avenir_goals_scenario._scenario_generator.scenario_generator import (
 
 PREP_PILL_INTERVENTION = {
     "product": "One month pill for PrEP",
-    "target_population": ["People who inject drugs (PWID)", "Men who have sex with men"],
-    "sex": "both",
+    "targets": [
+        {"population": "High risk heterosexual", "sex": "Female"},
+        {"population": "Men who have sex with men", "sex": "Male"},
+    ],
     "parameters": {
         "efficacy": {"mean": 0.95, "sd": 0.03},
         "adherence": {"mean": 0.95, "sd": 0.03},
@@ -36,8 +38,7 @@ PREP_PILL_INTERVENTION = {
 
 DAILY_PREP_INTERVENTION = {
     "product": "Daily PrEP",
-    "target_population": "key_pops",
-    "sex": "both",
+    "targets": [{"population": "High risk heterosexual", "sex": "Female"}],
     "parameters": {
         "efficacy": {"mean": 0.95, "sd": 0.03},
         "adherence": {"mean": 0.80, "sd": 0.20},
@@ -121,31 +122,6 @@ def test_sample_returns_float_when_not_integer():
     dist = NormalDistParameters(mean=0.5, sd=0.1, min_value=0.0, max_value=1.0)
     value = dist.sample(_seeded_rng())
     assert isinstance(value, float)
-
-
-# ---------------------------------------------------------------------------
-# InterventionDef — target_population coercion
-# ---------------------------------------------------------------------------
-
-
-def test_target_population_string_coerced_to_list():
-    iv = InterventionDef(
-        product="Daily PrEP",
-        target_population="key_pops",  # ty: ignore testing conversion to list
-        sex="both",
-        parameters={"efficacy": NormalDistParameters(mean=0.9, sd=0.02)},
-    )
-    assert iv.target_population == ["key_pops"]
-
-
-def test_target_population_list_unchanged():
-    iv = InterventionDef(
-        product="Daily PrEP",
-        target_population=["PWID", "MSM"],
-        sex="both",
-        parameters={"efficacy": NormalDistParameters(mean=0.9, sd=0.02)},
-    )
-    assert iv.target_population == ["PWID", "MSM"]
 
 
 # ---------------------------------------------------------------------------
@@ -305,6 +281,17 @@ def test_single_scenario_intervention_id():
     assert output.scenarios[0].interventions[0].id == "one_month_pill_for_prep"
 
 
+def test_intervention_out_has_targets():
+    definition = ScenarioInput.model_validate(MINIMAL_INPUT)
+    output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
+    targets = output.scenarios[0].interventions[0].targets
+    assert len(targets) == 2
+    assert targets[0].population == "High risk heterosexual"
+    assert targets[0].sex == "Female"
+    assert targets[1].population == "Men who have sex with men"
+    assert targets[1].sex == "Male"
+
+
 def test_combined_scenario_merges_interventions():
     definition = ScenarioInput.model_validate(COMBINED_INPUT)
     output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
@@ -367,6 +354,26 @@ def test_load_valid_file(write_csv):
     path = write_csv(COMBINED_CSV, "scenario_definition.csv")
     definition = load_scenario_definition(path)
     assert len(definition.scenario_definitions) == 3
+
+
+def test_load_multi_row_scenario_collects_targets(write_csv):
+    path = write_csv(COMBINED_CSV, "scenario_definition.csv")
+    definition = load_scenario_definition(path)
+    single = next(s for s in definition.scenario_definitions if isinstance(s, SingleScenarioDef) and s.id == 1)
+    targets = single.interventions[0].targets
+    assert len(targets) == 2
+    assert targets[0].population == "High risk heterosexual"
+    assert targets[1].population == "Men who have sex with men"
+
+
+def test_load_inconsistent_rows_raises(write_csv):
+    content = CSV_HEADER + (
+        "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,High risk heterosexual,Female\n"
+        "1,Daily PrEP,0.99,0.03,0.80,0.20,0.10,0.05,2027,2,Men who have sex with men,Male\n"  # efficacy mean differs
+    )
+    path = write_csv(content)
+    with pytest.raises(ValueError, match="efficacy mean"):
+        load_scenario_definition(path)
 
 
 def test_load_missing_file_raises(tmp_path):

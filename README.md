@@ -40,14 +40,16 @@ goals-scenario simulations scenario_definition.csv scenario_simulations.json -n 
 
 Scenario definition CSV
 
-Each row is either a single-intervention scenario (all columns populated) or a combined scenario
-(the `Product` column contains the IDs to combine joined by `+`, all other columns empty).
-Column headers are case-insensitive.
+Multiple rows sharing the same `Number` represent multiple target populations for that
+intervention — all parameter columns must be identical across those rows, only `Target Population`
+and `Sex` may differ. A combined scenario has the IDs to combine joined by `+` in the `Product`
+column. Column headers are case-insensitive.
 
 ```
 Number,Product,Efficacy mean,Efficacy STD,Adherence mean,Adherence STD,Target Coverage mean,Target Coverage STD,Target Year mean,Target Year STD,Target Population,Sex
-1,One month pill for PrEP,0.95,0.03,0.95,0.03,0.20,0.05,2028,2,Key pops,Both
-2,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,Key pops,Both
+1,One month pill for PrEP,0.95,0.03,0.95,0.03,0.20,0.05,2028,2,High risk heterosexual,Female
+1,One month pill for PrEP,0.95,0.03,0.95,0.03,0.20,0.05,2028,2,Men who have sex with men,Male
+2,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,High risk heterosexual,Female
 ...
 25,1+2,,,,,,,,,,
 ...
@@ -55,7 +57,7 @@ Number,Product,Efficacy mean,Efficacy STD,Adherence mean,Adherence STD,Target Co
 
 | Column | Description |
 |---|---|
-| `Number` | Unique integer scenario ID |
+| `Number` | Integer scenario ID (repeated for multi-population interventions) |
 | `Product` | Intervention name, or `X+Y+Z` to combine scenarios X, Y and Z |
 | `Efficacy mean` | Mean efficacy |
 | `Efficacy STD` | Efficacy standard deviation |
@@ -65,8 +67,8 @@ Number,Product,Efficacy mean,Efficacy STD,Adherence mean,Adherence STD,Target Co
 | `Target Coverage STD` | Target coverage standard deviation |
 | `Target Year mean` | Mean target year |
 | `Target Year STD` | Target year standard deviation |
-| `Target Population` | Population group (e.g. `Key pops`, `General pop`, `PLHIV`) |
-| `Sex` | `Both`, `Female`, or `Male` |
+| `Target Population` | Population group (e.g. `High risk heterosexual`, `PLHIV`) |
+| `Sex` | `Female`, `Male`, or `Both` |
 
 Scenario simulations
 
@@ -76,28 +78,18 @@ Scenario simulations
     {
       "scenario_id": 1,
       "interventions": [
-        { "id": "prep_pill", "product": "One month pill for PrEP", "target_population": ["Key pops"], "sex": "Both" }
-      ],
-      "simulations": [
         {
-          "prep_pill": { "efficacy": 0.976158, "adherence": 0.9425262, "target_coverage": 0.202123, "target_year": 2028 }
-        },
-        {
-          "prep_pill": { "efficacy": 0.96213, "adherence": 0.951231, "target_coverage": 0.19862, "target_year": 2028 }
+          "id": "one_month_pill_for_prep",
+          "product": "One month pill for PrEP",
+          "targets": [
+            { "population": "High risk heterosexual", "sex": "Female" },
+            { "population": "Men who have sex with men", "sex": "Male" }
+          ]
         }
-      ]
-    },
-    ...
-    {
-      "scenario_id": 25,
-      "interventions": [
-        { "id": "one_month_pill_for_prep", "product": "One month pill for PrEP", "target_population": ["Key pops"], "sex": "Both" },
-        { "id": "daily_prep", "product": "Daily PrEP", "target_population": ["Key pops"], "sex": "Both" }
       ],
       "simulations": [
         {
-          "one_month_pill_for_prep": { "efficacy": 0.976158, "adherence": 0.9425262, "target_coverage": 0.202123, "target_year": 2028 },
-          "daily_prep":              { "efficacy": 0.96213,  "adherence": 0.951231,  "target_coverage": 0.19862,  "target_year": 2028 }
+          "one_month_pill_for_prep": { "efficacy": 0.976158, "adherence": 0.9425262, "target_coverage": 0.202123, "target_year": 2028 }
         }
       ]
     },
