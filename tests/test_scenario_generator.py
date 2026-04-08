@@ -395,6 +395,13 @@ def test_load_invalid_csv_raises(tmp_path):
         load_scenario_definition(path)
 
 
+def test_load_non_integer_number_raises(tmp_path):
+    path = tmp_path / "bad.csv"
+    path.write_text(CSV_HEADER + "1.5,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops,both\n")
+    with pytest.raises(ValueError, match="'Number' must be an integer"):
+        load_scenario_definition(path)
+
+
 def test_load_invalid_schema_raises(write_csv):
     # Combined row references a non-existent single scenario ID.
     content = CSV_HEADER + "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops,both\n99,1+42,,,,,,,,,,\n"
