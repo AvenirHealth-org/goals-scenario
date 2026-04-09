@@ -1,6 +1,7 @@
 import csv
 import re
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from pydantic import ValidationError
@@ -126,7 +127,7 @@ def _validate_consistent_rows(scenario_id: int, rows: list[dict]) -> None:
                 raise ValueError(msg)
 
 
-def _build_scenario_def(scenario_id: int, rows: list[dict]) -> dict:
+def _build_scenario_def(scenario_id: int, rows: list[dict[str, str]]) -> dict[str, Any]:
     first = rows[0]
     product = first["product"]
     if _COMBINED_PATTERN.match(product):

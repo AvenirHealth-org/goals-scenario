@@ -34,6 +34,7 @@ def run_scenario_analysis(config: RunConfig) -> Path:
         ValueError: If any output indicator is not present in the Goals output,
             or if a PJNZ file cannot be parsed.
     """
+    config.output_dir.mkdir(exist_ok=True)
     pjnz_files = find_pjnz_files(config.pjnz_dir)
     logger.info("Found {} PJNZ file(s) in {}", len(pjnz_files), config.pjnz_dir)
 

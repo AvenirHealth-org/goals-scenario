@@ -225,6 +225,28 @@ def test_combines_requires_at_least_two():
         ScenarioInput.model_validate(data)
 
 
+def test_duplicate_products_within_single_scenario_raises():
+    data = {
+        "scenario_definitions": [
+            {"id": 1, "interventions": [PREP_PILL_INTERVENTION, PREP_PILL_INTERVENTION]},
+        ]
+    }
+    with pytest.raises(ValidationError, match="unique product names"):
+        ScenarioInput.model_validate(data)
+
+
+def test_duplicate_products_across_combined_scenarios_raises():
+    data = {
+        "scenario_definitions": [
+            {"id": 1, "interventions": [PREP_PILL_INTERVENTION]},
+            {"id": 2, "interventions": [PREP_PILL_INTERVENTION]},
+            {"id": 3, "combines": [1, 2]},
+        ]
+    }
+    with pytest.raises(ValidationError, match="share product"):
+        ScenarioInput.model_validate(data)
+
+
 def test_sd_must_be_non_negative():
     data = {
         "scenario_definitions": [

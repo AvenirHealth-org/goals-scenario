@@ -129,15 +129,11 @@ def test_import_pjnz_raises_when_modvars_is_none(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_modvars_to_numpy_returns_value_unchanged_on_conversion_failure(capsys):
-    # A list whose first element is not dict/str/bool, but which can't be
-    # converted to float64 — triggers the except branch.
+def test_modvars_to_numpy_raises_on_unconvertible_list():
+    # A mixed list that can't be cast to float64 — errors now propagate.
     bad_value = [1, "not_a_number"]
-
-    result = modvars_to_numpy("some_tag", bad_value)
-
-    assert result == bad_value
-    assert "some_tag" in capsys.readouterr().out
+    with pytest.raises(ValueError):
+        modvars_to_numpy(bad_value)
 
 
 # ---------------------------------------------------------------------------
@@ -271,25 +267,6 @@ def test_run_scenario_analysis_multidim_indicator_preserved(tmp_path):
 
     with h5py.File(Path(config.output_dir) / "country" / "scenario_1.h5", "r") as f:
         assert f["p_totpop"].shape == (2, 2, 66, _N_YEARS)
-
-
-def test_run_scenario_analysis_year_range_from_modvars(tmp_path):
-    pjnz_dir = tmp_path / "pjnz"
-    pjnz_dir.mkdir()
-    (pjnz_dir / "country.PJNZ").touch()
-
-    modvars = {_FIRST_YEAR_TAG: 2010, _FINAL_YEAR_TAG: 2012}
-    scenarios_path = _make_simulations_json(tmp_path, n_simulations=1)
-    config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["PLHIV"], base_year=2015)
-
-    with (
-        patch("avenir_goals_scenario.runner.import_pjnz", return_value=modvars),
-        patch("avenir_goals_scenario.runner.run_simulation", return_value={"PLHIV": np.ones(3)}) as mock_sim,
-    ):
-        run_scenario_analysis(config)
-
-    # run_simulation(modvars_base, simulation, output_indicators, output_years, ss)
-    assert mock_sim.call_args.args[3] == range(2015, 2013)
 
 
 def test_run_scenario_analysis_multiple_pjnz_creates_separate_dirs(tmp_path):

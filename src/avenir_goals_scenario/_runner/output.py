@@ -37,8 +37,8 @@ def write_scenario_results(
     pjnz_dir.mkdir(exist_ok=True)
     path = pjnz_dir / f"scenario_{scenario_id}.h5"
 
-    ## All output has the same keys, already filtered to
-    ## the things we want to output
+    # All output has the same keys, already filtered to
+    # the things we want to output
     out_indicators = sim_output[0].keys()
     sim_arrays = {indicator: [sim[indicator] for sim in sim_output] for indicator in out_indicators}
 

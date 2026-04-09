@@ -54,9 +54,9 @@ def run_simulation(
     modvars = copy.deepcopy(modvars_base)
     apply_simulation(modvars, simulation)
     leapfrog_params = modvars_to_leapfrog(modvars, ss)
-    ## Temporarily add in required input data for this in-progress
-    ## version of leapfrog goals
-    leapfrog_params["ex_input"] = np.full((81, 2), 1)
+    # Temporarily add in required input data for this in-progress
+    # version of leapfrog goals
+    leapfrog_params["ex_input"] = np.full((ss["pAG"], ss["NS"]), 1)
     goals_output = run_goals(leapfrog_params, output_years)
     return _extract_indicators(goals_output, output_indicators)
 

@@ -1,6 +1,7 @@
 import os
 from contextlib import redirect_stdout
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from Tools.ImportPJNZ.Importer import GB_ImportProjectionFromFile
@@ -44,21 +45,17 @@ def import_pjnz(path: Path) -> dict:
     if modvars is None:
         err_msg = f"Failed to import PJNZ file: {path}"
         raise ValueError(err_msg)
-    numpy_modvars = {tag: modvars_to_numpy(tag, value) for tag, value in modvars.items()}
+    numpy_modvars = {tag: modvars_to_numpy(value) for tag, value in modvars.items()}
 
     return numpy_modvars
 
 
-def modvars_to_numpy(tag, value):
+def modvars_to_numpy(value: Any) -> Any:
     # Taken from FilterUtils.py in SpectrumEngine
-    if type(value) is list:
-        try:
-            if len(value) > 0 and ((type(value[0]) is dict) or (type(value[0]) is str) or (type(value[0]) is bool)):
-                value = np.array(value, order="C")
-            else:
-                value = np.array(value, order="C", dtype=np.dtype(np.float64))
-
-        except Exception as _e:
-            print(f"Failed to convert list to numpy array {tag}")
+    if isinstance(value, list):
+        if len(value) > 0 and isinstance(value[0], (dict, str, bool)):
+            value = np.array(value, order="C")
+        else:
+            value = np.array(value, order="C", dtype=np.dtype(np.float64))
 
     return value

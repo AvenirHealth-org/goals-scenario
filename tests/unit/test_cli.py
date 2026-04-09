@@ -119,7 +119,7 @@ def test_load_config_raises_when_scenario_path_is_a_dir(tmp_path):
         _load_config(config_file)
 
 
-def test_load_config_creates_output_dir(tmp_path):
+def test_load_config_accepts_nonexistent_output_dir_when_parent_exists(tmp_path):
     config = _valid_config(tmp_path)
     new_dir = tmp_path / "output" / "new_subdir"
     config["output_dir"] = str(new_dir)
@@ -128,7 +128,7 @@ def test_load_config_creates_output_dir(tmp_path):
 
     result = _load_config(config_file)
 
-    assert new_dir.is_dir()
+    assert not new_dir.exists()
     assert result.output_dir == new_dir.resolve()
 
 

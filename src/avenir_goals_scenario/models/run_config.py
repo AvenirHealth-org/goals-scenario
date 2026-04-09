@@ -65,14 +65,12 @@ class RunConfig(BaseModel):
 
     @field_validator("output_dir")
     @classmethod
-    def _create_output_dir(cls, v: Path) -> Path:
+    def _validate_output_dir(cls, v: Path) -> Path:
         path = v.expanduser().resolve()
         if path.exists() and not path.is_dir():
             msg = f"output_dir exists but is not a directory: {path}"
             raise ValueError(msg)
-        if not path.exists():
-            if not path.parent.exists():
-                msg = f"Cannot create output_dir {path}: parent directory does not exist: {path.parent}"
-                raise ValueError(msg)
-            path.mkdir()
+        if not path.exists() and not path.parent.exists():
+            msg = f"Cannot create output_dir {path}: parent directory does not exist: {path.parent}"
+            raise ValueError(msg)
         return path
