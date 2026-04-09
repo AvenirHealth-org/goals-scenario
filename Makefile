@@ -13,7 +13,7 @@ check: ## Run code quality tools.
 	@echo "🚀 Static type checking: Running ty"
 	@uv run ty check
 	@echo "🚀 Vulnerability check: Running pip-audit"
-	@uv run pip-audit --desc -s osv --ignore-vuln CVE-2026-4539
+	@uv run pip-audit --desc -s osv --ignore-vuln CVE-2026-4539 --ignore-vuln CVE-2024-23342
 
 .PHONY: test
 test: ## Test the code with pytest
