@@ -1,11 +1,12 @@
+import os
 from importlib.metadata import version as pkg_version
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
-import orjson
 import typer
-from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
+from pydantic import ValidationError
 
+from avenir_goals_scenario.models import RunConfig
 from avenir_goals_scenario.runner import run_scenario_analysis
 from avenir_goals_scenario.scenarios import generate_simulations
 
@@ -13,29 +14,9 @@ _CONTEXT = {"help_option_names": ["-h", "--help"]}
 
 app = typer.Typer(help="Goals scenario analysis CLI.", context_settings=_CONTEXT)
 
-
-class RunConfig(BaseModel):
-    """Validated configuration for run_scenario_analysis.
-
-    Field names are case-insensitive: Goals_path, goals_path, GOALS_PATH all work.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    goals_path: str
-    scenario_path: str
-    scenario_file_name: str
-    output_path: str
-    output_file_name: str
-    base_year: int
-    output_indicators: list[str]
-
-    @model_validator(mode="before")
-    @classmethod
-    def _lowercase_keys(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            return {k.lower(): v for k, v in data.items()}
-        return data
+# Stop Pydantic from printing its URL in error messages
+# That will just be confusing to users of the CLI.
+os.environ["PYDANTIC_ERRORS_INCLUDE_URL"] = "0"
 
 
 def _version_callback(value: bool) -> None:
@@ -54,7 +35,7 @@ def _app_callback(
     pass
 
 
-# If the Exception has no message, return the type
+# If the Exception has no message, return the type name.
 def _fmt_error(e: Exception) -> str:
     return str(e) or type(e).__name__
 
@@ -73,7 +54,7 @@ def simulations(
     except Exception as e:
         typer.echo(f"Error: {_fmt_error(e)}", err=True)
         raise typer.Exit(code=1) from None
-    typer.echo(f"Done. Simulations saved to {simulations_path.resolve()}")
+    typer.echo(f"Done. Simulations saved to {simulations_path.expanduser().resolve()}")
 
 
 @app.command()
@@ -90,17 +71,12 @@ def run(
         typer.echo(f"Error: {_fmt_error(e)}", err=True)
         raise typer.Exit(code=1) from None
 
-    output_path = Path(config.output_path) / config.output_file_name
     try:
-        run_scenario_analysis(
-            pjnz_dir=Path(config.goals_path),
-            scenarios_path=Path(config.scenario_path) / config.scenario_file_name,
-            output_path=output_path,
-        )
+        run_scenario_analysis(config)
     except Exception as e:
         typer.echo(f"Error: {_fmt_error(e)}", err=True)
         raise typer.Exit(code=1) from None
-    typer.echo(f"Done. Output saved to {output_path.resolve()}")
+    typer.echo(f"Done. Results written to {config.output_dir}")
 
 
 def _load_config(path: Path) -> RunConfig:
@@ -121,12 +97,9 @@ def _load_config(path: Path) -> RunConfig:
     if path.suffix.lower() != ".json":
         err_msg = f"Config file must be a JSON file (.json), got: {path.suffix or '(no extension)'}"
         raise ValueError(err_msg)
-    try:
-        data = orjson.loads(path.read_bytes())
-    except orjson.JSONDecodeError as e:
-        err_msg = f"Config file contains invalid JSON: {e}"
-        raise ValueError(err_msg) from e
-    return RunConfig.model_validate(data)
+
+    with open(path) as f:
+        return RunConfig.model_validate_json(f.read())
 
 
 def main() -> None:

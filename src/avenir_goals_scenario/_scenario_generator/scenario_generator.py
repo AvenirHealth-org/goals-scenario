@@ -1,12 +1,13 @@
 import csv
 import re
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from pydantic import ValidationError
 
-from avenir_goals_scenario._scenario_generator.models.scenario_definition import ScenarioInput
-from avenir_goals_scenario._scenario_generator.models.scenario_simulations import (
+from avenir_goals_scenario.models.scenario_definition import ScenarioInput
+from avenir_goals_scenario.models.scenario_simulations import (
     InterventionOut,
     InterventionSimulation,
     ScenarioSimulation,
@@ -126,7 +127,7 @@ def _validate_consistent_rows(scenario_id: int, rows: list[dict]) -> None:
                 raise ValueError(msg)
 
 
-def _build_scenario_def(scenario_id: int, rows: list[dict]) -> dict:
+def _build_scenario_def(scenario_id: int, rows: list[dict[str, str]]) -> dict[str, Any]:
     first = rows[0]
     product = first["product"]
     if _COMBINED_PATTERN.match(product):
