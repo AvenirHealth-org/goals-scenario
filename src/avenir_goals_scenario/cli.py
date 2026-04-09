@@ -1,15 +1,13 @@
-from __future__ import annotations
-
 from importlib.metadata import version as pkg_version
 from pathlib import Path
 from typing import Annotated, Any
 
 import orjson
 import typer
-from pydantic import BaseModel, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
 from avenir_goals_scenario.runner import run_scenario_analysis
-from avenir_goals_scenario.scenarios import generate_scenarios
+from avenir_goals_scenario.scenarios import generate_simulations
 
 _CONTEXT = {"help_option_names": ["-h", "--help"]}
 
@@ -22,12 +20,14 @@ class RunConfig(BaseModel):
     Field names are case-insensitive: Goals_path, goals_path, GOALS_PATH all work.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     goals_path: str
     scenario_path: str
     scenario_file_name: str
     output_path: str
     output_file_name: str
-    base_year: str
+    base_year: int
     output_indicators: list[str]
 
     @model_validator(mode="before")
@@ -35,7 +35,7 @@ class RunConfig(BaseModel):
     def _lowercase_keys(cls, data: Any) -> Any:
         if isinstance(data, dict):
             return {k.lower(): v for k, v in data.items()}
-        return data  # pragma: no cover
+        return data
 
 
 def _version_callback(value: bool) -> None:
@@ -48,7 +48,7 @@ def _version_callback(value: bool) -> None:
 def _app_callback(
     version: Annotated[
         bool | None,
-        typer.Option("-v", "--version", help="Show version and exit.", callback=_version_callback, is_eager=True),
+        typer.Option("--version", help="Show version and exit.", callback=_version_callback, is_eager=True),
     ] = None,
 ) -> None:
     pass
@@ -60,20 +60,25 @@ def _fmt_error(e: Exception) -> str:
 
 
 @app.command()
-def scenarios(
-    dest_path: Annotated[Path, typer.Option("--dest-path", help="Path to write the generated scenarios file to.")],
+def simulations(
+    definition_path: Annotated[Path, typer.Argument(help="Path to the input scenario definition file.")],
+    simulations_path: Annotated[Path, typer.Argument(help="Path to write the scenario simulations file to.")],
+    n_simulations: Annotated[
+        int, typer.Option("-n", "--n-simulations", help="Number of simulations to generate for each scenario.")
+    ] = 100,
 ) -> None:
-    """Generate a scenarios file."""
+    """Generate a scenario simulations file from a scenario definition."""
     try:
-        generate_scenarios(dest_path)
+        generate_simulations(definition_path, simulations_path, n_simulations)
     except Exception as e:
         typer.echo(f"Error: {_fmt_error(e)}", err=True)
         raise typer.Exit(code=1) from None
+    typer.echo(f"Done. Simulations saved to {simulations_path.resolve()}")
 
 
 @app.command()
 def run(
-    config_path: Annotated[Path, typer.Option("--config-path", help="Path to a JSON config file.")],
+    config_path: Annotated[Path, typer.Argument(help="Path to a JSON config file.")],
 ) -> None:
     """Run scenario analysis using a JSON config file."""
     try:
@@ -85,15 +90,17 @@ def run(
         typer.echo(f"Error: {_fmt_error(e)}", err=True)
         raise typer.Exit(code=1) from None
 
+    output_path = Path(config.output_path) / config.output_file_name
     try:
         run_scenario_analysis(
             pjnz_dir=Path(config.goals_path),
             scenarios_path=Path(config.scenario_path) / config.scenario_file_name,
-            output_path=Path(config.output_path) / config.output_file_name,
+            output_path=output_path,
         )
     except Exception as e:
         typer.echo(f"Error: {_fmt_error(e)}", err=True)
         raise typer.Exit(code=1) from None
+    typer.echo(f"Done. Output saved to {output_path.resolve()}")
 
 
 def _load_config(path: Path) -> RunConfig:
@@ -115,7 +122,7 @@ def _load_config(path: Path) -> RunConfig:
         err_msg = f"Config file must be a JSON file (.json), got: {path.suffix or '(no extension)'}"
         raise ValueError(err_msg)
     try:
-        data = orjson.loads(path.read_text())
+        data = orjson.loads(path.read_bytes())
     except orjson.JSONDecodeError as e:
         err_msg = f"Config file contains invalid JSON: {e}"
         raise ValueError(err_msg) from e

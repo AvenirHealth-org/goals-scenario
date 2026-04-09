@@ -36,7 +36,7 @@ def test_load_config_parses_valid_json(tmp_path):
     assert result.scenario_file_name == "scenarios.csv"
     assert result.output_path == "/output"
     assert result.output_file_name == "results.parquet"
-    assert result.base_year == "2025"
+    assert result.base_year == 2025
     assert result.output_indicators == ["PLHIV", "New Infections"]
 
 
@@ -55,6 +55,11 @@ def test_load_config_accepts_lowercase_keys(tmp_path):
     assert _load_config(config_file).goals_path == "/pjnz"
 
 
+def test_load_config_non_dict_input_raises():
+    with pytest.raises(ValidationError):
+        RunConfig.model_validate(["not", "a", "dict"])
+
+
 def test_load_config_raises_on_missing_fields(tmp_path):
     config_file = tmp_path / "config.json"
     config_file.write_bytes(orjson.dumps({"Goals_path": "/pjnz"}))
@@ -63,7 +68,7 @@ def test_load_config_raises_on_missing_fields(tmp_path):
         _load_config(config_file)
 
 
-# --- CLI: --version / -v ---
+# --- CLI: --version ---
 
 
 def test_cli_version_long():
@@ -73,11 +78,11 @@ def test_cli_version_long():
     assert "goals-scenario" in result.output
 
 
-def test_cli_version_short():
+def test_cli_version_short_v_is_not_version():
+    # -v is reserved for future verbose flag, not version
     result = runner.invoke(app, ["-v"])
 
-    assert result.exit_code == 0
-    assert "goals-scenario" in result.output
+    assert "goals-scenario" not in result.output
 
 
 # --- CLI: -h / --help ---
@@ -95,36 +100,71 @@ def test_cli_help_short():
     assert result.exit_code == 0
 
 
-# --- CLI: scenarios command ---
+# --- CLI: simulations command ---
 
 
-def test_cli_scenarios_requires_dest_path():
-    result = runner.invoke(app, ["scenarios"])
+def test_cli_simulations_requires_args():
+    result = runner.invoke(app, ["simulations"])
 
     assert result.exit_code != 0
 
 
-def test_cli_scenarios_calls_generate_scenarios(tmp_path):
-    dest = tmp_path / "out.csv"
+def test_cli_simulations_positional_args(tmp_path):
+    dest = tmp_path / "out.json"
+    src = tmp_path / "input.json"
 
-    with patch("avenir_goals_scenario.cli.generate_scenarios") as mock_gen:
-        result = runner.invoke(app, ["scenarios", "--dest-path", str(dest)])
+    with patch("avenir_goals_scenario.cli.generate_simulations") as mock_gen:
+        result = runner.invoke(app, ["simulations", str(src), str(dest)])
 
     assert result.exit_code == 0
-    mock_gen.assert_called_once_with(dest)
+    mock_gen.assert_called_once_with(src, dest, 100)
 
 
-def test_cli_scenarios_handles_errors():
-    with patch("avenir_goals_scenario.cli.generate_scenarios", side_effect=RuntimeError("something went wrong")):
-        result = runner.invoke(app, ["scenarios", "--dest-path", "/x/out.csv"])
+def test_cli_simulations_n_simulations_long_flag(tmp_path):
+    dest = tmp_path / "out.json"
+    src = tmp_path / "input.json"
+
+    with patch("avenir_goals_scenario.cli.generate_simulations") as mock_gen:
+        result = runner.invoke(app, ["simulations", str(src), str(dest), "--n-simulations", "10"])
+
+    assert result.exit_code == 0
+    mock_gen.assert_called_once_with(src, dest, 10)
+
+
+def test_cli_simulations_n_simulations_short_flag(tmp_path):
+    dest = tmp_path / "out.json"
+    src = tmp_path / "input.json"
+
+    with patch("avenir_goals_scenario.cli.generate_simulations") as mock_gen:
+        result = runner.invoke(app, ["simulations", str(src), str(dest), "-n", "5"])
+
+    assert result.exit_code == 0
+    mock_gen.assert_called_once_with(src, dest, 5)
+
+
+def test_cli_simulations_prints_success_message(tmp_path):
+    dest = tmp_path / "out.json"
+    src = tmp_path / "input.json"
+
+    with patch("avenir_goals_scenario.cli.generate_simulations"):
+        result = runner.invoke(app, ["simulations", str(src), str(dest)])
+
+    assert result.exit_code == 0
+    assert "Done" in result.output
+    assert str(dest.resolve()) in result.output
+
+
+def test_cli_simulations_handles_errors():
+    with patch("avenir_goals_scenario.cli.generate_simulations", side_effect=RuntimeError("something went wrong")):
+        result = runner.invoke(app, ["simulations", "/x/in.json", "/x/out.json"])
 
     assert result.exit_code == 1
     assert "Error:" in result.output
 
 
-def test_cli_scenarios_handles_error_without_message():
-    with patch("avenir_goals_scenario.cli.generate_scenarios", side_effect=NotImplementedError()):
-        result = runner.invoke(app, ["scenarios", "--dest-path", "/x/out.csv"])
+def test_cli_simulations_handles_error_without_message():
+    with patch("avenir_goals_scenario.cli.generate_simulations", side_effect=NotImplementedError()):
+        result = runner.invoke(app, ["simulations", "/x/in.json", "/x/out.json"])
 
     assert result.exit_code == 1
     assert "NotImplementedError" in result.output
@@ -144,7 +184,7 @@ def test_cli_run_calls_run_scenario_analysis(tmp_path):
     config_file.write_bytes(orjson.dumps(VALID_CONFIG))
 
     with patch("avenir_goals_scenario.cli.run_scenario_analysis") as mock_run:
-        result = runner.invoke(app, ["run", "--config-path", str(config_file)])
+        result = runner.invoke(app, ["run", str(config_file)])
 
     assert result.exit_code == 0
     mock_run.assert_called_once_with(
@@ -154,11 +194,23 @@ def test_cli_run_calls_run_scenario_analysis(tmp_path):
     )
 
 
+def test_cli_run_prints_success_message(tmp_path):
+    config_file = tmp_path / "config.json"
+    config_file.write_bytes(orjson.dumps(VALID_CONFIG))
+
+    with patch("avenir_goals_scenario.cli.run_scenario_analysis"):
+        result = runner.invoke(app, ["run", str(config_file)])
+
+    assert result.exit_code == 0
+    assert "Done" in result.output
+    assert "results.parquet" in result.output
+
+
 def test_cli_run_errors_on_non_json_file(tmp_path):
     config_file = tmp_path / "config.csv"
     config_file.write_text("a,b,c")
 
-    result = runner.invoke(app, ["run", "--config-path", str(config_file)])
+    result = runner.invoke(app, ["run", str(config_file)])
 
     assert result.exit_code == 1
     assert ".json" in result.output
@@ -168,14 +220,14 @@ def test_cli_run_errors_on_invalid_json(tmp_path):
     config_file = tmp_path / "config.json"
     config_file.write_text("this is not json {{{")
 
-    result = runner.invoke(app, ["run", "--config-path", str(config_file)])
+    result = runner.invoke(app, ["run", str(config_file)])
 
     assert result.exit_code == 1
     assert "invalid JSON" in result.output
 
 
 def test_cli_run_errors_when_config_file_missing(tmp_path):
-    result = runner.invoke(app, ["run", "--config-path", str(tmp_path / "nonexistent.json")])
+    result = runner.invoke(app, ["run", str(tmp_path / "nonexistent.json")])
 
     assert result.exit_code == 1
     assert "Error:" in result.output
@@ -185,7 +237,7 @@ def test_cli_run_errors_on_invalid_config(tmp_path):
     config_file = tmp_path / "config.json"
     config_file.write_bytes(orjson.dumps({"Goals_path": "/pjnz"}))
 
-    result = runner.invoke(app, ["run", "--config-path", str(config_file)])
+    result = runner.invoke(app, ["run", str(config_file)])
 
     assert result.exit_code == 1
     assert "Error:" in result.output
@@ -196,7 +248,7 @@ def test_cli_run_handles_errors(tmp_path):
     config_file.write_bytes(orjson.dumps(VALID_CONFIG))
 
     with patch("avenir_goals_scenario.cli.run_scenario_analysis", side_effect=RuntimeError("something went wrong")):
-        result = runner.invoke(app, ["run", "--config-path", str(config_file)])
+        result = runner.invoke(app, ["run", str(config_file)])
 
     assert result.exit_code == 1
     assert "Error:" in result.output

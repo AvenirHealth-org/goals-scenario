@@ -1,6 +1,6 @@
 [project]
 name = "avenir-goals-scenario"
-version = "0.0.3"
+version = "0.0.4"
 description = "Goals scenario analysis"
 authors = [{ name = "Rob Ashton", email = "rashton@avenirhealth.org" }]
 readme = "README.md"
@@ -10,6 +10,7 @@ dependencies = [
     "typer>=0.12",
     "pydantic>=2.0",
     "orjson>=3.11.7",
+    "numpy>=2.2.6",
 ]
 classifiers = [
     "Intended Audience :: Developers",
@@ -52,7 +53,7 @@ dev = [
 
 [tool.ty.environment]
 python = "./.venv"
-python-version = "3.10"
+python-version = "3.14"
 
 [tool.ty.src]
 exclude = [

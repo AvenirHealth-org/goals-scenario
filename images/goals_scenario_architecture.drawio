@@ -1,0 +1,149 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Goals Scenario Architecture" id="main">
+    <mxGraphModel dx="2054" dy="1114" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="950" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="9vELnu-olC9W8n9J7Any-9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#6c8ebf;dashed=1;strokeWidth=1;" value="" vertex="1">
+          <mxGeometry height="155" width="390" x="340" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_github" parent="1" style="text;html=1;fontStyle=1;fontSize=14;align=left;fontColor=#23527c;" value="GitHub Repositories" vertex="1">
+          <mxGeometry height="30" width="220" x="40" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_pypi" parent="1" style="text;html=1;fontStyle=1;fontSize=14;align=left;fontColor=#2d6a30;" value="PyPI Packages" vertex="1">
+          <mxGeometry height="30" width="180" x="40" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_users" parent="1" style="text;html=1;fontStyle=1;fontSize=14;align=left;fontColor=#6b3fa0;" value="Users" vertex="1">
+          <mxGeometry height="30" width="100" x="40" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="repo_leapfrog" parent="1" style="swimlane;startSize=28;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontStyle=1;" value="leapfrog" vertex="1">
+          <mxGeometry height="170" width="230" x="40" y="55" as="geometry" />
+        </mxCell>
+        <mxCell id="cpp_model" parent="repo_leapfrog" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="Core C++ Model" vertex="1">
+          <mxGeometry height="45" width="190" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="py_wrapper" parent="repo_leapfrog" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="Python Wrapper" vertex="1">
+          <mxGeometry height="45" width="190" x="20" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="repo_spectrum" parent="1" style="swimlane;startSize=28;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontStyle=1;" value="SpectrumEngine" vertex="1">
+          <mxGeometry height="120" width="240" x="330" y="55" as="geometry">
+            <mxRectangle height="30" width="140" x="330" y="55" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pjnz_code" parent="repo_spectrum" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="avenir-pjnz reading code" vertex="1">
+          <mxGeometry height="45" width="200" x="20" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="repo_goals" parent="1" style="swimlane;startSize=28;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontStyle=1;" value="goals-scenario" vertex="1">
+          <mxGeometry height="210" width="340" x="700" y="55" as="geometry" />
+        </mxCell>
+        <mxCell id="gen_fn" parent="repo_goals" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="generate_scenarios(input_path)" vertex="1">
+          <mxGeometry height="40" width="300" x="20" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="run_fn" parent="repo_goals" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="run_scenario_analysis(scenarios_path, pjnz_dir, output_path)" vertex="1">
+          <mxGeometry height="50" width="300" x="20" y="97" as="geometry" />
+        </mxCell>
+        <mxCell id="cli_component" parent="repo_goals" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" value="CLI Tool  (exposes both functions)" vertex="1">
+          <mxGeometry height="35" width="300" x="20" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="pkg_leapfrog" parent="1" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;" value="leapfrog-goals" vertex="1">
+          <mxGeometry height="50" width="175" x="55" y="355" as="geometry" />
+        </mxCell>
+        <mxCell id="pkg_pjnz" parent="1" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;" value="avenir-spectrum-import-export-pjnz" vertex="1">
+          <mxGeometry height="50" width="175" x="355" y="355" as="geometry" />
+        </mxCell>
+        <mxCell id="pkg_consts" parent="1" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;" value="avenir-spectrum-common" vertex="1">
+          <mxGeometry height="45" width="150" x="570" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="pkg_common" parent="1" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;" value="avenir-common" vertex="1">
+          <mxGeometry height="45" width="150" x="570" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="pkg_goals" parent="1" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;fontStyle=1;" value="avenir-goals-scenario" vertex="1">
+          <mxGeometry height="55" width="240" x="755" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="user_py" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;align=left;" value="&lt;b&gt;Python API&lt;/b&gt;&lt;br&gt;from avenir_goals_scenario import generate_simulations, run_scenario_analysis&lt;br&gt;# generate_simulations takes scenario definition file and outputs scenario simulations file&lt;br&gt;generate_simulations(&#39;scenario_description.json&#39;, &quot;scenario_simulations.json&quot;)&lt;br&gt;# run_scenario_analysis takes goals simulations, applies each simulation for each scenario to&amp;nbsp;&lt;br&gt;# a PJNZ in turn and runs&lt;br&gt;run_scenario_analysis(&quot;pjnz_dir/&quot;, &quot;scenario_simulations.json&quot;, &quot;output_dir/&quot;)" vertex="1">
+          <mxGeometry height="117" width="450" x="270" y="568" as="geometry" />
+        </mxCell>
+        <mxCell id="user_cli" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;align=left;" value="&lt;b&gt;CLI&lt;/b&gt;&lt;br&gt;$ goals-scenario simulations scenario_description.json scenario_simulations.json&lt;br&gt;$ goals-scenario run config.json&lt;br&gt;&lt;i&gt;config.json: { scenarios_path, pjnz_dir, output_dir, base_year, output_indicators }&lt;/i&gt;" vertex="1">
+          <mxGeometry height="117" width="450" x="750" y="568" as="geometry" />
+        </mxCell>
+        <mxCell id="e_pub_leapfrog" edge="1" parent="1" source="repo_leapfrog" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#6c8ebf;fontStyle=2;fontSize=9;endArrow=open;endFill=0;" target="pkg_leapfrog" value="publishes (incl. compiled binaries)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_pub_spectrum" edge="1" parent="1" source="repo_spectrum" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#6c8ebf;fontStyle=2;fontSize=9;endArrow=open;endFill=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="9vELnu-olC9W8n9J7Any-9" value="publishes">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="450" y="250" />
+              <mxPoint x="535" y="250" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_pub_goals" edge="1" parent="1" source="repo_goals" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#6c8ebf;fontStyle=2;fontSize=9;endArrow=open;endFill=0;" target="pkg_goals" value="publishes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_consts_pjnz" edge="1" parent="1" source="pkg_consts" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;endArrow=block;endFill=1;" target="pkg_pjnz" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_common_pjnz" edge="1" parent="1" source="pkg_common" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;endArrow=block;endFill=1;" target="pkg_pjnz" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_leapfrog_goals" edge="1" parent="1" source="pkg_leapfrog" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;fontStyle=2;fontSize=9;endArrow=block;endFill=1;" target="pkg_goals" value="depends on">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="143" y="440" />
+              <mxPoint x="143" y="470" />
+              <mxPoint x="875" y="470" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_pjnz_goals" edge="1" parent="1" source="pkg_pjnz" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;fontStyle=2;fontSize=9;endArrow=block;endFill=1;" target="pkg_goals" value="depends on">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_consts_goals" edge="1" parent="1" source="pkg_consts" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;endArrow=block;endFill=1;" target="pkg_goals" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_common_goals" edge="1" parent="1" source="pkg_common" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#82b366;endArrow=block;endFill=1;" target="pkg_goals" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_goals_py" edge="1" parent="1" source="pkg_goals" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#9673a6;endArrow=open;endFill=0;" target="user_py" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="875" y="540" />
+              <mxPoint x="625" y="540" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_goals_cli" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#9673a6;endArrow=open;endFill=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="user_cli" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="875" y="540" />
+              <mxPoint x="975" y="540" />
+            </Array>
+            <mxPoint x="875" y="405" as="sourcePoint" />
+            <mxPoint x="995" y="644" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg_box" parent="1" style="rounded=1;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#666666;" value="" vertex="1">
+          <mxGeometry height="240" width="190" x="40" y="530" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_title" parent="1" style="text;html=1;fontStyle=1;fontSize=12;" value="Legend" vertex="1">
+          <mxGeometry height="20" width="80" x="55" y="538" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_repo" parent="1" style="swimlane;startSize=22;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" value="GitHub Repo" vertex="1">
+          <mxGeometry height="30" width="155" x="55" y="562" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_pypi" parent="1" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="PyPI Package" vertex="1">
+          <mxGeometry height="30" width="155" x="55" y="603" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_comp" parent="1" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" value="Code Component" vertex="1">
+          <mxGeometry height="30" width="155" x="55" y="644" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_cli_item" parent="1" style="rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" value="CLI" vertex="1">
+          <mxGeometry height="30" width="155" x="55" y="685" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_user_item" parent="1" style="rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" value="User / Consumer" vertex="1">
+          <mxGeometry height="30" width="155" x="55" y="726" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

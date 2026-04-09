@@ -25,13 +25,77 @@ For full details of the CLI please see the [CLI reference](https://avenirhealth-
 
 ```bash
 goals-scenario --help      # or -h
-goals-scenario --version   # or -v
+goals-scenario --version
 ```
 
-### Generate scenarios
+### Generate scenario simulations
 
 ```bash
-goals-scenario scenarios --dest-path ./scenarios.csv
+goals-scenario simulations scenario_definition.csv scenario_simulations.json
+# optionally override the number of simulations (default 100):
+goals-scenario simulations scenario_definition.csv scenario_simulations.json -n 500
+```
+
+#### File formats
+
+Scenario definition CSV
+
+Multiple rows sharing the same `Number` represent multiple target populations for that
+intervention — all parameter columns must be identical across those rows, only `Target Population`
+and `Sex` may differ. A combined scenario has the IDs to combine joined by `+` in the `Product`
+column. Column headers are case-insensitive.
+
+```
+Number,Product,Efficacy mean,Efficacy STD,Adherence mean,Adherence STD,Target Coverage mean,Target Coverage STD,Target Year mean,Target Year STD,Target Population,Sex
+1,One month pill for PrEP,0.95,0.03,0.95,0.03,0.20,0.05,2028,2,High risk heterosexual,Female
+1,One month pill for PrEP,0.95,0.03,0.95,0.03,0.20,0.05,2028,2,Men who have sex with men,Male
+2,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,High risk heterosexual,Female
+...
+25,1+2,,,,,,,,,,
+...
+```
+
+| Column | Description |
+|---|---|
+| `Number` | Integer scenario ID (repeated for multi-population interventions) |
+| `Product` | Intervention name, or `X+Y+Z` to combine scenarios X, Y and Z |
+| `Efficacy mean` | Mean efficacy |
+| `Efficacy STD` | Efficacy standard deviation |
+| `Adherence mean` | Mean adherence |
+| `Adherence STD` | Adherence standard deviation |
+| `Target Coverage mean` | Mean target coverage |
+| `Target Coverage STD` | Target coverage standard deviation |
+| `Target Year mean` | Mean target year |
+| `Target Year STD` | Target year standard deviation |
+| `Target Population` | Population group (e.g. `High risk heterosexual`, `PLHIV`) |
+| `Sex` | `Female`, `Male`, or `Both` |
+
+Scenario simulations
+
+```json
+{
+  "scenarios": [
+    {
+      "scenario_id": 1,
+      "interventions": [
+        {
+          "id": "one_month_pill_for_prep",
+          "product": "One month pill for PrEP",
+          "targets": [
+            { "population": "High risk heterosexual", "sex": "Female" },
+            { "population": "Men who have sex with men", "sex": "Male" }
+          ]
+        }
+      ],
+      "simulations": [
+        {
+          "one_month_pill_for_prep": { "efficacy": 0.976158, "adherence": 0.9425262, "target_coverage": 0.202123, "target_year": 2028 }
+        }
+      ]
+    },
+    ...
+  ]
+}
 ```
 
 ### Run scenario analysis
@@ -39,7 +103,7 @@ goals-scenario scenarios --dest-path ./scenarios.csv
 Analysis is configured via a JSON config file:
 
 ```bash
-goals-scenario run --config-path config.json
+goals-scenario run config.json
 ```
 
 #### Config file format
@@ -48,11 +112,9 @@ Field names are case-insensitive.
 
 ```json
 {
-  "Goals_path": "path/to/pjnz/files",
-  "Scenario_path": "path/to/scenarios/scenarios.csv",
-  "Scenario_file_name": "scenarios.csv",
-  "Output_path": "path/to/output",
-  "Output_file_name": "results.parquet",
+  "Goals_path": "path/to/pjnz.files",
+  "Scenario_path": "path/to/scenario_simulations.json",
+  "Output_path": "path/to/scenario_output.?",
   "Base_year": "2025",
   "Output_indicators": [
     "PLHIV",
@@ -68,10 +130,8 @@ Field names are case-insensitive.
 | Field | Description |
 |---|---|
 | `Goals_path` | Directory containing `.PJNZ` files |
-| `Scenario_path` | Directory containing the scenario file |
-| `Scenario_file_name` | Filename of the scenario CSV |
-| `Output_path` | Directory to write output to |
-| `Output_file_name` | Filename for the output file |
+| `Scenario_path` | Path to scenario simulations JSON file |
+| `Output_path` | Path to write output to |
 | `Base_year` | Base year for the analysis |
 | `Output_indicators` | List of indicators to include in output |
 
@@ -84,6 +144,10 @@ goals-scenario --install-completion
 ```
 
 ## Development
+
+### Architecture
+
+![architecture diagram](images/goals_scenario_architecture.png)
 
 ### Prerequisites
 
