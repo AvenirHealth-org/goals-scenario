@@ -5,8 +5,8 @@ from pathlib import Path
 import numpy as np
 from pydantic import ValidationError
 
-from avenir_goals_scenario._scenario_generator.models.scenario_definition import ScenarioInput
-from avenir_goals_scenario._scenario_generator.models.scenario_simulations import (
+from avenir_goals_scenario.models.scenario_definition import ScenarioInput
+from avenir_goals_scenario.models.scenario_simulations import (
     InterventionOut,
     InterventionSimulation,
     ScenarioSimulation,

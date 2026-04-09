@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, RootModel
 
-from avenir_goals_scenario._scenario_generator.models.scenario_definition import PopulationTarget
+from avenir_goals_scenario.models.scenario_definition import PopulationTarget
 
 
 class InterventionOut(BaseModel):

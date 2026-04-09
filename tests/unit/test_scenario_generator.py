@@ -2,20 +2,18 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from avenir_goals_scenario._scenario_generator.models.scenario_definition import (
-    CombinedScenarioDef,
-    InterventionDef,
-    NormalDistParameters,
-    ScenarioInput,
-    SingleScenarioDef,
-)
-from avenir_goals_scenario._scenario_generator.models.scenario_simulations import (
-    ScenarioSimulations,
-)
 from avenir_goals_scenario._scenario_generator.scenario_generator import (
     _product_to_id,
     gen_simulations,
     load_scenario_definition,
+)
+from avenir_goals_scenario.models import (
+    CombinedScenarioDef,
+    InterventionDef,
+    NormalDistParameters,
+    ScenarioInput,
+    ScenarioSimulations,
+    SingleScenarioDef,
 )
 
 # ---------------------------------------------------------------------------
