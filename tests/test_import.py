@@ -73,7 +73,5 @@ def test_import_all_pjnz_files_in_test_dir(pjnz_path):
     final_year = projection[pjconst.PJN_FinalYearTag]
     first_year = projection[pjconst.PJN_FirstYearTag]
     year_count = final_year - first_year + 1
-    assert projection[dpconst.DP_TFRTag].shape == (year_count, )
+    assert projection[dpconst.DP_TFRTag].shape == (year_count,)
     assert projection[hvconst.HVARTCoverageByRGTag].shape == (3, 11, year_count)
-
-
