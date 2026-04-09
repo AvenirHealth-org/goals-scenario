@@ -7,7 +7,7 @@ import numpy as np
 def write_scenario_results(
     scenario_id: int,
     pjnz_name: str,
-    sim_arrays: dict[str, list[np.ndarray]],
+    sim_output: list[dict[str, np.ndarray]],
     output_dir: Path,
 ) -> Path:
     """Write simulation results for one scenario/PJNZ combination to HDF5.
@@ -26,8 +26,8 @@ def write_scenario_results(
         scenario_id: Scenario identifier, used to name the output file.
         pjnz_name: Stem of the source PJNZ file (e.g. ``"country_2024"``).
             Used as the subdirectory name.
-        sim_arrays: Mapping of indicator name to a list of arrays — one
-            array per simulation draw, all with the same shape.
+        sim_output: List of dict of output from simulation. Each item in list
+            is 1 simulation. Each dict has the same items.
         output_dir: Root output directory (must already exist).
 
     Returns:
@@ -36,6 +36,11 @@ def write_scenario_results(
     pjnz_dir = output_dir / pjnz_name
     pjnz_dir.mkdir(exist_ok=True)
     path = pjnz_dir / f"scenario_{scenario_id}.h5"
+
+    ## All output has the same keys, already filtered to
+    ## the things we want to output
+    out_indicators = sim_output[0].keys()
+    sim_arrays = {indicator: [sim[indicator] for sim in sim_output] for indicator in out_indicators}
 
     with h5py.File(path, "w") as f:
         for indicator, arrays in sim_arrays.items():

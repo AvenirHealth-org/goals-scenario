@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from avenir_goals_scenario._runner.output import write_scenario_results
-from avenir_goals_scenario._runner.pjnz import find_pjnz_files
+from avenir_goals_scenario._runner.pjnz import find_pjnz_files, import_pjnz, modvars_to_numpy
 from avenir_goals_scenario._runner.simulation import _extract_indicators
 from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
 from avenir_goals_scenario.runner import run_scenario_analysis
@@ -109,6 +109,38 @@ def test_find_pjnz_files_raises_when_empty(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# import_pjnz
+# ---------------------------------------------------------------------------
+
+
+def test_import_pjnz_raises_when_modvars_is_none(tmp_path):
+    pjnz_path = tmp_path / "bad.PJNZ"
+    pjnz_path.touch()
+
+    with (
+        patch("avenir_goals_scenario._runner.pjnz.GB_ImportProjectionFromFile", return_value=(None, None, None, None)),
+        pytest.raises(ValueError, match="Failed to import PJNZ file"),
+    ):
+        import_pjnz(pjnz_path)
+
+
+# ---------------------------------------------------------------------------
+# modvars_to_numpy
+# ---------------------------------------------------------------------------
+
+
+def test_modvars_to_numpy_returns_value_unchanged_on_conversion_failure(capsys):
+    # A list whose first element is not dict/str/bool, but which can't be
+    # converted to float64 — triggers the except branch.
+    bad_value = [1, "not_a_number"]
+
+    result = modvars_to_numpy("some_tag", bad_value)
+
+    assert result == bad_value
+    assert "some_tag" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
 # _extract_indicators
 # ---------------------------------------------------------------------------
 
@@ -138,8 +170,8 @@ def test_extract_indicators_raises_on_unknown():
 
 
 def test_write_scenario_results_creates_h5(tmp_path):
-    sim_arrays = {"PLHIV": [np.ones(5), np.ones(5) * 2]}
-    path = write_scenario_results(1, "country", sim_arrays, tmp_path)
+    sim_output = [{"PLHIV": np.ones(5)}, {"PLHIV": np.ones(5) * 2}]
+    path = write_scenario_results(1, "country", sim_output, tmp_path)
 
     assert path == tmp_path / "country" / "scenario_1.h5"
     assert path.exists()
@@ -147,8 +179,8 @@ def test_write_scenario_results_creates_h5(tmp_path):
 
 def test_write_scenario_results_dataset_shape(tmp_path):
     n_sims = 3
-    sim_arrays = {"PLHIV": [np.ones(5) * i for i in range(n_sims)]}
-    path = write_scenario_results(2, "country", sim_arrays, tmp_path)
+    sim_output = [{"PLHIV": np.ones(5) * i} for i in range(n_sims)]
+    path = write_scenario_results(2, "country", sim_output, tmp_path)
 
     with h5py.File(path, "r") as f:
         assert f["PLHIV"].shape == (n_sims, 5)
@@ -158,16 +190,16 @@ def test_write_scenario_results_preserves_multidim_shape(tmp_path):
     # Simulate a sex x age x years indicator shape (2, 66, 61)
     indicator_shape = (2, 66, 61)
     n_sims = 4
-    sim_arrays = {"p_totpop": [np.ones(indicator_shape) for _ in range(n_sims)]}
-    path = write_scenario_results(1, "country", sim_arrays, tmp_path)
+    sim_output = [{"p_totpop": np.ones(indicator_shape)} for _ in range(n_sims)]
+    path = write_scenario_results(1, "country", sim_output, tmp_path)
 
     with h5py.File(path, "r") as f:
         assert f["p_totpop"].shape == (n_sims, 2, 66, 61)
 
 
 def test_write_scenario_results_values(tmp_path):
-    sim_arrays = {"PLHIV": [np.array([1.0, 2.0]), np.array([3.0, 4.0])]}
-    path = write_scenario_results(1, "country", sim_arrays, tmp_path)
+    sim_output = [{"PLHIV": np.array([1.0, 2.0])}, {"PLHIV": np.array([3.0, 4.0])}]
+    path = write_scenario_results(1, "country", sim_output, tmp_path)
 
     with h5py.File(path, "r") as f:
         np.testing.assert_array_equal(f["PLHIV"][0], [1.0, 2.0])
@@ -175,8 +207,8 @@ def test_write_scenario_results_values(tmp_path):
 
 
 def test_write_scenario_results_creates_pjnz_subdir(tmp_path):
-    sim_arrays = {"PLHIV": [np.ones(3)]}
-    write_scenario_results(1, "my_country", sim_arrays, tmp_path)
+    sim_output = [{"PLHIV": np.ones(3)}]
+    write_scenario_results(1, "my_country", sim_output, tmp_path)
 
     assert (tmp_path / "my_country").is_dir()
 

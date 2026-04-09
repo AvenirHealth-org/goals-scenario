@@ -16,9 +16,8 @@ def run_scenario_analysis(config: RunConfig) -> Path:
     For every combination of PJNZ file, scenario, and simulation draw, this
     function:
 
-    1. Imports the PJNZ file into a modvars dict.
-    2. Applies the sampled intervention parameters via
-       :func:`~avenir_goals_scenario._runner.simulation.apply_simulation`.
+    1. Imports the PJNZ file.
+    2. Applies the sampled intervention parameters.
     3. Converts modvars to Leapfrog parameters and runs the Goals model.
     4. Extracts the requested output indicators.
 
@@ -53,14 +52,11 @@ def run_scenario_analysis(config: RunConfig) -> Path:
                 len(scenario.simulations),
                 pjnz_path.name,
             )
-            sim_arrays = {
-                indicator: [
-                    run_simulation(modvars_base, simulation, config.output_indicators, output_years, ss)[indicator]
-                    for simulation in scenario.simulations
-                ]
-                for indicator in config.output_indicators
-            }
-            out_path = write_scenario_results(scenario.scenario_id, pjnz_path.stem, sim_arrays, config.output_dir)
+            simulations_out = [
+                run_simulation(modvars_base, simulation, config.output_indicators, output_years, ss)
+                for simulation in scenario.simulations
+            ]
+            out_path = write_scenario_results(scenario.scenario_id, pjnz_path.stem, simulations_out, config.output_dir)
             logger.info("Written {}", out_path)
 
     return config.output_dir

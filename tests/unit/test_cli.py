@@ -132,6 +132,18 @@ def test_load_config_creates_output_dir(tmp_path):
     assert result.output_dir == new_dir.resolve()
 
 
+def test_load_config_raises_when_output_dir_is_a_file(tmp_path):
+    config = _valid_config(tmp_path)
+    f = tmp_path / "not_a_dir.txt"
+    f.touch()
+    config["output_dir"] = str(f)
+    config_file = tmp_path / "config.json"
+    config_file.write_bytes(orjson.dumps(config))
+
+    with pytest.raises(ValidationError, match="not a directory"):
+        _load_config(config_file)
+
+
 def test_load_config_raises_when_output_dir_parent_missing(tmp_path):
     config = _valid_config(tmp_path)
     config["output_dir"] = str(tmp_path / "nonexistent" / "nested")

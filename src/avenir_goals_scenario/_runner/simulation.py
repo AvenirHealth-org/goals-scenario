@@ -41,7 +41,7 @@ def run_simulation(
         simulation: Sampled intervention parameters for one draw.
         output_indicators: Indicator names to extract from Goals output.
         output_years: Year range passed to ``run_goals``.
-        ss: Goals state-space dict from :func:`get_goals_ss`.
+        ss: Goals state-space dict from ``leapfrog_goals.get_goals_ss``.
 
     Returns:
         Dict mapping each indicator name to a NumPy array whose last axis is

@@ -112,28 +112,26 @@ Field names are case-insensitive.
 
 ```json
 {
-  "Goals_path": "path/to/pjnz.files",
-  "Scenario_path": "path/to/scenario_simulations.json",
-  "Output_path": "path/to/scenario_output.?",
-  "Base_year": "2025",
-  "Output_indicators": [
-    "PLHIV",
-    "New Infections",
-    "AIDS deaths",
-    "Number on ART",
-    "DALYs",
-    "Total Cost"
+  "pjnz_dir": "path/to/pjnz/files",
+  "scenario_path": "path/to/scenario_simulations.json",
+  "output_dir": "path/to/output",
+  "base_year": 2025,
+  "output_indicators": [
+    "p_hivpop",
+    "p_infections",
+    "p_hiv_deaths",
+    "h_artpop"
   ]
 }
 ```
 
 | Field | Description |
 |---|---|
-| `Goals_path` | Directory containing `.PJNZ` files |
-| `Scenario_path` | Path to scenario simulations JSON file |
-| `Output_path` | Path to write output to |
-| `Base_year` | Base year for the analysis |
-| `Output_indicators` | List of indicators to include in output |
+| `pjnz_dir` | Directory containing `.PJNZ` files |
+| `scenario_path` | Path to the scenario simulations JSON file |
+| `output_dir` | Directory to write results to (created if absent; parent must exist) |
+| `base_year` | First year of the output projection range |
+| `output_indicators` | Goals output indicator names to extract |
 
 ### Tab completion
 

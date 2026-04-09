@@ -32,7 +32,7 @@ def import_pjnz(path: Path) -> dict:
         path: Path to a ``.PJNZ`` file.
 
     Returns:
-        Modvars dict for use with :func:`modvars_to_leapfrog`.
+        Modvars dict for use with `modvars_to_leapfrog`.
 
     Raises:
         ValueError: If the PJNZ file cannot be parsed.

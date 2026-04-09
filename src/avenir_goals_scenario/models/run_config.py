@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 
 class RunConfig(BaseModel):
-    """Configuration for :func:`~avenir_goals_scenario.run_scenario_analysis`.
+    """Configuration for `avenir_goals_scenario.run_scenario_analysis`.
 
     Field names are case-insensitive: ``PJNZ_Dir``, ``pjnz_dir``, and
     ``PJNZ_DIR`` are all accepted.
@@ -13,14 +13,14 @@ class RunConfig(BaseModel):
     ``output_dir`` is created if it does not exist, but only one level deep —
     its parent must already exist.
 
-    Args:
-        pjnz_dir: Directory containing ``.PJNZ`` files.
-        scenario_path: Path to the scenario simulations JSON file produced by
-            :func:`~avenir_goals_scenario.generate_simulations`.
-        output_dir: Directory where per-PJNZ result subdirectories are written.
+    Attributes:
+        pjnz_dir (Path): Directory containing ``.PJNZ`` files.
+        scenario_path (Path): Path to the scenario simulations JSON file produced by
+            `avenir_goals_scenario.generate_simulations`.
+        output_dir (Path): Directory where per-PJNZ result subdirectories are written.
             Created automatically if absent (parent must exist).
-        base_year: First year of the output projection range.
-        output_indicators: Names of the Goals output indicators to write.
+        base_year (int): First year of the output projection range.
+        output_indicators (list[str]): Names of the Goals output indicators to write.
             Each name must be a key in the dict returned by ``run_goals``.
     """
 
