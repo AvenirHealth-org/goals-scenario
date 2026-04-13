@@ -2,7 +2,6 @@ from pathlib import Path
 
 import h5py
 import numpy as np
-from loguru import logger
 
 
 def write_scenario_results(
@@ -48,6 +47,6 @@ def write_scenario_results(
             stacked = np.stack(arrays, axis=0)
             f.create_dataset(indicator, data=stacked)
 
-    logger.info("Written {}", path)
+    # logger.info("Written {}", path)
 
     return path

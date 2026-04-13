@@ -1,4 +1,3 @@
-import datetime
 import pickle
 import tempfile
 from pathlib import Path
@@ -6,6 +5,7 @@ from pathlib import Path
 from joblib import Parallel, delayed
 from loguru import logger
 
+from avenir_goals_scenario._cli.cli_utils import task_progress
 from avenir_goals_scenario._runner.output import write_scenario_results
 from avenir_goals_scenario._runner.pjnz import find_pjnz_files, import_pjnz
 from avenir_goals_scenario._runner.simulation import run_simulation
@@ -44,20 +44,21 @@ def _run_pjnz_scenario(
 
     output_years = range(config.base_year, end_year)
 
-    start = datetime.datetime.now()
+    # start = datetime.datetime.now()
     simulations_out = [
         run_simulation(params, simulation, config.output_indicators, output_years)
         for simulation in scenario.simulations
     ]
-    elapsed_ms = (datetime.datetime.now() - start).total_seconds() * 1000
-    logger.info(
-        "Scenario run finished {} ({} simulation(s)) for {} in {}ms",
-        scenario.scenario_id,
-        len(scenario.simulations),
-        pjnz_stem,
-        elapsed_ms,
-    )
-    return write_scenario_results(scenario.scenario_id, pjnz_stem, simulations_out, config.output_dir)
+    # elapsed_ms = (datetime.datetime.now() - start).total_seconds() * 1000
+    # logger.info(
+    #     "Scenario run finished {} ({} simulation(s)) for {} in {}ms",
+    #     scenario.scenario_id,
+    #     len(scenario.simulations),
+    #     pjnz_stem,
+    #     elapsed_ms,
+    # )
+    _path = write_scenario_results(scenario.scenario_id, pjnz_stem, simulations_out, config.output_dir)
+    return pjnz_stem
 
 
 def run_scenario_analysis(config: RunConfig) -> Path:
@@ -90,6 +91,7 @@ def run_scenario_analysis(config: RunConfig) -> Path:
     pjnz_files = find_pjnz_files(config.pjnz_dir)
 
     scenarios = ScenarioSimulations.model_validate_json(config.scenario_path.read_bytes())
+    n_scenarios = len(scenarios.scenarios)
 
     effective_workers = get_number_of_workers(config)
 
@@ -118,15 +120,23 @@ def run_scenario_analysis(config: RunConfig) -> Path:
             config.n_workers,
         )
 
-        if effective_workers == 1:
-            # If only 1 worker, then run this in process. Less overhead
-            # to run within the single process.
-            for params_path, pjnz_stem, scenario, end_year in work_units:
-                _run_pjnz_scenario(params_path, pjnz_stem, scenario, config, end_year)
-        else:
-            Parallel(n_jobs=effective_workers)(
-                delayed(_run_pjnz_scenario)(params_path, pjnz_stem, scenario, config, end_year)
-                for params_path, pjnz_stem, scenario, end_year in work_units
-            )
+        with task_progress({pjnz_path.stem: n_scenarios for pjnz_path in pjnz_files}) as progress:
+
+            if effective_workers == 1:
+                # If only 1 worker, then run this in process. Less overhead
+                # to run within the single process.
+                pjnz_stems: list[Path] = (
+                    _run_pjnz_scenario(params_path, pjnz_stem, scenario, config, end_year)
+                    for params_path, pjnz_stem, scenario, end_year in work_units
+                )
+
+            else:
+                pjnz_stems: list[Path] = Parallel(n_jobs=effective_workers, return_as="generator_unordered")(
+                    delayed(_run_pjnz_scenario)(params_path, pjnz_stem, scenario, config, end_year)
+                    for params_path, pjnz_stem, scenario, end_year in work_units
+                )
+
+            for completed_stem in pjnz_stems:
+                progress(completed_stem)
 
     return config.output_dir
