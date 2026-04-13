@@ -1,7 +1,8 @@
+import os
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class RunConfig(BaseModel):
@@ -22,6 +23,11 @@ class RunConfig(BaseModel):
         base_year (int): First year of the output projection range.
         output_indicators (list[str]): Names of the Goals output indicators to write.
             Each name must be a key in the dict returned by ``run_goals``.
+        n_workers (int): Number of parallel worker processes. Follows joblib
+            conventions: ``-1`` uses all available CPUs, ``1`` runs
+            sequentially, and any positive integer sets an explicit worker
+            count. Zero is not valid. Uses 4 by default or no of available
+            CPUs if num of cores is fewer than 4.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -31,6 +37,15 @@ class RunConfig(BaseModel):
     output_dir: Path
     base_year: int
     output_indicators: list[str]
+    n_workers: int = Field(default_factory=lambda: min(os.cpu_count() or 1, 4))
+
+    @field_validator("n_workers")
+    @classmethod
+    def _n_workers_must_be_nonzero(cls, v: int) -> int:
+        if v == 0:
+            msg = "n_workers must be non-zero (-1 for all CPUs, or a positive integer)"
+            raise ValueError(msg)
+        return v
 
     @model_validator(mode="before")
     @classmethod

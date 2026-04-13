@@ -1,5 +1,4 @@
 import h5py
-from SpectrumCommon.Const.PJ.PJNTags import PJN_FinalYearTag
 
 from avenir_goals_scenario._runner.pjnz import import_pjnz
 from avenir_goals_scenario.models.run_config import RunConfig
@@ -47,8 +46,8 @@ def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_dir):
             for indicator in _INDICATORS:
                 assert indicator in f, f"Missing dataset '{indicator}' in {path}"
 
-            modvars = import_pjnz(test_dir / "pjnz" / f"{pjnz_name}.PJNZ")
-            expected_n_years = len(range(_BASE_YEAR, modvars[PJN_FinalYearTag] + 1))
+            params = import_pjnz(test_dir / "pjnz" / f"{pjnz_name}.PJNZ")
+            expected_n_years = params["projection_end_year"] - _BASE_YEAR + 1
             ## Shapes are as expected
             assert f["p_hivpop"].shape[0] == _N_SIMULATIONS
             assert f["p_hivpop"].shape[-1] == expected_n_years
