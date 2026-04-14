@@ -118,9 +118,15 @@ def run_scenario_analysis(config: RunConfig) -> Path:
             config.n_workers,
         )
 
-        _paths: list[Path] = Parallel(n_jobs=effective_workers)(
-            delayed(_run_pjnz_scenario)(params_path, pjnz_stem, scenario, config, end_year)
-            for params_path, pjnz_stem, scenario, end_year in work_units
-        )
+        if effective_workers == 1:
+            # If only 1 worker, then run this in process. Less overhead
+            # to run within the single process.
+            for params_path, pjnz_stem, scenario, end_year in work_units:
+                _run_pjnz_scenario(params_path, pjnz_stem, scenario, config, end_year)
+        else:
+            Parallel(n_jobs=effective_workers)(
+                delayed(_run_pjnz_scenario)(params_path, pjnz_stem, scenario, config, end_year)
+                for params_path, pjnz_stem, scenario, end_year in work_units
+            )
 
     return config.output_dir

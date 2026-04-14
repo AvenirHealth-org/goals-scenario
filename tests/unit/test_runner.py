@@ -8,7 +8,7 @@ import pytest
 
 from avenir_goals_scenario._runner.output import write_scenario_results
 from avenir_goals_scenario._runner.pjnz import find_pjnz_files, import_pjnz, modvars_to_numpy
-from avenir_goals_scenario._runner.simulation import _extract_indicators
+from avenir_goals_scenario._runner.simulation import _extract_indicators, run_simulation
 from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
 from avenir_goals_scenario.runner import run_scenario_analysis
 
@@ -135,6 +135,20 @@ def test_modvars_to_numpy_raises_on_unconvertible_list():
     bad_value = [1, "not_a_number"]
     with pytest.raises(ValueError):
         modvars_to_numpy(bad_value)
+
+
+# ---------------------------------------------------------------------------
+# run_simulation
+# ---------------------------------------------------------------------------
+
+
+def test_run_simulation_calls_run_goals_and_extracts_indicators():
+    goals_output = {"PLHIV": np.ones(5), "Deaths": np.ones(5)}
+    with patch("avenir_goals_scenario._runner.simulation.run_goals", return_value=goals_output) as mock_goals:
+        result = run_simulation({}, {}, ["PLHIV"], range(2020, 2025))
+
+    mock_goals.assert_called_once_with({}, range(2020, 2025))
+    assert list(result.keys()) == ["PLHIV"]
 
 
 # ---------------------------------------------------------------------------
