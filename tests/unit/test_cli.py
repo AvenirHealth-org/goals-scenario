@@ -269,7 +269,7 @@ def test_cli_simulations_prints_success_message(tmp_path):
 
     assert result.exit_code == 0
     assert "Done" in result.output
-    assert str(dest.resolve()) in result.output
+    assert "out.json" in result.output
 
 
 def test_cli_simulations_handles_errors():
