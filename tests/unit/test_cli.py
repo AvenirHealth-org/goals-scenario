@@ -277,7 +277,7 @@ def test_cli_simulations_handles_errors():
         result = runner.invoke(app, ["simulations", "/x/in.json", "/x/out.json"])
 
     assert result.exit_code == 1
-    assert "Error:" in result.output
+    assert "ERROR" in result.output
 
 
 def test_cli_simulations_handles_error_without_message():
@@ -302,7 +302,7 @@ def test_cli_run_calls_run_scenario_analysis_cli(tmp_path):
     config_file = tmp_path / "config.json"
     config_file.write_bytes(orjson.dumps(config))
 
-    with patch("avenir_goals_scenario.cli._run_scenario_analysis_cli") as mock_run:
+    with patch("avenir_goals_scenario.cli.run_with_progress") as mock_run:
         result = runner.invoke(app, ["run", str(config_file)])
 
     assert result.exit_code == 0
@@ -310,19 +310,6 @@ def test_cli_run_calls_run_scenario_analysis_cli(tmp_path):
     config_arg = mock_run.call_args.args[0]
     assert isinstance(config_arg, RunConfig)
     assert config_arg.pjnz_dir == Path(config["pjnz_dir"]).resolve()
-
-
-def test_cli_run_prints_success_message(tmp_path):
-    config = _valid_config(tmp_path)
-    config_file = tmp_path / "config.json"
-    config_file.write_bytes(orjson.dumps(config))
-
-    with patch("avenir_goals_scenario.cli._run_scenario_analysis_cli"):
-        result = runner.invoke(app, ["run", str(config_file)])
-
-    assert result.exit_code == 0
-    assert "Done" in result.output
-    assert "output" in result.output
 
 
 def test_cli_run_errors_on_non_json_file(tmp_path):
@@ -349,7 +336,7 @@ def test_cli_run_errors_when_config_file_missing(tmp_path):
     result = runner.invoke(app, ["run", str(tmp_path / "nonexistent.json")])
 
     assert result.exit_code == 1
-    assert "Error:" in result.output
+    assert "ERROR" in result.output
 
 
 def test_cli_run_errors_on_invalid_config(tmp_path):
@@ -359,7 +346,7 @@ def test_cli_run_errors_on_invalid_config(tmp_path):
     result = runner.invoke(app, ["run", str(config_file)])
 
     assert result.exit_code == 1
-    assert "Error:" in result.output
+    assert "ERROR" in result.output
 
 
 def test_cli_run_handles_errors(tmp_path):
@@ -367,10 +354,19 @@ def test_cli_run_handles_errors(tmp_path):
     config_file = tmp_path / "config.json"
     config_file.write_bytes(orjson.dumps(config))
 
-    with patch(
-        "avenir_goals_scenario.cli._run_scenario_analysis_cli", side_effect=RuntimeError("something went wrong")
-    ):
+    with patch("avenir_goals_scenario.cli.run_with_progress", side_effect=RuntimeError("something went wrong")):
         result = runner.invoke(app, ["run", str(config_file)])
 
     assert result.exit_code == 1
-    assert "Error:" in result.output
+    assert "ERROR" in result.output
+    assert "something went wrong" in result.output
+    assert "Traceback" not in result.output
+
+    # Traceback raised in verbose mode
+    with patch("avenir_goals_scenario.cli.run_with_progress", side_effect=RuntimeError("something went wrong")):
+        result = runner.invoke(app, ["-v", "run", str(config_file)])
+
+    assert result.exit_code == 1
+    assert "ERROR" in result.output
+    assert "something went wrong" in result.output
+    assert "Traceback" in result.output

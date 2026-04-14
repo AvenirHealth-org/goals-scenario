@@ -1,24 +1,17 @@
 import datetime
+import os
 import pickle
 import tempfile
-import threading
-from multiprocessing import Manager
 from pathlib import Path
 from queue import Queue
 
 from joblib import Parallel, delayed
 from loguru import logger
 
-from avenir_goals_scenario._cli.cli_utils import (
-    configure_worker_logging,
-    get_number_of_workers,
-    make_log_queue_listener,
-    make_progress,
-    stop_log_queue_listener,
-)
 from avenir_goals_scenario._runner.output import write_scenario_results
 from avenir_goals_scenario._runner.pjnz import find_pjnz_files, import_pjnz
 from avenir_goals_scenario._runner.simulation import run_simulation
+from avenir_goals_scenario._runner.utils import RunCallbacks, get_effective_workers
 from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
 from avenir_goals_scenario.models.scenario_simulations import ScenarioSimulation
 
@@ -29,27 +22,16 @@ def _run_pjnz_scenario(
     scenario: ScenarioSimulation,
     config: RunConfig,
     end_year: int,
-    log_queue: Queue | None,
+    log_queue=None,
 ) -> str:
-    """Run all simulations for one PJNZ/scenario combination and write results.
-
-    Args:
-        params_path: Path to a pickle-dumped leapfrog params dict.
-        pjnz_stem: Stem of the source PJNZ file, used for the output subdir.
-        scenario: Scenario with all simulation draws to run.
-        config: Run configuration.
-        end_year: Final year of the projection (exclusive upper bound).
-        log_queue: Queue shared with the main-process log listener thread, or
-            ``None`` when running in the main process (``n_workers=1``).
-
-    Returns:
-        Stem of the source PJNZ file.
-    """
+    """Run all simulations for one PJNZ/scenario combination and write results."""
     if log_queue is not None:
+        from avenir_goals_scenario._cli.cli_utils import configure_worker_logging
+
         configure_worker_logging(log_queue)
 
     with open(params_path, "rb") as f:
-        params = pickle.load(f)  # noqa: S301 This only loads data we saved
+        params = pickle.load(f)  # noqa: S301 — only loads data we saved ourselves
 
     output_years = range(config.base_year, end_year)
 
@@ -70,60 +52,27 @@ def _run_pjnz_scenario(
     return pjnz_stem
 
 
-def _execute(
-    config: RunConfig,
+def _dump_pjnz_files(
     pjnz_files: list[Path],
-    scenarios: ScenarioSimulations,
-    effective_workers: int,
-    log_queue: Queue | None,
-    advance,
-    on_import=None,
-    on_imports_complete=None,
-) -> None:
-    """Run the parallel work units, calling advance(stem) as each completes."""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        params_paths: dict[Path, str] = {}
-        end_years: dict[Path, int] = {}
-        logger.info("Loading {} PJNZ files", len(pjnz_files))
-        for pjnz_path in pjnz_files:
-            logger.debug("Importing {}", pjnz_path.name)
-            leapfrog_params = import_pjnz(pjnz_path)
-            dump_path = str(Path(tmp_dir) / f"{pjnz_path.stem}.pkl")
-            with open(dump_path, "wb") as f:
-                pickle.dump(leapfrog_params, f)
-            params_paths[pjnz_path] = dump_path
-            end_years[pjnz_path] = leapfrog_params["projection_end_year"] + 1
-            if on_import is not None:
-                on_import()
+    tmp_dir: str,
+    cb: RunCallbacks,
+) -> tuple[dict[Path, str], dict[Path, int]]:
+    """Import each PJNZ, pickle it to tmp_dir, return paths and end years."""
+    params_paths: dict[Path, str] = {}
+    end_years: dict[Path, int] = {}
+    logger.info("Loading {} PJNZ file(s)", len(pjnz_files))
+    for pjnz_path in pjnz_files:
+        logger.debug("Importing {}", pjnz_path.name)
+        leapfrog_params = import_pjnz(pjnz_path)
+        dump_path = str(Path(tmp_dir) / f"{pjnz_path.stem}.pkl")
+        with open(dump_path, "wb") as f:
+            pickle.dump(leapfrog_params, f)
+        params_paths[pjnz_path] = dump_path
+        end_years[pjnz_path] = leapfrog_params["projection_end_year"] + 1
+        cb.on_pjnz_imported()
 
-        if on_imports_complete is not None:
-            on_imports_complete()
-
-        work_units = [(params_paths[p], p.stem, s, end_years[p]) for p in pjnz_files for s in scenarios.scenarios]
-        logger.info(
-            "Running {} work unit(s) ({} PJNZ x {} scenario(s)) with n_workers={}",
-            len(work_units),
-            len(pjnz_files),
-            len(scenarios.scenarios),
-            config.n_workers,
-        )
-        logger.info("Running {} simulations per scenario", len(scenarios.scenarios[0].simulations))
-
-        if effective_workers == 1:
-            # If only 1 worker, then run this in process. Less overhead
-            # to run within the single process.
-            results = (
-                _run_pjnz_scenario(params_path, pjnz_stem, scenario, config, end_year, log_queue=None)
-                for params_path, pjnz_stem, scenario, end_year in work_units
-            )
-        else:
-            results = Parallel(n_jobs=effective_workers, return_as="generator_unordered")(
-                delayed(_run_pjnz_scenario)(params_path, pjnz_stem, scenario, config, end_year, log_queue)
-                for params_path, pjnz_stem, scenario, end_year in work_units
-            )
-
-        for stem in results:
-            advance(stem)
+    cb.on_imports_complete()
+    return params_paths, end_years
 
 
 def run_scenario_analysis(config: RunConfig) -> Path:
@@ -133,10 +82,6 @@ def run_scenario_analysis(config: RunConfig) -> Path:
     to a temporary file using ``pickle.dump``, then distributes
     ``(PJNZ, scenario)`` work units across worker processes. Workers load
     params via ``pickle.load``.
-
-    joblib avoids over-subscription of CPU resources automatically. It sets
-    the number of CPUs available to BLAS runtime (which is used by numpy)
-    automatically to the maximum cpu_count / n_jobs.
 
     Results are written to HDF5 files under ``config.output_dir``, one file
     per PJNZ/scenario combination at
@@ -151,57 +96,64 @@ def run_scenario_analysis(config: RunConfig) -> Path:
         ValueError: If any output indicator is not present in the Goals output,
             or if a PJNZ file cannot be parsed.
     """
-    config.output_dir.mkdir(exist_ok=True)
-    pjnz_files = find_pjnz_files(config.pjnz_dir)
-    scenarios = ScenarioSimulations.model_validate_json(config.scenario_path.read_bytes())
-    effective_workers = get_number_of_workers(config)
-    _execute(config, pjnz_files, scenarios, effective_workers, log_queue=None, advance=lambda _: None)
-    return config.output_dir
+    no_op_callbacks = RunCallbacks()
+    return _run_scenario_analysis(config, no_op_callbacks)
 
 
-def _run_scenario_analysis_cli(config: RunConfig) -> None:
-    """CLI entry point — adds Rich progress bars and routes worker logs through
-    the main-process Rich console to prevent display corruption.
+def _run_scenario_analysis(config: RunConfig, callbacks: RunCallbacks, log_queue: Queue | None = None) -> Path:
+    """Internal run_scenario_analysis function
 
     Args:
         config: Validated run configuration.
+        callbacks: Hooks for progress reporting, can be no-op.
+        log_queue: Optional queue to pass to _run_pjnz_scenario when running
+          in parallel so logs can be raised ot the same console as progress
+          bars when run via CLI
+
+    Raises:
+        FileNotFoundError: If no PJNZ files are found in ``config.pjnz_dir``.
+        ValueError: If any output indicator is not present in the Goals output,
+            or if a PJNZ file cannot be parsed.
     """
     config.output_dir.mkdir(exist_ok=True)
     pjnz_files = find_pjnz_files(config.pjnz_dir)
+    logger.info("Found {} PJNZ file(s) in {}", len(pjnz_files), config.pjnz_dir)
+
     scenarios = ScenarioSimulations.model_validate_json(config.scenario_path.read_bytes())
-    effective_workers = get_number_of_workers(config)
-    n_scenarios = len(scenarios.scenarios)
 
-    use_subprocess = effective_workers != 1
-    mp_manager = Manager() if use_subprocess else None
-    log_queue: Queue | None = mp_manager.Queue() if mp_manager is not None else None
-    listener: threading.Thread | None = make_log_queue_listener(log_queue) if log_queue is not None else None
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        params_paths, end_years = _dump_pjnz_files(pjnz_files, tmp_dir, callbacks)
 
-    try:
-        progress = make_progress()
-        with progress:
-            import_task = progress.add_task("Importing PJNZ files", total=len(pjnz_files))
+        effective_workers = get_effective_workers(config)
+        logger.info(
+            "Using {} worker(s) (cpu_count={}, configured n_workers={})",
+            effective_workers,
+            os.cpu_count(),
+            config.n_workers,
+        )
+        work_units = [(params_paths[p], p.stem, s, end_years[p]) for p in pjnz_files for s in scenarios.scenarios]
+        logger.info(
+            "Running {} work unit(s) ({} PJNZ x {} scenario(s)) with n_workers={}",
+            len(work_units),
+            len(pjnz_files),
+            len(scenarios.scenarios),
+            effective_workers,
+        )
+        logger.info("Running {} simulations per scenario", len(scenarios.scenarios[0].simulations))
 
-            def on_import() -> None:
-                progress.advance(import_task)
-
-            def on_imports_complete() -> None:
-                progress.stop_task(import_task)
-                for pjnz_path in pjnz_files:
-                    progress.add_task(pjnz_path.stem, total=n_scenarios)
-
-            def advance(stem: str) -> None:
-                """Advance the scenario run progress bars"""
-                for task in progress.tasks:
-                    if task.description == stem:
-                        progress.advance(task.id)
-                        break
-
-            _execute(
-                config, pjnz_files, scenarios, effective_workers, log_queue, advance, on_import, on_imports_complete
+        if effective_workers == 1:
+            for params_path, pjnz_stem, scenario, end_year in work_units:
+                stem = _run_pjnz_scenario(params_path, pjnz_stem, scenario, config, end_year)
+                callbacks.on_scenario_complete(stem)
+        else:
+            results = Parallel(n_jobs=effective_workers, return_as="generator_unordered")(
+                delayed(_run_pjnz_scenario)(params_path, pjnz_stem, scenario, config, end_year, log_queue)
+                for params_path, pjnz_stem, scenario, end_year in work_units
             )
-    finally:
-        if log_queue is not None and listener is not None:
-            stop_log_queue_listener(log_queue, listener)
-        if mp_manager is not None:
-            mp_manager.shutdown()
+            for stem in results:
+                callbacks.on_scenario_complete(stem)
+
+    callbacks.on_run_complete()
+
+    logger.info("Done. Results written to {}", config.output_dir)
+    return config.output_dir
