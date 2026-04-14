@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import os
 import threading
 from queue import Empty, Queue
@@ -120,18 +119,11 @@ def configure_worker_logging(log_queue: Queue) -> None:
     logger.add(_sink, format="{message}", colorize=False)
 
 
-@contextlib.contextmanager
-def task_progress(tasks: dict[str, int]):
-    with Progress(
+def make_progress() -> Progress:
+    return Progress(
         TextColumn("[cyan]{task.description}"),
         BarColumn(),
         MofNCompleteColumn(),
         TimeRemainingColumn(),
         console=console,
-    ) as progress:
-        task_ids = {label: progress.add_task(label, total=steps) for label, steps in tasks.items()}
-
-        def advance(label: str) -> None:
-            progress.advance(task_ids[label])
-
-        yield advance
+    )

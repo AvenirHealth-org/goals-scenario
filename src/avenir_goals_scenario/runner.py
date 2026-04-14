@@ -13,8 +13,8 @@ from avenir_goals_scenario._cli.cli_utils import (
     configure_worker_logging,
     get_number_of_workers,
     make_log_queue_listener,
+    make_progress,
     stop_log_queue_listener,
-    task_progress,
 )
 from avenir_goals_scenario._runner.output import write_scenario_results
 from avenir_goals_scenario._runner.pjnz import find_pjnz_files, import_pjnz
@@ -77,6 +77,8 @@ def _execute(
     effective_workers: int,
     log_queue: Queue | None,
     advance,
+    on_import=None,
+    on_imports_complete=None,
 ) -> None:
     """Run the parallel work units, calling advance(stem) as each completes."""
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -91,6 +93,11 @@ def _execute(
                 pickle.dump(leapfrog_params, f)
             params_paths[pjnz_path] = dump_path
             end_years[pjnz_path] = leapfrog_params["projection_end_year"] + 1
+            if on_import is not None:
+                on_import()
+
+        if on_imports_complete is not None:
+            on_imports_complete()
 
         work_units = [(params_paths[p], p.stem, s, end_years[p]) for p in pjnz_files for s in scenarios.scenarios]
         logger.info(
@@ -106,10 +113,9 @@ def _execute(
             # If only 1 worker, then run this in process. Less overhead
             # to run within the single process.
             results = (
-                _run_pjnz_scenario(params_path, pjnz_stem, scenario, config, end_year)
+                _run_pjnz_scenario(params_path, pjnz_stem, scenario, config, end_year, log_queue=None)
                 for params_path, pjnz_stem, scenario, end_year in work_units
             )
-
         else:
             results = Parallel(n_jobs=effective_workers, return_as="generator_unordered")(
                 delayed(_run_pjnz_scenario)(params_path, pjnz_stem, scenario, config, end_year, log_queue)
@@ -172,8 +178,28 @@ def _run_scenario_analysis_cli(config: RunConfig) -> None:
     listener: threading.Thread | None = make_log_queue_listener(log_queue) if log_queue is not None else None
 
     try:
-        with task_progress({p.stem: n_scenarios for p in pjnz_files}) as advance:
-            _execute(config, pjnz_files, scenarios, effective_workers, log_queue, advance)
+        progress = make_progress()
+        with progress:
+            import_task = progress.add_task("Importing PJNZ files", total=len(pjnz_files))
+
+            def on_import() -> None:
+                progress.advance(import_task)
+
+            def on_imports_complete() -> None:
+                progress.stop_task(import_task)
+                for pjnz_path in pjnz_files:
+                    progress.add_task(pjnz_path.stem, total=n_scenarios)
+
+            def advance(stem: str) -> None:
+                """Advance the scenario run progress bars"""
+                for task in progress.tasks:
+                    if task.description == stem:
+                        progress.advance(task.id)
+                        break
+
+            _execute(
+                config, pjnz_files, scenarios, effective_workers, log_queue, advance, on_import, on_imports_complete
+            )
     finally:
         if log_queue is not None and listener is not None:
             stop_log_queue_listener(log_queue, listener)
