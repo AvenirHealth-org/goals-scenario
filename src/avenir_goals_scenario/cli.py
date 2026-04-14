@@ -6,8 +6,9 @@ from typing import Annotated
 import typer
 from pydantic import ValidationError
 
+from avenir_goals_scenario._cli.cli_utils import configure_cli_logging
 from avenir_goals_scenario.models import RunConfig
-from avenir_goals_scenario.runner import run_scenario_analysis
+from avenir_goals_scenario.runner import _run_scenario_analysis_cli
 from avenir_goals_scenario.scenarios import generate_simulations
 
 _CONTEXT = {"help_option_names": ["-h", "--help"]}
@@ -31,8 +32,9 @@ def _app_callback(
         bool | None,
         typer.Option("--version", help="Show version and exit.", callback=_version_callback, is_eager=True),
     ] = None,
+    verbose: Annotated[bool, typer.Option("-v", "--verbose", help="Enable debug logging.")] = False,
 ) -> None:
-    pass
+    configure_cli_logging(verbose)
 
 
 # If the Exception has no message, return the type name.
@@ -72,7 +74,7 @@ def run(
         raise typer.Exit(code=1) from None
 
     try:
-        run_scenario_analysis(config)
+        _run_scenario_analysis_cli(config)
     except Exception as e:
         typer.echo(f"Error: {_fmt_error(e)}", err=True)
         raise typer.Exit(code=1) from None

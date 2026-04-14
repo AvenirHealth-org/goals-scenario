@@ -297,12 +297,12 @@ def test_cli_run_requires_config_path():
     assert result.exit_code != 0
 
 
-def test_cli_run_calls_run_scenario_analysis(tmp_path):
+def test_cli_run_calls_run_scenario_analysis_cli(tmp_path):
     config = _valid_config(tmp_path)
     config_file = tmp_path / "config.json"
     config_file.write_bytes(orjson.dumps(config))
 
-    with patch("avenir_goals_scenario.cli.run_scenario_analysis") as mock_run:
+    with patch("avenir_goals_scenario.cli._run_scenario_analysis_cli") as mock_run:
         result = runner.invoke(app, ["run", str(config_file)])
 
     assert result.exit_code == 0
@@ -317,7 +317,7 @@ def test_cli_run_prints_success_message(tmp_path):
     config_file = tmp_path / "config.json"
     config_file.write_bytes(orjson.dumps(config))
 
-    with patch("avenir_goals_scenario.cli.run_scenario_analysis"):
+    with patch("avenir_goals_scenario.cli._run_scenario_analysis_cli"):
         result = runner.invoke(app, ["run", str(config_file)])
 
     assert result.exit_code == 0
@@ -367,7 +367,9 @@ def test_cli_run_handles_errors(tmp_path):
     config_file = tmp_path / "config.json"
     config_file.write_bytes(orjson.dumps(config))
 
-    with patch("avenir_goals_scenario.cli.run_scenario_analysis", side_effect=RuntimeError("something went wrong")):
+    with patch(
+        "avenir_goals_scenario.cli._run_scenario_analysis_cli", side_effect=RuntimeError("something went wrong")
+    ):
         result = runner.invoke(app, ["run", str(config_file)])
 
     assert result.exit_code == 1
