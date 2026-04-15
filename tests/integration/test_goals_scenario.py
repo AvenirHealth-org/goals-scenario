@@ -9,20 +9,20 @@ _BASE_YEAR = 2010
 _N_SIMULATIONS = 2
 _INDICATORS = ["p_hivpop", "p_infections", "p_hiv_deaths", "h_artpop"]
 _SCENARIOS = [1, 2, 3, 4]
-_PJNZ_NAMES = ["Zimbabwe", "SouthAfrica"]
+_PJNZ_NAMES = ["Azerbaijan", "Botswana", "DRC", "Ethiopia", "Ghana", "SouthAfrica", "Zambia", "Zimbabwe"]
 
 
-def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_dir):
+def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_data):
     tmp = tmp_path_factory.mktemp("integration")
 
     simulations_path = generate_simulations(
-        test_dir / "scenario_descriptions.csv",
+        test_data / "scenario_descriptions.csv",
         tmp / "scenario.json",
         n_simulations=_N_SIMULATIONS,
     )
 
     config = RunConfig(
-        pjnz_dir=test_dir / "pjnz",
+        pjnz_dir=test_data / "pjnz",
         scenario_path=simulations_path,
         output_dir=tmp / "output",
         base_year=_BASE_YEAR,
@@ -46,7 +46,7 @@ def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_dir):
             for indicator in _INDICATORS:
                 assert indicator in f, f"Missing dataset '{indicator}' in {path}"
 
-            params = import_pjnz(test_dir / "pjnz" / f"{pjnz_name}.PJNZ")
+            params = import_pjnz(test_data / "pjnz" / f"{pjnz_name}.PJNZ")
             expected_n_years = params["projection_end_year"] - _BASE_YEAR + 1
             ## Shapes are as expected
             assert f["p_hivpop"].shape[0] == _N_SIMULATIONS
