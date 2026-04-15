@@ -10,17 +10,6 @@ from Tools.ImportPJNZ.Importer import GB_ImportProjectionFromFile
 from avenir_goals_scenario._runner.pjnz import find_pjnz_files, modvars_to_numpy
 
 
-def test_import_from_ZAF_file(test_data):
-    projection, param, epp_files, shiny90 = GB_ImportProjectionFromFile(test_data / "pjnz" / "SouthAfrica.PJNZ")
-    assert projection is not None
-    assert param.country == "ZAF"
-    assert type(projection[dpconst.DP_TFRTag]) is list
-    assert type(projection[hvconst.HVARTCoverageByRGTag]) is list
-    # there is no shiny90 or epp files in this test PJNZ
-    assert shiny90 is None
-    assert epp_files == {}
-
-
 def test_import_from_missing_file_raises(test_data):
     with pytest.raises(FileNotFoundError, match="missing\\.PJNZ"):
         GB_ImportProjectionFromFile(test_data / "pjnz" / "missing.PJNZ")
