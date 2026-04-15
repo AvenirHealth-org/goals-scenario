@@ -132,6 +132,38 @@ def test_load_config_accepts_nonexistent_output_dir_when_parent_exists(tmp_path)
     assert result.output_dir == new_dir.resolve()
 
 
+def test_load_config_n_workers_zero_raises(tmp_path):
+    config = _valid_config(tmp_path)
+    config["n_workers"] = 0
+    config_file = tmp_path / "config.json"
+    config_file.write_bytes(orjson.dumps(config))
+
+    with pytest.raises(ValidationError, match="n_workers"):
+        _load_config(config_file)
+
+
+def test_load_config_n_workers_defaults_to_4_when_many_cpus(tmp_path):
+    config = _valid_config(tmp_path)
+    config_file = tmp_path / "config.json"
+    config_file.write_bytes(orjson.dumps(config))
+
+    with patch("avenir_goals_scenario.models.run_config.os.cpu_count", return_value=8):
+        result = _load_config(config_file)
+
+    assert result.n_workers == 4
+
+
+def test_load_config_n_workers_defaults_to_cpu_count_when_fewer_than_4(tmp_path):
+    config = _valid_config(tmp_path)
+    config_file = tmp_path / "config.json"
+    config_file.write_bytes(orjson.dumps(config))
+
+    with patch("avenir_goals_scenario.models.run_config.os.cpu_count", return_value=2):
+        result = _load_config(config_file)
+
+    assert result.n_workers == 2
+
+
 def test_load_config_raises_when_output_dir_is_a_file(tmp_path):
     config = _valid_config(tmp_path)
     f = tmp_path / "not_a_dir.txt"

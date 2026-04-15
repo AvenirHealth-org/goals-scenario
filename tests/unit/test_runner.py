@@ -1,3 +1,4 @@
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
 
@@ -7,7 +8,7 @@ import pytest
 
 from avenir_goals_scenario._runner.output import write_scenario_results
 from avenir_goals_scenario._runner.pjnz import find_pjnz_files, import_pjnz, modvars_to_numpy
-from avenir_goals_scenario._runner.simulation import _extract_indicators
+from avenir_goals_scenario._runner.simulation import _extract_indicators, run_simulation
 from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
 from avenir_goals_scenario.runner import run_scenario_analysis
 
@@ -15,15 +16,12 @@ from avenir_goals_scenario.runner import run_scenario_analysis
 # Helpers
 # ---------------------------------------------------------------------------
 
-# Tag constants from SpectrumCommon — matches what import_pjnz would populate.
-_FIRST_YEAR_TAG = "<PJN_FirstYear_V1>"
-_FINAL_YEAR_TAG = "<PJN_FinalYear_V1>"
-
 _N_YEARS = 5  # short range for tests: 2020-2024
 
 
 def _fake_modvars() -> dict:
-    return {_FIRST_YEAR_TAG: 2020, _FINAL_YEAR_TAG: 2024}
+    # Matches the leapfrog params dict returned by import_pjnz.
+    return {"projection_end_year": 2024}
 
 
 def _make_simulations_json(tmp_path, scenario_id: int = 1, n_simulations: int = 2) -> Path:
@@ -61,6 +59,9 @@ def _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=None, base_y
         output_dir=output_dir,
         base_year=base_year,
         output_indicators=indicators or ["PLHIV"],
+        # n_workers=1 keeps joblib sequential so unittest.mock patches are visible
+        # to the code under test (patches do not propagate across process boundaries).
+        n_workers=1,
     )
 
 
@@ -134,6 +135,20 @@ def test_modvars_to_numpy_raises_on_unconvertible_list():
     bad_value = [1, "not_a_number"]
     with pytest.raises(ValueError):
         modvars_to_numpy(bad_value)
+
+
+# ---------------------------------------------------------------------------
+# run_simulation
+# ---------------------------------------------------------------------------
+
+
+def test_run_simulation_calls_run_goals_and_extracts_indicators():
+    goals_output = {"PLHIV": np.ones(5), "Deaths": np.ones(5)}
+    with patch("avenir_goals_scenario._runner.simulation.run_goals", return_value=goals_output) as mock_goals:
+        result = run_simulation({}, {}, ["PLHIV"], range(2020, 2025))
+
+    mock_goals.assert_called_once_with({}, range(2020, 2025))
+    assert list(result.keys()) == ["PLHIV"]
 
 
 # ---------------------------------------------------------------------------
@@ -214,6 +229,14 @@ def test_write_scenario_results_creates_pjnz_subdir(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+def _integration_patches(sim_result: dict) -> ExitStack:
+    """Return a context manager with the patches needed for runner integration tests."""
+    stack = ExitStack()
+    stack.enter_context(patch("avenir_goals_scenario.runner.import_pjnz", return_value=_fake_modvars()))
+    stack.enter_context(patch("avenir_goals_scenario.runner.run_simulation", return_value=sim_result))
+    return stack
+
+
 def test_run_scenario_analysis_creates_h5_per_pjnz_per_scenario(tmp_path):
     pjnz_dir = tmp_path / "pjnz"
     pjnz_dir.mkdir()
@@ -222,10 +245,7 @@ def test_run_scenario_analysis_creates_h5_per_pjnz_per_scenario(tmp_path):
     scenarios_path = _make_simulations_json(tmp_path, scenario_id=1, n_simulations=2)
     config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["PLHIV"])
 
-    with (
-        patch("avenir_goals_scenario.runner.import_pjnz", return_value=_fake_modvars()),
-        patch("avenir_goals_scenario.runner.run_simulation", return_value={"PLHIV": np.ones(_N_YEARS)}),
-    ):
+    with _integration_patches({"PLHIV": np.ones(_N_YEARS)}):
         run_scenario_analysis(config)
 
     assert (Path(config.output_dir) / "country" / "scenario_1.h5").exists()
@@ -240,10 +260,7 @@ def test_run_scenario_analysis_h5_dataset_shape(tmp_path):
     scenarios_path = _make_simulations_json(tmp_path, scenario_id=1, n_simulations=n_sims)
     config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["PLHIV"])
 
-    with (
-        patch("avenir_goals_scenario.runner.import_pjnz", return_value=_fake_modvars()),
-        patch("avenir_goals_scenario.runner.run_simulation", return_value={"PLHIV": np.ones(_N_YEARS)}),
-    ):
+    with _integration_patches({"PLHIV": np.ones(_N_YEARS)}):
         run_scenario_analysis(config)
 
     with h5py.File(Path(config.output_dir) / "country" / "scenario_1.h5", "r") as f:
@@ -259,10 +276,7 @@ def test_run_scenario_analysis_multidim_indicator_preserved(tmp_path):
     config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["p_totpop"])
     indicator_shape = (2, 66, _N_YEARS)
 
-    with (
-        patch("avenir_goals_scenario.runner.import_pjnz", return_value=_fake_modvars()),
-        patch("avenir_goals_scenario.runner.run_simulation", return_value={"p_totpop": np.ones(indicator_shape)}),
-    ):
+    with _integration_patches({"p_totpop": np.ones(indicator_shape)}):
         run_scenario_analysis(config)
 
     with h5py.File(Path(config.output_dir) / "country" / "scenario_1.h5", "r") as f:
@@ -278,10 +292,7 @@ def test_run_scenario_analysis_multiple_pjnz_creates_separate_dirs(tmp_path):
     scenarios_path = _make_simulations_json(tmp_path, n_simulations=1)
     config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["PLHIV"])
 
-    with (
-        patch("avenir_goals_scenario.runner.import_pjnz", return_value=_fake_modvars()),
-        patch("avenir_goals_scenario.runner.run_simulation", return_value={"PLHIV": np.ones(_N_YEARS)}),
-    ):
+    with _integration_patches({"PLHIV": np.ones(_N_YEARS)}):
         run_scenario_analysis(config)
 
     assert (Path(config.output_dir) / "alpha" / "scenario_1.h5").exists()
