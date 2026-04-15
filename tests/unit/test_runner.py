@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from avenir_goals_scenario._runner.output import write_scenario_results
-from avenir_goals_scenario._runner.pjnz import _import_pjnz_modvars, _modvars_to_numpy, find_pjnz_files, import_pjnz
+from avenir_goals_scenario._runner.pjnz import _import_pjnz_modvars, find_pjnz_files, import_pjnz, modvars_to_numpy
 from avenir_goals_scenario._runner.simulation import _extract_indicators, run_simulation
 from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
 from avenir_goals_scenario.runner import _run_pjnz_scenario, run_scenario_analysis
@@ -136,17 +136,17 @@ def test_modvars_to_numpy_raises_on_unconvertible_list():
     # A mixed list that can't be cast to float64.
     bad_value = {"modvar1": [1, "not_a_number"]}
     with pytest.raises(ValueError):
-        _modvars_to_numpy(bad_value)
+        modvars_to_numpy(bad_value)
 
 
 def test_modvars_to_numpy_list_of_strings_produces_ndarray():
-    result = _modvars_to_numpy(["a", "b", "c"])
-    assert isinstance(result, np.ndarray)
+    result = modvars_to_numpy({"modvar1": ["a", "b", "c"]})
+    assert isinstance(result["modvar1"], np.ndarray)
 
 
 def test_modvars_to_numpy_non_list_passthrough():
-    assert _modvars_to_numpy(42) == 42
-    assert _modvars_to_numpy(3.14) == 3.14
+    in_modvars = {"modvar1": 42, "modvar2": 3.14}
+    assert modvars_to_numpy(in_modvars) == in_modvars
 
 
 # ---------------------------------------------------------------------------
