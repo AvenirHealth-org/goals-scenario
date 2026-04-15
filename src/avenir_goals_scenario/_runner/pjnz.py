@@ -5,7 +5,6 @@ from typing import Any
 
 import numpy as np
 from leapfrog_goals import get_goals_ss
-from loguru import logger
 from Tools.ImportPJNZ.Importer import GB_ImportProjectionFromFile
 
 from avenir_goals_scenario._leapfrog.LeapfrogDataMapping import modvars_to_leapfrog
@@ -28,22 +27,10 @@ def find_pjnz_files(pjnz_dir: Path) -> list[Path]:
         err_msg = f"No PJNZ files found in {pjnz_dir}"
         raise FileNotFoundError(err_msg)
 
-    logger.info("Found {} PJNZ file(s) in {}", len(files), pjnz_dir)
     return files
 
 
 def _import_pjnz_modvars(path: Path) -> dict:
-    """Import a PJNZ file and return its modvars dict.
-
-    Args:
-        path: Path to a ``.PJNZ`` file.
-
-    Returns:
-        Modvars dict for use with `modvars_to_leapfrog`.
-
-    Raises:
-        ValueError: If the PJNZ file cannot be parsed.
-    """
     # TODO: remove this silent reading once we make GB_ImportProjectionFromFile
     # less chatty.
     with open(os.devnull, "w") as devnull, redirect_stdout(devnull):
@@ -56,6 +43,17 @@ def _import_pjnz_modvars(path: Path) -> dict:
 
 
 def import_pjnz(path: Path) -> dict:
+    """Import a PJNZ file and return leapfrog params.
+
+    Args:
+        path: Path to a ``.PJNZ`` file.
+
+    Returns:
+        Dict of parameters for leapfrog-goals.
+
+    Raises:
+        ValueError: If the PJNZ file cannot be parsed.
+    """
     modvars_base = _import_pjnz_modvars(path)
     ss = get_goals_ss()
     leapfrog_params = modvars_to_leapfrog(modvars_base, ss)

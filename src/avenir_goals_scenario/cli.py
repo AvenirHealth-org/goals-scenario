@@ -4,10 +4,11 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from loguru import logger
 from pydantic import ValidationError
 
+from avenir_goals_scenario._cli.cli_utils import configure_cli_logging, run_with_progress
 from avenir_goals_scenario.models import RunConfig
-from avenir_goals_scenario.runner import run_scenario_analysis
 from avenir_goals_scenario.scenarios import generate_simulations
 
 _CONTEXT = {"help_option_names": ["-h", "--help"]}
@@ -31,8 +32,9 @@ def _app_callback(
         bool | None,
         typer.Option("--version", help="Show version and exit.", callback=_version_callback, is_eager=True),
     ] = None,
+    verbose: Annotated[bool, typer.Option("-v", "--verbose", help="Enable debug logging.")] = False,
 ) -> None:
-    pass
+    configure_cli_logging(verbose)
 
 
 # If the Exception has no message, return the type name.
@@ -52,9 +54,9 @@ def simulations(
     try:
         generate_simulations(definition_path, simulations_path, n_simulations)
     except Exception as e:
-        typer.echo(f"Error: {_fmt_error(e)}", err=True)
+        logger.exception(_fmt_error(e))
         raise typer.Exit(code=1) from None
-    typer.echo(f"Done. Simulations saved to {simulations_path.expanduser().resolve()}")
+    logger.info("Done. Simulations saved to {}", simulations_path.expanduser().resolve())
 
 
 @app.command()
@@ -65,18 +67,17 @@ def run(
     try:
         config = _load_config(config_path)
     except ValidationError as e:
-        typer.echo(f"Error: invalid config:\n{e}", err=True)
+        logger.exception("Invalid config {}", _fmt_error(e))
         raise typer.Exit(code=1) from None
     except Exception as e:
-        typer.echo(f"Error: {_fmt_error(e)}", err=True)
+        logger.exception(_fmt_error(e))
         raise typer.Exit(code=1) from None
 
     try:
-        run_scenario_analysis(config)
+        run_with_progress(config)
     except Exception as e:
-        typer.echo(f"Error: {_fmt_error(e)}", err=True)
+        logger.exception(_fmt_error(e))
         raise typer.Exit(code=1) from None
-    typer.echo(f"Done. Results written to {config.output_dir}")
 
 
 def _load_config(path: Path) -> RunConfig:

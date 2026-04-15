@@ -1,16 +1,18 @@
+import pickle
 from contextlib import ExitStack
 from pathlib import Path
-from unittest.mock import patch
+from queue import Queue
+from unittest.mock import MagicMock, patch
 
 import h5py
 import numpy as np
 import pytest
 
 from avenir_goals_scenario._runner.output import write_scenario_results
-from avenir_goals_scenario._runner.pjnz import find_pjnz_files, import_pjnz, modvars_to_numpy
+from avenir_goals_scenario._runner.pjnz import _import_pjnz_modvars, find_pjnz_files, import_pjnz, modvars_to_numpy
 from avenir_goals_scenario._runner.simulation import _extract_indicators, run_simulation
 from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
-from avenir_goals_scenario.runner import run_scenario_analysis
+from avenir_goals_scenario.runner import _run_pjnz_scenario, run_scenario_analysis
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -131,10 +133,20 @@ def test_import_pjnz_raises_when_modvars_is_none(tmp_path):
 
 
 def test_modvars_to_numpy_raises_on_unconvertible_list():
-    # A mixed list that can't be cast to float64 — errors now propagate.
+    # A mixed list that can't be cast to float64.
     bad_value = {"modvar1": [1, "not_a_number"]}
     with pytest.raises(ValueError):
         modvars_to_numpy(bad_value)
+
+
+def test_modvars_to_numpy_list_of_strings_produces_ndarray():
+    result = modvars_to_numpy({"modvar1": ["a", "b", "c"]})
+    assert isinstance(result["modvar1"], np.ndarray)
+
+
+def test_modvars_to_numpy_non_list_passthrough():
+    in_modvars = {"modvar1": 42, "modvar2": 3.14}
+    assert modvars_to_numpy(in_modvars) == in_modvars
 
 
 # ---------------------------------------------------------------------------
@@ -297,3 +309,94 @@ def test_run_scenario_analysis_multiple_pjnz_creates_separate_dirs(tmp_path):
 
     assert (Path(config.output_dir) / "alpha" / "scenario_1.h5").exists()
     assert (Path(config.output_dir) / "beta" / "scenario_1.h5").exists()
+
+
+def test_run_scenario_analysis_uses_parallel_when_multiple_workers(tmp_path):
+    pjnz_dir = tmp_path / "pjnz"
+    pjnz_dir.mkdir()
+    (pjnz_dir / "country.PJNZ").touch()
+
+    scenarios_path = _make_simulations_json(tmp_path, n_simulations=1)
+    config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["PLHIV"])
+    config = RunConfig(
+        pjnz_dir=config.pjnz_dir,
+        scenario_path=config.scenario_path,
+        output_dir=config.output_dir,
+        base_year=config.base_year,
+        output_indicators=config.output_indicators,
+        n_workers=2,
+    )
+
+    with (
+        patch("avenir_goals_scenario.runner.import_pjnz", return_value=_fake_modvars()),
+        patch("avenir_goals_scenario.runner.Parallel") as mock_parallel,
+        patch("avenir_goals_scenario.runner.delayed"),
+    ):
+        mock_parallel.return_value.return_value = ["country"]
+        run_scenario_analysis(config)
+
+    mock_parallel.assert_called_once_with(n_jobs=2, return_as="generator_unordered")
+
+
+# ---------------------------------------------------------------------------
+# _run_pjnz_scenario — log_queue branch
+# ---------------------------------------------------------------------------
+
+
+def test_run_pjnz_scenario_configures_worker_logging_when_log_queue_provided(tmp_path):
+    params = {"projection_end_year": 2024}
+    params_path = str(tmp_path / "params.pkl")
+    with open(params_path, "wb") as f:
+        pickle.dump(params, f)
+
+    scenario = MagicMock()
+    scenario.simulations = [{}]
+    scenario.scenario_id = 1
+
+    config = _make_run_config(tmp_path, tmp_path, _make_simulations_json(tmp_path), indicators=["PLHIV"])
+    log_queue = Queue()
+
+    with (
+        patch("avenir_goals_scenario._cli.cli_utils.configure_worker_logging") as mock_configure,
+        patch("avenir_goals_scenario.runner.run_simulation", return_value={"PLHIV": np.ones(_N_YEARS)}),
+        patch("avenir_goals_scenario.runner.write_scenario_results"),
+    ):
+        _run_pjnz_scenario(params_path, "country", scenario, config, 2025, log_queue)
+
+    mock_configure.assert_called_once_with(log_queue)
+
+
+# ---------------------------------------------------------------------------
+# _import_pjnz_modvars — success path
+# ---------------------------------------------------------------------------
+
+
+def test_import_pjnz_modvars_converts_list_values_to_numpy(tmp_path):
+    pjnz_path = tmp_path / "good.PJNZ"
+    pjnz_path.touch()
+    fake_modvars = {"nums": [1.0, 2.0], "scalar": 5}
+
+    with patch(
+        "avenir_goals_scenario._runner.pjnz.GB_ImportProjectionFromFile", return_value=(fake_modvars, None, None, None)
+    ):
+        result = _import_pjnz_modvars(pjnz_path)
+
+    assert isinstance(result["nums"], np.ndarray)
+    assert result["scalar"] == 5
+
+
+def test_import_pjnz_returns_leapfrog_params_with_ex_input(tmp_path):
+    pjnz_path = tmp_path / "good.PJNZ"
+    pjnz_path.touch()
+    fake_ss = {"pAG": 17, "NS": 2}
+    fake_leapfrog = {"projection_end_year": 2024}
+
+    with (
+        patch("avenir_goals_scenario._runner.pjnz._import_pjnz_modvars", return_value={}),
+        patch("avenir_goals_scenario._runner.pjnz.get_goals_ss", return_value=fake_ss),
+        patch("avenir_goals_scenario._runner.pjnz.modvars_to_leapfrog", return_value=fake_leapfrog),
+    ):
+        result = import_pjnz(pjnz_path)
+
+    assert "ex_input" in result
+    assert result["ex_input"].shape == (17, 2)
