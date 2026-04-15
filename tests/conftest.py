@@ -27,3 +27,8 @@ def write_csv(tmp_path: Path):
         return path
 
     return _write
+
+
+@pytest.fixture
+def test_dir():
+    return Path(__file__).parent / "test_data"

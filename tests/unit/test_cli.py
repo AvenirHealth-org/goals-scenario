@@ -6,53 +6,60 @@ import pytest
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
-from avenir_goals_scenario.cli import RunConfig, _load_config, app
+from avenir_goals_scenario.cli import _load_config, app
+from avenir_goals_scenario.models import RunConfig
 
 runner = CliRunner()
 
-# A valid config dict matching the expected JSON shape.
-VALID_CONFIG: dict[str, str | list[str]] = {
-    "Goals_path": "/pjnz",
-    "Scenario_path": "/scenarios",
-    "Scenario_file_name": "scenarios.csv",
-    "Output_path": "/output",
-    "Output_file_name": "results.parquet",
-    "Base_year": "2025",
-    "Output_indicators": ["PLHIV", "New Infections"],
-}
+
+def _valid_config(tmp_path) -> dict:
+    """Return a valid config dict with paths that actually exist."""
+    pjnz_dir = tmp_path / "pjnz"
+    pjnz_dir.mkdir()
+    scenario_file = tmp_path / "scenarios.json"
+    scenario_file.touch()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    return {
+        "pjnz_dir": str(pjnz_dir),
+        "scenario_path": str(scenario_file),
+        "output_dir": str(output_dir),
+        "base_year": 2025,
+        "output_indicators": ["PLHIV", "New Infections"],
+    }
 
 
 # --- _load_config ---
 
 
 def test_load_config_parses_valid_json(tmp_path):
+    config = _valid_config(tmp_path)
     config_file = tmp_path / "config.json"
-    config_file.write_bytes(orjson.dumps(VALID_CONFIG))
+    config_file.write_bytes(orjson.dumps(config))
 
     result = _load_config(config_file)
 
-    assert result.goals_path == "/pjnz"
-    assert result.scenario_path == "/scenarios"
-    assert result.scenario_file_name == "scenarios.csv"
-    assert result.output_path == "/output"
-    assert result.output_file_name == "results.parquet"
+    assert result.pjnz_dir == Path(config["pjnz_dir"]).resolve()
+    assert result.scenario_path == Path(config["scenario_path"]).resolve()
+    assert result.output_dir == Path(config["output_dir"]).resolve()
     assert result.base_year == 2025
     assert result.output_indicators == ["PLHIV", "New Infections"]
 
 
 def test_load_config_accepts_uppercase_keys(tmp_path):
+    config = {k.upper(): v for k, v in _valid_config(tmp_path).items()}
     config_file = tmp_path / "config.json"
-    config_file.write_bytes(orjson.dumps(VALID_CONFIG))
+    config_file.write_bytes(orjson.dumps(config))
 
     assert isinstance(_load_config(config_file), RunConfig)
 
 
 def test_load_config_accepts_lowercase_keys(tmp_path):
-    lowercase = {k.lower(): v for k, v in VALID_CONFIG.items()}
+    config = _valid_config(tmp_path)
     config_file = tmp_path / "config.json"
-    config_file.write_bytes(orjson.dumps(lowercase))
+    config_file.write_bytes(orjson.dumps(config))
 
-    assert _load_config(config_file).goals_path == "/pjnz"
+    assert isinstance(_load_config(config_file), RunConfig)
 
 
 def test_load_config_non_dict_input_raises():
@@ -62,9 +69,88 @@ def test_load_config_non_dict_input_raises():
 
 def test_load_config_raises_on_missing_fields(tmp_path):
     config_file = tmp_path / "config.json"
-    config_file.write_bytes(orjson.dumps({"Goals_path": "/pjnz"}))
+    config_file.write_bytes(orjson.dumps({"pjnz_dir": "/pjnz"}))
 
     with pytest.raises(ValidationError):
+        _load_config(config_file)
+
+
+def test_load_config_raises_when_pjnz_dir_missing(tmp_path):
+    config = _valid_config(tmp_path)
+    config["pjnz_dir"] = str(tmp_path / "nonexistent")
+    config_file = tmp_path / "config.json"
+    config_file.write_bytes(orjson.dumps(config))
+
+    with pytest.raises(ValidationError, match="does not exist"):
+        _load_config(config_file)
+
+
+def test_load_config_raises_when_pjnz_dir_is_a_file(tmp_path):
+    config = _valid_config(tmp_path)
+    f = tmp_path / "not_a_dir.txt"
+    f.touch()
+    config["pjnz_dir"] = str(f)
+    config_file = tmp_path / "config.json"
+    config_file.write_bytes(orjson.dumps(config))
+
+    with pytest.raises(ValidationError, match="not a directory"):
+        _load_config(config_file)
+
+
+def test_load_config_raises_when_scenario_path_missing(tmp_path):
+    config = _valid_config(tmp_path)
+    config["scenario_path"] = str(tmp_path / "nonexistent.json")
+    config_file = tmp_path / "config.json"
+    config_file.write_bytes(orjson.dumps(config))
+
+    with pytest.raises(ValidationError, match="does not exist"):
+        _load_config(config_file)
+
+
+def test_load_config_raises_when_scenario_path_is_a_dir(tmp_path):
+    config = _valid_config(tmp_path)
+    d = tmp_path / "a_dir"
+    d.mkdir()
+    config["scenario_path"] = str(d)
+    config_file = tmp_path / "config.json"
+    config_file.write_bytes(orjson.dumps(config))
+
+    with pytest.raises(ValidationError, match="not a file"):
+        _load_config(config_file)
+
+
+def test_load_config_accepts_nonexistent_output_dir_when_parent_exists(tmp_path):
+    config = _valid_config(tmp_path)
+    new_dir = tmp_path / "output" / "new_subdir"
+    config["output_dir"] = str(new_dir)
+    config_file = tmp_path / "config.json"
+    config_file.write_bytes(orjson.dumps(config))
+
+    result = _load_config(config_file)
+
+    assert not new_dir.exists()
+    assert result.output_dir == new_dir.resolve()
+
+
+def test_load_config_raises_when_output_dir_is_a_file(tmp_path):
+    config = _valid_config(tmp_path)
+    f = tmp_path / "not_a_dir.txt"
+    f.touch()
+    config["output_dir"] = str(f)
+    config_file = tmp_path / "config.json"
+    config_file.write_bytes(orjson.dumps(config))
+
+    with pytest.raises(ValidationError, match="not a directory"):
+        _load_config(config_file)
+
+
+def test_load_config_raises_when_output_dir_parent_missing(tmp_path):
+    config = _valid_config(tmp_path)
+    config["output_dir"] = str(tmp_path / "nonexistent" / "nested")
+    config_file = tmp_path / "config.json"
+    config_file.write_bytes(orjson.dumps(config))
+
+    with pytest.raises(ValidationError, match="parent directory does not exist"):
         _load_config(config_file)
 
 
@@ -180,30 +266,31 @@ def test_cli_run_requires_config_path():
 
 
 def test_cli_run_calls_run_scenario_analysis(tmp_path):
+    config = _valid_config(tmp_path)
     config_file = tmp_path / "config.json"
-    config_file.write_bytes(orjson.dumps(VALID_CONFIG))
+    config_file.write_bytes(orjson.dumps(config))
 
     with patch("avenir_goals_scenario.cli.run_scenario_analysis") as mock_run:
         result = runner.invoke(app, ["run", str(config_file)])
 
     assert result.exit_code == 0
-    mock_run.assert_called_once_with(
-        pjnz_dir=Path("/pjnz"),
-        scenarios_path=Path("/scenarios") / "scenarios.csv",
-        output_path=Path("/output") / "results.parquet",
-    )
+    mock_run.assert_called_once()
+    config_arg = mock_run.call_args.args[0]
+    assert isinstance(config_arg, RunConfig)
+    assert config_arg.pjnz_dir == Path(config["pjnz_dir"]).resolve()
 
 
 def test_cli_run_prints_success_message(tmp_path):
+    config = _valid_config(tmp_path)
     config_file = tmp_path / "config.json"
-    config_file.write_bytes(orjson.dumps(VALID_CONFIG))
+    config_file.write_bytes(orjson.dumps(config))
 
     with patch("avenir_goals_scenario.cli.run_scenario_analysis"):
         result = runner.invoke(app, ["run", str(config_file)])
 
     assert result.exit_code == 0
     assert "Done" in result.output
-    assert "results.parquet" in result.output
+    assert "output" in result.output
 
 
 def test_cli_run_errors_on_non_json_file(tmp_path):
@@ -223,7 +310,7 @@ def test_cli_run_errors_on_invalid_json(tmp_path):
     result = runner.invoke(app, ["run", str(config_file)])
 
     assert result.exit_code == 1
-    assert "invalid JSON" in result.output
+    assert "Invalid JSON" in result.output
 
 
 def test_cli_run_errors_when_config_file_missing(tmp_path):
@@ -235,7 +322,7 @@ def test_cli_run_errors_when_config_file_missing(tmp_path):
 
 def test_cli_run_errors_on_invalid_config(tmp_path):
     config_file = tmp_path / "config.json"
-    config_file.write_bytes(orjson.dumps({"Goals_path": "/pjnz"}))
+    config_file.write_bytes(orjson.dumps({"pjnz_dir": "/pjnz"}))
 
     result = runner.invoke(app, ["run", str(config_file)])
 
@@ -244,8 +331,9 @@ def test_cli_run_errors_on_invalid_config(tmp_path):
 
 
 def test_cli_run_handles_errors(tmp_path):
+    config = _valid_config(tmp_path)
     config_file = tmp_path / "config.json"
-    config_file.write_bytes(orjson.dumps(VALID_CONFIG))
+    config_file.write_bytes(orjson.dumps(config))
 
     with patch("avenir_goals_scenario.cli.run_scenario_analysis", side_effect=RuntimeError("something went wrong")):
         result = runner.invoke(app, ["run", str(config_file)])

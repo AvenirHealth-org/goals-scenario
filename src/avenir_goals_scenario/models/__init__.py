@@ -1,4 +1,5 @@
-from avenir_goals_scenario._scenario_generator.models.scenario_definition import (
+from avenir_goals_scenario.models.run_config import RunConfig
+from avenir_goals_scenario.models.scenario_definition import (
     CombinedScenarioDef,
     InterventionDef,
     NormalDistParameters,
@@ -7,7 +8,7 @@ from avenir_goals_scenario._scenario_generator.models.scenario_definition import
     ScenarioInput,
     SingleScenarioDef,
 )
-from avenir_goals_scenario._scenario_generator.models.scenario_simulations import (
+from avenir_goals_scenario.models.scenario_simulations import (
     InterventionOut,
     InterventionSimulation,
     ScenarioSimulation,
@@ -21,6 +22,7 @@ __all__ = [
     "InterventionSimulation",
     "NormalDistParameters",
     "PopulationTarget",
+    "RunConfig",
     "ScenarioDefinition",
     "ScenarioInput",
     "ScenarioSimulation",

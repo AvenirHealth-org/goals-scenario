@@ -18,7 +18,10 @@ audit: ## Run pip-audit.
 	@echo "🚀 Vulnerability check: Running pip-audit"
 ## CVE-2026-4539: safe to ignore, pygments author says not a problem and
 ## is a flase positive. Will be fixed come pygments 2.20 though.
-	@uv run pip-audit --desc -s osv --ignore-vuln CVE-2026-4539
+## CVE-2024-23342: safe to ignore for now, we should switch to python-jose[cryptography]
+## to avoid vulnerable ecdsa package for serialization but that still depends on
+## ecdsa so won't resolve this
+	@uv run pip-audit --desc -s osv --ignore-vuln CVE-2026-4539 --ignore-vuln CVE-2024-23342
 
 .PHONY: test
 test: ## Test the code with pytest

@@ -1,0 +1,8 @@
+Number,Product,Efficacy mean,Efficacy STD,Adherence mean,Adherence STD,Target Coverage mean,Target Coverage STD,Target Year Mean,Target Year STD,Target Population,Sex
+1,One month pill for PrEP,0.95,0.03,0.95, 0.03 ,0.2, 0.05 ,2028,2,High risk heterosexual,Female
+2,Daily PrEP,0.95,0.03,0.80,0.20,0.1,0.05,2027,2,High risk heterosexual,Female
+3,One month pill for PrEP,0.95,0.03,0.95, 0.03 ,0.2, 0.05 ,2028,2,High risk heterosexual,Female
+3,One month pill for PrEP,0.95,0.03,0.95, 0.03 ,0.2, 0.05 ,2028,2,Men who have sex with men,Male
+3,One month pill for PrEP,0.95,0.03,0.95, 0.03 ,0.2, 0.05 ,2028,2,Medium risk heterosexual,Female
+3,One month pill for PrEP,0.95,0.03,0.95, 0.03 ,0.2, 0.05 ,2028,2,Medium risk heterosexual,Male
+4,1+2,,,,,,,,,,
