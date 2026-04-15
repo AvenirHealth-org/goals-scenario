@@ -37,11 +37,6 @@ import git
 #   - A plain file path copies that single file into dest.
 # ---------------------------------------------------------------------------
 FILE_MAP: list[tuple[str, str]] = [
-    ("SpectrumCommon/Const/HV", "src/avenir_goals_scenario/_const/HV"),
-    ("SpectrumCommon/Const/RN", "src/avenir_goals_scenario/_const/RN"),
-    ("Tools/ImportExportPJNZ/DP/ImportDP.py", "src/avenir_goals_scenario/_import/DP"),
-    ("Tools/ImportExportPJNZ/RN", "src/avenir_goals_scenario/_import/RN"),
-    ("Tools/ImportExportPJNZ/HV", "src/avenir_goals_scenario/_import/HV"),
     ("Calc/DP/LeapfrogDataMapping.py", "src/avenir_goals_scenario/_leapfrog"),
 ]
 

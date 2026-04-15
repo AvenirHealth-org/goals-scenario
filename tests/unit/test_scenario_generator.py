@@ -2,20 +2,18 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from avenir_goals_scenario._scenario_generator.models.scenario_definition import (
-    CombinedScenarioDef,
-    InterventionDef,
-    NormalDistParameters,
-    ScenarioInput,
-    SingleScenarioDef,
-)
-from avenir_goals_scenario._scenario_generator.models.scenario_simulations import (
-    ScenarioSimulations,
-)
 from avenir_goals_scenario._scenario_generator.scenario_generator import (
     _product_to_id,
     gen_simulations,
     load_scenario_definition,
+)
+from avenir_goals_scenario.models import (
+    CombinedScenarioDef,
+    InterventionDef,
+    NormalDistParameters,
+    ScenarioInput,
+    ScenarioSimulations,
+    SingleScenarioDef,
 )
 
 # ---------------------------------------------------------------------------
@@ -224,6 +222,28 @@ def test_combines_requires_at_least_two():
         ]
     }
     with pytest.raises(ValidationError):
+        ScenarioInput.model_validate(data)
+
+
+def test_duplicate_products_within_single_scenario_raises():
+    data = {
+        "scenario_definitions": [
+            {"id": 1, "interventions": [PREP_PILL_INTERVENTION, PREP_PILL_INTERVENTION]},
+        ]
+    }
+    with pytest.raises(ValidationError, match="unique product names"):
+        ScenarioInput.model_validate(data)
+
+
+def test_duplicate_products_across_combined_scenarios_raises():
+    data = {
+        "scenario_definitions": [
+            {"id": 1, "interventions": [PREP_PILL_INTERVENTION]},
+            {"id": 2, "interventions": [PREP_PILL_INTERVENTION]},
+            {"id": 3, "combines": [1, 2]},
+        ]
+    }
+    with pytest.raises(ValidationError, match="share product"):
         ScenarioInput.model_validate(data)
 
 

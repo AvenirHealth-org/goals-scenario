@@ -859,6 +859,7 @@ def _get_leapfrog_opts(modvars, final_year_idx):
         "t_ART_start": t_art_start,
         "hts_per_year": 10,
         "projection_start_year": modvars[PJN_FirstYearTag],
+        "projection_end_year": modvars[PJN_FinalYearTag],
         "projection_period": "calendar",
     }
 

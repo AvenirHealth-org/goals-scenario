@@ -78,6 +78,14 @@ class SingleScenarioDef(BaseModel):
     id: int
     interventions: list[InterventionDef] = Field(min_length=1)
 
+    @model_validator(mode="after")
+    def _validate_unique_products(self) -> Self:
+        products = [iv.product for iv in self.interventions]
+        if len(products) != len(set(products)):
+            msg = "Interventions within a scenario must have unique product names."
+            raise ValueError(msg)
+        return self
+
 
 class CombinedScenarioDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -106,7 +114,9 @@ class ScenarioInput(BaseModel):
             msg = "Scenario IDs must be unique."
             raise ValueError(msg)
 
-        single_ids = {s.id for s in self.scenario_definitions if isinstance(s, SingleScenarioDef)}
+        single: dict[int, SingleScenarioDef] = {
+            s.id: s for s in self.scenario_definitions if isinstance(s, SingleScenarioDef)
+        }
         combined_ids = {s.id for s in self.scenario_definitions if isinstance(s, CombinedScenarioDef)}
 
         for s in self.scenario_definitions:
@@ -119,9 +129,19 @@ class ScenarioInput(BaseModel):
                         "scenario. Chained combines are not allowed."
                     )
                     raise ValueError(msg)
-                if ref_id not in single_ids:
+                if ref_id not in single:
                     msg = f"Scenario {s.id} references unknown scenario id {ref_id} in 'combines'."
                     raise ValueError(msg)
+            products = [iv.product for ref_id in s.combines for iv in single[ref_id].interventions]
+            seen: set[str] = set()
+            for product in products:
+                if product in seen:
+                    msg = (
+                        f"Scenario {s.id} combines scenarios that share product {product!r}. "
+                        "Products must be unique within a combined scenario."
+                    )
+                    raise ValueError(msg)
+                seen.add(product)
 
         return self
 

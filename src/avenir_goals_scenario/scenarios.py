@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import orjson
-
 from avenir_goals_scenario._scenario_generator.scenario_generator import (
     gen_simulations,
     load_scenario_definition,
@@ -12,7 +10,7 @@ def generate_simulations(
     definition_path: Path | str,
     simulations_path: Path | str,
     n_simulations: int = 100,
-) -> None:
+) -> Path:
     """Generate a scenario simulations file from a scenario definitions file.
 
     Reads ``definition_path``, draws ``n_simulations`` simulations for
@@ -29,8 +27,8 @@ def generate_simulations(
         ValueError: If ``definition_path`` is not a valid ``.csv`` file or its
             contents fail schema validation.
     """
-    definition_path = Path(definition_path).resolve()
-    simulations_path = Path(simulations_path).resolve()
+    definition_path = Path(definition_path).expanduser().resolve()
+    simulations_path = Path(simulations_path).expanduser().resolve()
 
     if not simulations_path.parent.exists():
         msg = f"Simulations destination directory does not exist: {simulations_path.parent}"
@@ -38,4 +36,5 @@ def generate_simulations(
 
     definition = load_scenario_definition(definition_path)
     output = gen_simulations(definition, n_simulations=n_simulations)
-    simulations_path.write_bytes(orjson.dumps(output.model_dump(mode="json"), option=orjson.OPT_INDENT_2))
+    simulations_path.write_text(output.model_dump_json(indent=2))
+    return simulations_path
