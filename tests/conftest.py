@@ -30,5 +30,5 @@ def write_csv(tmp_path: Path):
 
 
 @pytest.fixture
-def test_dir():
+def test_data():
     return Path(__file__).parent / "test_data"

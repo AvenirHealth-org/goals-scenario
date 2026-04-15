@@ -132,7 +132,7 @@ def test_import_pjnz_raises_when_modvars_is_none(tmp_path):
 
 def test_modvars_to_numpy_raises_on_unconvertible_list():
     # A mixed list that can't be cast to float64 — errors now propagate.
-    bad_value = [1, "not_a_number"]
+    bad_value = {"modvar1": [1, "not_a_number"]}
     with pytest.raises(ValueError):
         modvars_to_numpy(bad_value)
 

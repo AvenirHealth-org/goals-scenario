@@ -51,9 +51,8 @@ def _import_pjnz_modvars(path: Path) -> dict:
     if modvars is None:
         err_msg = f"Failed to import PJNZ file: {path}"
         raise ValueError(err_msg)
-    numpy_modvars = {tag: modvars_to_numpy(value) for tag, value in modvars.items()}
 
-    return numpy_modvars
+    return modvars_to_numpy(modvars)
 
 
 def import_pjnz(path: Path) -> dict:
@@ -66,12 +65,27 @@ def import_pjnz(path: Path) -> dict:
     return leapfrog_params
 
 
-def modvars_to_numpy(value: Any) -> Any:
-    # Taken from FilterUtils.py in SpectrumEngine
-    if isinstance(value, list):
-        if len(value) > 0 and isinstance(value[0], (dict, str, bool)):
-            value = np.array(value, order="C")
-        else:
-            value = np.array(value, order="C", dtype=np.dtype(np.float64))
+class ProjectionConversionError(ValueError):
+    def __init__(self, tag: str) -> None:
+        self.tag = tag
+        super().__init__(f"Failed to convert projection tag {tag} to numpy array.")
 
-    return value
+
+def modvars_to_numpy(modvars: dict[str, Any]) -> dict[str, Any]:
+    float_dtype = np.dtype(np.float64)
+
+    def convert_modvar(tag: str, value: Any):
+        # Taken from FilterUtils.py in SpectrumEngine
+        try:
+            if not isinstance(value, list):
+                return value
+
+            if value and isinstance(value[0], (dict, str, bool)):
+                value = np.array(value, order="C")
+            else:
+                value = np.array(value, order="C", dtype=float_dtype)
+        except Exception as exc:
+            raise ProjectionConversionError(tag) from exc
+        return value
+
+    return {tag: convert_modvar(tag, value) for tag, value in modvars.items()}
