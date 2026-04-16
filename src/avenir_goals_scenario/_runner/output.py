@@ -46,6 +46,10 @@ def write_scenario_results(
     with h5py.File(path, "w") as f:
         for indicator, arrays in sim_arrays.items():
             stacked = np.stack(arrays, axis=0)
+            # This converts our dataset under the hood using
+            # np.ascontiguousarray, so what gets saved out is
+            # C-ordered. So when we read it in R the arrays will be
+            # reversed.
             f.create_dataset(indicator, data=stacked)
 
     logger.debug("Written {}", path)

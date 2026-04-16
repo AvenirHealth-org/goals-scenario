@@ -33,7 +33,7 @@ def _run_pjnz_scenario(
     with open(params_path, "rb") as f:
         params = pickle.load(f)  # noqa: S301 — only loads data we saved ourselves
 
-    output_years = range(config.base_year, end_year)
+    output_years = range(config.base_year, end_year + 1)
 
     start = datetime.datetime.now()
     simulations_out = [
@@ -68,7 +68,7 @@ def _dump_pjnz_files(
         with open(dump_path, "wb") as f:
             pickle.dump(leapfrog_params, f)
         params_paths[pjnz_path] = dump_path
-        end_years[pjnz_path] = leapfrog_params["projection_end_year"] + 1
+        end_years[pjnz_path] = leapfrog_params["projection_end_year"]
         cb.on_pjnz_imported()
 
     cb.on_imports_complete()
