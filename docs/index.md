@@ -9,5 +9,5 @@
 
 There are two ways to use it:
 
-- **CLI** — drive runs from a JSON config file with the `goals-scenario run` command. See the [CLI reference](cli.md) for full command documentation and config format.
-- **Python API** — call [`run_scenario_analysis`][avenir_goals_scenario.run_scenario_analysis] and [`generate_simulations`][avenir_goals_scenario.generate_simulations] directly from Python. See the [API reference](reference.md).
+- **CLI** - drive runs from a JSON config file with the `goals-scenario run` command. See the [CLI reference](cli.md) for full command documentation and config format.
+- **Python API** - call [`run_scenario_analysis`][avenir_goals_scenario.run_scenario_analysis] and [`generate_simulations`][avenir_goals_scenario.generate_simulations] directly from Python. See the [API reference](reference.md).

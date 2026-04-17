@@ -4,11 +4,9 @@ from pathlib import Path
 from queue import Queue
 from unittest.mock import MagicMock, patch
 
-import h5py
 import numpy as np
 import pytest
 
-from avenir_goals_scenario._runner.output import write_scenario_results
 from avenir_goals_scenario._runner.pjnz import _import_pjnz_modvars, find_pjnz_files, import_pjnz, modvars_to_numpy
 from avenir_goals_scenario._runner.simulation import _extract_indicators, run_simulation
 from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
@@ -188,57 +186,11 @@ def test_extract_indicators_raises_on_unknown():
 
 
 # ---------------------------------------------------------------------------
-# write_scenario_results
+# run_scenario_analysis - integration (external calls mocked)
 # ---------------------------------------------------------------------------
 
-
-def test_write_scenario_results_creates_h5(tmp_path):
-    sim_output = [{"PLHIV": np.ones(5)}, {"PLHIV": np.ones(5) * 2}]
-    path = write_scenario_results(1, "country", sim_output, tmp_path)
-
-    assert path == tmp_path / "country" / "scenario_1.h5"
-    assert path.exists()
-
-
-def test_write_scenario_results_dataset_shape(tmp_path):
-    n_sims = 3
-    sim_output = [{"PLHIV": np.ones(5) * i} for i in range(n_sims)]
-    path = write_scenario_results(2, "country", sim_output, tmp_path)
-
-    with h5py.File(path, "r") as f:
-        assert f["PLHIV"].shape == (n_sims, 5)
-
-
-def test_write_scenario_results_preserves_multidim_shape(tmp_path):
-    # Simulate a sex x age x years indicator shape (2, 66, 61)
-    indicator_shape = (2, 66, 61)
-    n_sims = 4
-    sim_output = [{"p_totpop": np.ones(indicator_shape)} for _ in range(n_sims)]
-    path = write_scenario_results(1, "country", sim_output, tmp_path)
-
-    with h5py.File(path, "r") as f:
-        assert f["p_totpop"].shape == (n_sims, 2, 66, 61)
-
-
-def test_write_scenario_results_values(tmp_path):
-    sim_output = [{"PLHIV": np.array([1.0, 2.0])}, {"PLHIV": np.array([3.0, 4.0])}]
-    path = write_scenario_results(1, "country", sim_output, tmp_path)
-
-    with h5py.File(path, "r") as f:
-        np.testing.assert_array_equal(f["PLHIV"][0], [1.0, 2.0])
-        np.testing.assert_array_equal(f["PLHIV"][1], [3.0, 4.0])
-
-
-def test_write_scenario_results_creates_pjnz_subdir(tmp_path):
-    sim_output = [{"PLHIV": np.ones(3)}]
-    write_scenario_results(1, "my_country", sim_output, tmp_path)
-
-    assert (tmp_path / "my_country").is_dir()
-
-
-# ---------------------------------------------------------------------------
-# run_scenario_analysis — integration (external calls mocked)
-# ---------------------------------------------------------------------------
+_P_HIVPOP_SHAPE = (81, 2, _N_YEARS)
+_SIM_RESULT = {"p_hivpop": np.asfortranarray(np.ones(_P_HIVPOP_SHAPE))}
 
 
 def _integration_patches(sim_result: dict) -> ExitStack:
@@ -249,66 +201,70 @@ def _integration_patches(sim_result: dict) -> ExitStack:
     return stack
 
 
-def test_run_scenario_analysis_creates_h5_per_pjnz_per_scenario(tmp_path):
+def test_run_scenario_analysis_creates_parquet_per_pjnz_per_scenario(tmp_path):
     pjnz_dir = tmp_path / "pjnz"
     pjnz_dir.mkdir()
     (pjnz_dir / "country.PJNZ").touch()
 
     scenarios_path = _make_simulations_json(tmp_path, scenario_id=1, n_simulations=2)
-    config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["PLHIV"])
+    config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["p_hivpop"])
 
-    with _integration_patches({"PLHIV": np.ones(_N_YEARS)}):
+    with _integration_patches(_SIM_RESULT):
         run_scenario_analysis(config)
 
-    assert (Path(config.output_dir) / "country" / "scenario_1.h5").exists()
+    assert (config.output_dir / "p_hivpop" / "pjnz_name=country" / "scenario_id=1" / "part-0.parquet").exists()
 
 
-def test_run_scenario_analysis_h5_dataset_shape(tmp_path):
+def test_run_scenario_analysis_parquet_row_count(tmp_path):
     pjnz_dir = tmp_path / "pjnz"
     pjnz_dir.mkdir()
     (pjnz_dir / "country.PJNZ").touch()
+
+    import pyarrow.parquet as pq
 
     n_sims = 3
     scenarios_path = _make_simulations_json(tmp_path, scenario_id=1, n_simulations=n_sims)
-    config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["PLHIV"])
+    config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["p_hivpop"])
 
-    with _integration_patches({"PLHIV": np.ones(_N_YEARS)}):
+    with _integration_patches(_SIM_RESULT):
         run_scenario_analysis(config)
 
-    with h5py.File(Path(config.output_dir) / "country" / "scenario_1.h5", "r") as f:
-        assert f["PLHIV"].shape == (n_sims, _N_YEARS)
+    path = config.output_dir / "p_hivpop" / "pjnz_name=country" / "scenario_id=1" / "part-0.parquet"
+    table = pq.read_table(path)
+    assert len(table) == n_sims * int(np.prod(_P_HIVPOP_SHAPE))
 
 
-def test_run_scenario_analysis_multidim_indicator_preserved(tmp_path):
-    pjnz_dir = tmp_path / "pjnz"
-    pjnz_dir.mkdir()
-    (pjnz_dir / "country.PJNZ").touch()
-
-    scenarios_path = _make_simulations_json(tmp_path, n_simulations=2)
-    config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["p_totpop"])
-    indicator_shape = (2, 66, _N_YEARS)
-
-    with _integration_patches({"p_totpop": np.ones(indicator_shape)}):
-        run_scenario_analysis(config)
-
-    with h5py.File(Path(config.output_dir) / "country" / "scenario_1.h5", "r") as f:
-        assert f["p_totpop"].shape == (2, 2, 66, _N_YEARS)
-
-
-def test_run_scenario_analysis_multiple_pjnz_creates_separate_dirs(tmp_path):
+def test_run_scenario_analysis_multiple_pjnz_creates_separate_partitions(tmp_path):
     pjnz_dir = tmp_path / "pjnz"
     pjnz_dir.mkdir()
     (pjnz_dir / "alpha.PJNZ").touch()
     (pjnz_dir / "beta.PJNZ").touch()
 
     scenarios_path = _make_simulations_json(tmp_path, n_simulations=1)
-    config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["PLHIV"])
+    config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["p_hivpop"])
 
-    with _integration_patches({"PLHIV": np.ones(_N_YEARS)}):
+    with _integration_patches(_SIM_RESULT):
         run_scenario_analysis(config)
 
-    assert (Path(config.output_dir) / "alpha" / "scenario_1.h5").exists()
-    assert (Path(config.output_dir) / "beta" / "scenario_1.h5").exists()
+    assert (config.output_dir / "p_hivpop" / "pjnz_name=alpha" / "scenario_id=1" / "part-0.parquet").exists()
+    assert (config.output_dir / "p_hivpop" / "pjnz_name=beta" / "scenario_id=1" / "part-0.parquet").exists()
+
+
+def test_run_scenario_analysis_unknown_indicator_raises_before_pjnz_import(tmp_path):
+    pjnz_dir = tmp_path / "pjnz"
+    pjnz_dir.mkdir()
+    (pjnz_dir / "country.PJNZ").touch()
+
+    scenarios_path = _make_simulations_json(tmp_path, n_simulations=1)
+    config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["not_a_real_indicator"])
+
+    with (
+        patch("avenir_goals_scenario.runner.import_pjnz", return_value=_fake_modvars()) as mock_import,
+        pytest.raises(Exception, match="not_a_real_indicator"),
+    ):
+        run_scenario_analysis(config)
+
+    mock_import.assert_not_called()
 
 
 def test_run_scenario_analysis_uses_parallel_when_multiple_workers(tmp_path):
@@ -317,13 +273,12 @@ def test_run_scenario_analysis_uses_parallel_when_multiple_workers(tmp_path):
     (pjnz_dir / "country.PJNZ").touch()
 
     scenarios_path = _make_simulations_json(tmp_path, n_simulations=1)
-    config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["PLHIV"])
     config = RunConfig(
-        pjnz_dir=config.pjnz_dir,
-        scenario_path=config.scenario_path,
-        output_dir=config.output_dir,
-        base_year=config.base_year,
-        output_indicators=config.output_indicators,
+        pjnz_dir=pjnz_dir,
+        scenario_path=scenarios_path,
+        output_dir=tmp_path / "output",
+        base_year=2020,
+        output_indicators=["p_hivpop"],
         n_workers=2,
     )
 
@@ -339,7 +294,7 @@ def test_run_scenario_analysis_uses_parallel_when_multiple_workers(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# _run_pjnz_scenario — log_queue branch
+# _run_pjnz_scenario - log_queue branch
 # ---------------------------------------------------------------------------
 
 
@@ -367,7 +322,7 @@ def test_run_pjnz_scenario_configures_worker_logging_when_log_queue_provided(tmp
 
 
 # ---------------------------------------------------------------------------
-# _import_pjnz_modvars — success path
+# _import_pjnz_modvars - success path
 # ---------------------------------------------------------------------------
 
 

@@ -41,7 +41,7 @@ goals-scenario simulations scenario_definition.csv scenario_simulations.json -n 
 Scenario definition CSV
 
 Multiple rows sharing the same `Number` represent multiple target populations for that
-intervention — all parameter columns must be identical across those rows, only `Target Population`
+intervention - all parameter columns must be identical across those rows, only `Target Population`
 and `Sex` may differ. A combined scenario has the IDs to combine joined by `+` in the `Product`
 column. Column headers are case-insensitive.
 

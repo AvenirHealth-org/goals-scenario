@@ -11,7 +11,7 @@ class RunConfig(BaseModel):
     Field names are case-insensitive: ``PJNZ_Dir``, ``pjnz_dir``, and
     ``PJNZ_DIR`` are all accepted.
 
-    ``output_dir`` is created if it does not exist, but only one level deep —
+    ``output_dir`` is created if it does not exist, but only one level deep -
     its parent must already exist.
 
     Attributes:

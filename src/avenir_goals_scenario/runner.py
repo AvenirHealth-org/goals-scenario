@@ -8,7 +8,8 @@ from queue import Queue
 from joblib import Parallel, delayed
 from loguru import logger
 
-from avenir_goals_scenario._runner.output import write_scenario_results
+from avenir_goals_scenario._runner.indicator_dims import build_indicator_dims
+from avenir_goals_scenario._runner.output import check_indicator_dims, consolidate_metadata, write_scenario_results
 from avenir_goals_scenario._runner.pjnz import find_pjnz_files, import_pjnz
 from avenir_goals_scenario._runner.simulation import run_simulation
 from avenir_goals_scenario._runner.utils import RunCallbacks, get_effective_workers
@@ -31,7 +32,7 @@ def _run_pjnz_scenario(
         configure_worker_logging(log_queue)
 
     with open(params_path, "rb") as f:
-        params = pickle.load(f)  # noqa: S301 — only loads data we saved ourselves
+        params = pickle.load(f)  # noqa: S301 - only loads data we saved ourselves
 
     output_years = range(config.base_year, end_year + 1)
 
@@ -48,7 +49,13 @@ def _run_pjnz_scenario(
         pjnz_stem,
         elapsed_ms,
     )
-    write_scenario_results(scenario.scenario_id, pjnz_stem, simulations_out, config.output_dir)
+    write_scenario_results(
+        scenario.scenario_id,
+        pjnz_stem,
+        simulations_out,
+        config.output_dir,
+        indicator_dims=build_indicator_dims(config.base_year),
+    )
     return pjnz_stem
 
 
@@ -115,6 +122,8 @@ def _run_scenario_analysis(config: RunConfig, callbacks: RunCallbacks, log_queue
         ValueError: If any output indicator is not present in the Goals output,
             or if a PJNZ file cannot be parsed.
     """
+    check_indicator_dims(config.output_indicators, build_indicator_dims(config.base_year))
+
     config.output_dir.mkdir(exist_ok=True)
     pjnz_files = find_pjnz_files(config.pjnz_dir)
     logger.info("Found {} PJNZ file(s) in {}", len(pjnz_files), config.pjnz_dir)
@@ -155,5 +164,6 @@ def _run_scenario_analysis(config: RunConfig, callbacks: RunCallbacks, log_queue
 
     callbacks.on_run_complete()
 
+    consolidate_metadata(config.output_dir)
     logger.info("Done. Results written to {}", config.output_dir)
     return config.output_dir

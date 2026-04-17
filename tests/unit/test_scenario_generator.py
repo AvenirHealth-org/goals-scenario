@@ -123,7 +123,7 @@ def test_sample_returns_float_when_not_integer():
 
 
 # ---------------------------------------------------------------------------
-# InterventionDef — parameter constraints applied during parsing
+# InterventionDef - parameter constraints applied during parsing
 # ---------------------------------------------------------------------------
 
 
