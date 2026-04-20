@@ -78,20 +78,23 @@ def _mock_pjnz_path(stem: str) -> MagicMock:
     return p
 
 
+def _make_mock_simulations(n: int = 2) -> MagicMock:
+    mock = MagicMock()
+    mock.scenarios = [MagicMock() for _ in range(n)]
+    return mock
+
+
 def test_run_with_progress_calls_run_scenario_analysis():
     config = MagicMock()
     mock_paths = [_mock_pjnz_path("alpha"), _mock_pjnz_path("beta")]
-    mock_scenarios = MagicMock()
-    mock_scenarios.scenarios = [MagicMock(), MagicMock()]
+    mock_scenarios = _make_mock_simulations(2)
 
     with (
         patch("avenir_goals_scenario._cli.cli_utils.find_pjnz_files", return_value=mock_paths),
-        patch("avenir_goals_scenario._cli.cli_utils.ScenarioSimulations") as mock_ss,
         patch("avenir_goals_scenario._cli.cli_utils.get_effective_workers", return_value=1),
         patch("avenir_goals_scenario._cli.cli_utils._run_scenario_analysis") as mock_run,
     ):
-        mock_ss.model_validate_json.return_value = mock_scenarios
-        run_with_progress(config)
+        run_with_progress(config, mock_scenarios)
 
     mock_run.assert_called_once()
 
@@ -99,10 +102,9 @@ def test_run_with_progress_calls_run_scenario_analysis():
 def test_run_with_progress_exercises_all_callbacks():
     config = MagicMock()
     mock_paths = [_mock_pjnz_path("country")]
-    mock_scenarios = MagicMock()
-    mock_scenarios.scenarios = [MagicMock()]
+    mock_scenarios = _make_mock_simulations(1)
 
-    def fake_run(cfg, callbacks, log_queue=None):
+    def fake_run(cfg, simulations, callbacks, log_queue=None):
         callbacks.on_pjnz_imported()
         callbacks.on_imports_complete()
         callbacks.on_scenario_complete("country")
@@ -110,36 +112,30 @@ def test_run_with_progress_exercises_all_callbacks():
 
     with (
         patch("avenir_goals_scenario._cli.cli_utils.find_pjnz_files", return_value=mock_paths),
-        patch("avenir_goals_scenario._cli.cli_utils.ScenarioSimulations") as mock_ss,
         patch("avenir_goals_scenario._cli.cli_utils.get_effective_workers", return_value=1),
         patch("avenir_goals_scenario._cli.cli_utils._run_scenario_analysis", side_effect=fake_run),
     ):
-        mock_ss.model_validate_json.return_value = mock_scenarios
-        run_with_progress(config)
+        run_with_progress(config, mock_scenarios)
 
 
 def test_run_with_progress_stops_progress_on_exception():
     config = MagicMock()
     mock_paths = [_mock_pjnz_path("country")]
-    mock_scenarios = MagicMock()
-    mock_scenarios.scenarios = [MagicMock()]
+    mock_scenarios = _make_mock_simulations(1)
 
     with (
         patch("avenir_goals_scenario._cli.cli_utils.find_pjnz_files", return_value=mock_paths),
-        patch("avenir_goals_scenario._cli.cli_utils.ScenarioSimulations") as mock_ss,
         patch("avenir_goals_scenario._cli.cli_utils.get_effective_workers", return_value=1),
         patch("avenir_goals_scenario._cli.cli_utils._run_scenario_analysis", side_effect=RuntimeError("boom")),
+        pytest.raises(RuntimeError, match="boom"),
     ):
-        mock_ss.model_validate_json.return_value = mock_scenarios
-        with pytest.raises(RuntimeError, match="boom"):
-            run_with_progress(config)
+        run_with_progress(config, mock_scenarios)
 
 
 def test_run_with_progress_with_multiple_workers_cleans_up():
     config = MagicMock()
     mock_paths = [_mock_pjnz_path("country")]
-    mock_scenarios = MagicMock()
-    mock_scenarios.scenarios = [MagicMock()]
+    mock_scenarios = _make_mock_simulations(1)
 
     mock_manager = MagicMock()
     mock_queue = MagicMock()
@@ -148,14 +144,12 @@ def test_run_with_progress_with_multiple_workers_cleans_up():
 
     with (
         patch("avenir_goals_scenario._cli.cli_utils.find_pjnz_files", return_value=mock_paths),
-        patch("avenir_goals_scenario._cli.cli_utils.ScenarioSimulations") as mock_ss,
         patch("avenir_goals_scenario._cli.cli_utils.get_effective_workers", return_value=2),
         patch("avenir_goals_scenario._cli.cli_utils.Manager", return_value=mock_manager),
         patch("avenir_goals_scenario._cli.cli_utils._make_log_queue_listener", return_value=mock_listener),
         patch("avenir_goals_scenario._cli.cli_utils._run_scenario_analysis"),
     ):
-        mock_ss.model_validate_json.return_value = mock_scenarios
-        run_with_progress(config)
+        run_with_progress(config, mock_scenarios)
 
     mock_queue.put.assert_called_with(_STOP)
     mock_listener.join.assert_called_once()

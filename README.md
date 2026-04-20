@@ -21,117 +21,50 @@ After installation, the `goals-scenario` command is available on your PATH.
 
 ## Quick start
 
-For full details of the CLI please see the [CLI reference](https://avenirhealth-org.github.io/goals-scenario/cli/)
+For full details of the CLI see the [CLI reference](https://avenirhealth-org.github.io/goals-scenario/cli/).
 
 ```bash
 goals-scenario --help      # or -h
 goals-scenario --version
 ```
 
-### Generate scenario simulations
-
-```bash
-goals-scenario simulations scenario_definition.csv scenario_simulations.json
-# optionally override the number of simulations (default 100):
-goals-scenario simulations scenario_definition.csv scenario_simulations.json -n 500
-```
-
-#### File formats
-
-Scenario definition CSV
-
-Multiple rows sharing the same `Number` represent multiple target populations for that
-intervention - all parameter columns must be identical across those rows, only `Target Population`
-and `Sex` may differ. A combined scenario has the IDs to combine joined by `+` in the `Product`
-column. Column headers are case-insensitive.
-
-```
-Number,Product,Efficacy mean,Efficacy STD,Adherence mean,Adherence STD,Target Coverage mean,Target Coverage STD,Target Year mean,Target Year STD,Target Population,Sex
-1,One month pill for PrEP,0.95,0.03,0.95,0.03,0.20,0.05,2028,2,High risk heterosexual,Female
-1,One month pill for PrEP,0.95,0.03,0.95,0.03,0.20,0.05,2028,2,Men who have sex with men,Male
-2,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,High risk heterosexual,Female
-...
-25,1+2,,,,,,,,,,
-...
-```
-
-| Column | Description |
-|---|---|
-| `Number` | Integer scenario ID (repeated for multi-population interventions) |
-| `Product` | Intervention name, or `X+Y+Z` to combine scenarios X, Y and Z |
-| `Efficacy mean` | Mean efficacy |
-| `Efficacy STD` | Efficacy standard deviation |
-| `Adherence mean` | Mean adherence |
-| `Adherence STD` | Adherence standard deviation |
-| `Target Coverage mean` | Mean target coverage |
-| `Target Coverage STD` | Target coverage standard deviation |
-| `Target Year mean` | Mean target year |
-| `Target Year STD` | Target year standard deviation |
-| `Target Population` | Population group (e.g. `High risk heterosexual`, `PLHIV`) |
-| `Sex` | `Female`, `Male`, or `Both` |
-
-Scenario simulations
+Both commands are driven by a single JSON config file. Field names are case-insensitive.
 
 ```json
 {
-  "scenarios": [
-    {
-      "scenario_id": 1,
-      "interventions": [
-        {
-          "id": "one_month_pill_for_prep",
-          "product": "One month pill for PrEP",
-          "targets": [
-            { "population": "High risk heterosexual", "sex": "Female" },
-            { "population": "Men who have sex with men", "sex": "Male" }
-          ]
-        }
-      ],
-      "simulations": [
-        {
-          "one_month_pill_for_prep": { "efficacy": 0.976158, "adherence": 0.9425262, "target_coverage": 0.202123, "target_year": 2028 }
-        }
-      ]
-    },
-    ...
-  ]
+  "pjnz_dir": "path/to/pjnz/files",
+  "definition_path": "scenario_definitions.csv",
+  "scenario_path": "draws.json",
+  "output_dir": "path/to/output",
+  "base_year": 2025,
+  "output_indicators": ["p_hivpop", "p_infections", "p_hiv_deaths", "h_artpop"],
+  "n_simulations": 100,
+  "seed": null
 }
 ```
 
-### Run scenario analysis
+### One-shot run (draw and run together)
 
-Analysis is configured via a JSON config file:
+Set `definition_path` in the config and omit `scenario_path`. Draws are saved
+automatically to `<output_dir>/draws.json`.
 
 ```bash
 goals-scenario run config.json
 ```
 
-#### Config file format
+### Two-step run (draw first, then run)
 
-Field names are case-insensitive.
+Useful when you want to inspect draws before committing to a full model run,
+or to reuse the same draws across multiple runs. Set both `definition_path`
+and `scenario_path` in the config.
 
-```json
-{
-  "pjnz_dir": "path/to/pjnz/files",
-  "scenario_path": "path/to/scenario_simulations.json",
-  "output_dir": "path/to/output",
-  "base_year": 2025,
-  "output_indicators": [
-    "p_hivpop",
-    "p_infections",
-    "p_hiv_deaths",
-    "h_artpop"
-  ]
-}
+```bash
+goals-scenario draw config.json   # saves draws to scenario_path
+goals-scenario run config.json    # reuses the same draws
 ```
 
-| Field | Description |
-|---|---|
-| `pjnz_dir` | Directory containing `.PJNZ` files |
-| `scenario_path` | Path to the scenario simulations JSON file |
-| `output_dir` | Directory to write results to (created if absent; parent must exist) |
-| `base_year` | First year of the output projection range |
-| `output_indicators` | Goals output indicator names to extract |
+If you call `run` with both paths set and `scenario_path` already exists, the
+existing draws are reused. If the file is missing, draws are regenerated and saved.
 
 ### Tab completion
 

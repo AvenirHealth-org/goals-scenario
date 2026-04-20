@@ -111,17 +111,20 @@ def configure_worker_logging(log_queue: Queue) -> None:
     logger.add(_sink, format="{message}", colorize=False)
 
 
-def run_with_progress(config) -> None:
+def run_with_progress(config, simulations: ScenarioSimulations) -> None:
     """Run scenario analysis with Rich progress bars and worker log routing.
 
     This is the CLI entry point. It sets up a shared Progress display,
     a log queue for worker processes, and wires up RunCallbacks to drive
     the progress bars.
-    """
 
+    Args:
+        config: Validated run configuration.
+        simulations: Scenario simulations to run.
+    """
     pjnz_files = find_pjnz_files(config.pjnz_dir)
     n_pjnz = len(pjnz_files)
-    n_scenarios = len(ScenarioSimulations.model_validate_json(config.scenario_path.read_bytes()).scenarios)
+    n_scenarios = len(simulations.scenarios)
 
     effective_workers = get_effective_workers(config)
     use_subprocess = effective_workers != 1
@@ -170,7 +173,7 @@ def run_with_progress(config) -> None:
             on_run_complete=on_run_complete,
         )
         import_progress.start()
-        _run_scenario_analysis(config, callbacks, log_queue=log_queue)
+        _run_scenario_analysis(config, simulations, callbacks, log_queue=log_queue)
     finally:
         # Make sure we call stop on these, in the case that a user
         # hits ctrl+c before we call it in the callbacks above

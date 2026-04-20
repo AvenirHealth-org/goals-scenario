@@ -9,9 +9,11 @@ from pydantic import ValidationError
 
 from avenir_goals_scenario._cli.cli_utils import configure_cli_logging, run_with_progress
 from avenir_goals_scenario.models import RunConfig
-from avenir_goals_scenario.scenarios import generate_simulations
+from avenir_goals_scenario.models.scenario_simulations import ScenarioSimulations
+from avenir_goals_scenario.scenarios import draw_simulations, read_simulations, write_simulations
 
 _CONTEXT = {"help_option_names": ["-h", "--help"]}
+_DOCS_URL = "https://avenirhealth-org.github.io/goals-scenario/cli/"
 
 app = typer.Typer(help="Goals scenario analysis CLI.", context_settings=_CONTEXT)
 
@@ -43,27 +45,62 @@ def _fmt_error(e: Exception) -> str:
 
 
 @app.command()
-def simulations(
-    definition_path: Annotated[Path, typer.Argument(help="Path to the input scenario definition file.")],
-    simulations_path: Annotated[Path, typer.Argument(help="Path to write the scenario simulations file to.")],
-    n_simulations: Annotated[
-        int, typer.Option("-n", "--n-simulations", help="Number of simulations to generate for each scenario.")
-    ] = 100,
+def draw(
+    config_path: Annotated[
+        Path,
+        typer.Argument(help=f"Path to a JSON config file. See {_DOCS_URL} for format."),
+    ],
 ) -> None:
-    """Generate a scenario simulations file from a scenario definition."""
+    """Draw scenario simulations and save to disk.
+
+    Reads ``definition_path``, ``scenario_path``, ``n_simulations``,
+    ``seed``, and ``base_year`` from the config file. Draws are written
+    to ``scenario_path``. Both ``definition_path`` and ``scenario_path``
+    must be present in the config.
+    """
     try:
-        generate_simulations(definition_path, simulations_path, n_simulations)
+        config = _load_config(config_path)
+    except ValidationError as e:
+        logger.error("Invalid config: {}", _fmt_error(e))
+        raise typer.Exit(code=1) from None
+    except Exception as e:
+        logger.error(_fmt_error(e))
+        raise typer.Exit(code=1) from None
+
+    if config.definition_path is None:
+        logger.error("definition_path must be set in config for the draw command. See {}", _DOCS_URL)
+        raise typer.Exit(code=1)
+    if config.scenario_path is None:
+        logger.error("scenario_path must be set in config for the draw command. See {}", _DOCS_URL)
+        raise typer.Exit(code=1)
+
+    try:
+        simulations = draw_simulations(config.definition_path, config.n_simulations, config.seed, config.base_year)
+        write_simulations(simulations, config.scenario_path)
     except Exception as e:
         logger.exception(_fmt_error(e))
         raise typer.Exit(code=1) from None
-    logger.info("Done. Simulations saved to {}", simulations_path.expanduser().resolve())
+    logger.info("Done. Draws saved to {}", config.scenario_path.expanduser().resolve())
 
 
 @app.command()
 def run(
-    config_path: Annotated[Path, typer.Argument(help="Path to a JSON config file.")],
+    config_path: Annotated[
+        Path,
+        typer.Argument(help=f"Path to a JSON config file. See {_DOCS_URL} for format."),
+    ],
 ) -> None:
-    """Run scenario analysis using a JSON config file."""
+    """Run scenario analysis using a JSON config file.
+
+    Behaviour depends on which of ``definition_path`` and ``scenario_path``
+    are set in the config:
+
+    \b
+    - definition_path only  : draws in memory, saves to <output_dir>/draws.json, runs.
+    - scenario_path only    : loads draws from the file and runs.
+    - both (file exists)    : uses existing draws, runs.
+    - both (file missing)   : redraws, saves to scenario_path, runs.
+    """
     try:
         config = _load_config(config_path)
     except ValidationError as e:
@@ -73,11 +110,52 @@ def run(
         logger.exception(_fmt_error(e))
         raise typer.Exit(code=1) from None
 
+    if config.definition_path is None and config.scenario_path is None:
+        logger.error("Config must include definition_path, scenario_path, or both. See {}", _DOCS_URL)
+        raise typer.Exit(code=1)
+
     try:
-        run_with_progress(config)
+        simulations = _prepare_simulations(config)
+        run_with_progress(config, simulations)
     except Exception as e:
         logger.exception(_fmt_error(e))
         raise typer.Exit(code=1) from None
+
+
+def _prepare_simulations(config: RunConfig):
+    """Resolve scenario simulations from config, drawing and/or saving as needed.
+
+    Behaviour:
+    - definition_path only  : draws, saves to <output_dir>/draws.json.
+    - scenario_path only    : loads from file (must exist).
+    - both (file exists)    : loads from file.
+    - both (file missing)   : draws, saves to scenario_path.
+    """
+
+    def _draw(definition_path: Path) -> ScenarioSimulations:
+        return draw_simulations(definition_path, config.n_simulations, config.seed, config.base_year)
+
+    if config.definition_path is None:
+        # We can ignore invalid argument error, we've validated this previous
+        return read_simulations(config.scenario_path)  # ty: ignore[invalid-argument-type]
+
+    if config.scenario_path is None:
+        config.output_dir.mkdir(exist_ok=True)
+        simulations = _draw(config.definition_path)
+        auto_path = config.output_dir / "draws.json"
+        write_simulations(simulations, auto_path)
+        logger.info("Draws saved to {}", auto_path)
+        return simulations
+
+    # Both provided — load if file exists, otherwise redraw.
+    if config.scenario_path.exists():
+        logger.info("Using existing draws from {}", config.scenario_path)
+        return read_simulations(config.scenario_path)
+
+    simulations = _draw(config.definition_path)
+    write_simulations(simulations, config.scenario_path)
+    logger.info("Draws saved to {}", config.scenario_path)
+    return simulations
 
 
 def _load_config(path: Path) -> RunConfig:

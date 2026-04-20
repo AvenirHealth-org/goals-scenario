@@ -82,7 +82,7 @@ def _dump_pjnz_files(
     return params_paths, end_years
 
 
-def run_scenario_analysis(config: RunConfig) -> Path:
+def run_scenario_analysis(config: RunConfig, simulations: ScenarioSimulations) -> Path:
     """Run scenario analysis across a directory of PJNZ files.
 
     Converts each PJNZ to leapfrog params once in the main process, dumps them
@@ -90,32 +90,40 @@ def run_scenario_analysis(config: RunConfig) -> Path:
     ``(PJNZ, scenario)`` work units across worker processes. Workers load
     params via ``pickle.load``.
 
-    Results are written to HDF5 files under ``config.output_dir``, one file
+    Results are written to Parquet files under ``config.output_dir``, one file
     per PJNZ/scenario combination at
-    ``{output_dir}/{pjnz_stem}/scenario_{id}.h5``. Each file contains one
+    ``{output_dir}/{pjnz_stem}/scenario_{id}.parquet``. Each file contains one
     dataset per indicator with shape ``(n_simulations, *indicator_dims)``.
 
     Args:
         config: Validated run configuration.
+        simulations: Scenario simulations to run. Use
+            `avenir_goals_scenario.draw_simulations` to generate them or
+            `avenir_goals_scenario.read_simulations` to load from a file.
 
     Raises:
         FileNotFoundError: If no PJNZ files are found in ``config.pjnz_dir``.
         ValueError: If any output indicator is not present in the Goals output,
             or if a PJNZ file cannot be parsed.
     """
-    no_op_callbacks = RunCallbacks()
-    return _run_scenario_analysis(config, no_op_callbacks)
+    return _run_scenario_analysis(config, simulations, RunCallbacks())
 
 
-def _run_scenario_analysis(config: RunConfig, callbacks: RunCallbacks, log_queue: Queue | None = None) -> Path:
-    """Internal run_scenario_analysis function
+def _run_scenario_analysis(
+    config: RunConfig,
+    simulations: ScenarioSimulations,
+    callbacks: RunCallbacks,
+    log_queue: Queue | None = None,
+) -> Path:
+    """Internal run_scenario_analysis function.
 
     Args:
         config: Validated run configuration.
+        simulations: Pre-drawn scenario simulations.
         callbacks: Hooks for progress reporting, can be no-op.
         log_queue: Optional queue to pass to _run_pjnz_scenario when running
-          in parallel so logs can be raised ot the same console as progress
-          bars when run via CLI
+          in parallel so logs can be raised to the same console as progress
+          bars when run via CLI.
 
     Raises:
         FileNotFoundError: If no PJNZ files are found in ``config.pjnz_dir``.
@@ -128,8 +136,6 @@ def _run_scenario_analysis(config: RunConfig, callbacks: RunCallbacks, log_queue
     pjnz_files = find_pjnz_files(config.pjnz_dir)
     logger.info("Found {} PJNZ file(s) in {}", len(pjnz_files), config.pjnz_dir)
 
-    scenarios = ScenarioSimulations.model_validate_json(config.scenario_path.read_bytes())
-
     with tempfile.TemporaryDirectory() as tmp_dir:
         params_paths, end_years = _dump_pjnz_files(pjnz_files, tmp_dir, callbacks)
 
@@ -140,15 +146,15 @@ def _run_scenario_analysis(config: RunConfig, callbacks: RunCallbacks, log_queue
             os.cpu_count(),
             config.n_workers,
         )
-        work_units = [(params_paths[p], p.stem, s, end_years[p]) for p in pjnz_files for s in scenarios.scenarios]
+        work_units = [(params_paths[p], p.stem, s, end_years[p]) for p in pjnz_files for s in simulations.scenarios]
         logger.info(
             "Running {} work unit(s) ({} PJNZ x {} scenario(s)) with n_workers={}",
             len(work_units),
             len(pjnz_files),
-            len(scenarios.scenarios),
+            len(simulations.scenarios),
             effective_workers,
         )
-        logger.info("Running {} simulations per scenario", len(scenarios.scenarios[0].simulations))
+        logger.info("Running {} simulations per scenario", len(simulations.scenarios[0].simulations))
 
         if effective_workers == 1:
             for params_path, pjnz_stem, scenario, end_year in work_units:

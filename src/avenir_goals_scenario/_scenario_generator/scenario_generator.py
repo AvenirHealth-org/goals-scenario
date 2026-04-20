@@ -22,10 +22,23 @@ def _product_to_id(product: str) -> str:
     return slug.strip("_")
 
 
+_TARGET_YEAR_PARAM = "target_year"
+
+
+def _sample_param(name: str, dist, rng: np.random.Generator, base_year: int | None) -> float | int:
+    """Sample one parameter, applying base_year floor to target_year draws."""
+    if name == _TARGET_YEAR_PARAM and base_year is not None:
+        current_min = dist.min_value
+        effective_min = max(current_min, base_year) if current_min is not None else base_year
+        dist = dist.model_copy(update={"min_value": effective_min})
+    return dist.sample(rng)
+
+
 def gen_simulations(
     definition: ScenarioInput,
     n_simulations: int = 100,
     rng: np.random.Generator | None = None,
+    base_year: int | None = None,
 ) -> ScenarioSimulations:
     """Generate sampled simulations from a validated :class:`ScenarioInput`.
 
@@ -35,6 +48,8 @@ def gen_simulations(
         rng: Optional seeded RNG for reproducibility; a fresh one is created if omitted.
             For parallel use, spawn independent child RNGs with ``rng.spawn(n)`` or
             ``np.random.SeedSequence(seed).spawn(n)`` before distributing work.
+        base_year: If provided, used as the minimum value for ``target_year`` draws.
+            Values below ``base_year`` are clamped up to it.
 
     Returns:
         A :class:`ScenarioSimulations` containing all scenarios and their simulations.
@@ -57,7 +72,7 @@ def gen_simulations(
                 simulations=[
                     {
                         _product_to_id(iv.product): InterventionSimulation({
-                            name: dist.sample(rng) for name, dist in iv.parameters.items()
+                            name: _sample_param(name, dist, rng, base_year) for name, dist in iv.parameters.items()
                         })
                         for iv in scenario.interventions
                     }

@@ -363,6 +363,12 @@ def test_reproducible_with_same_seed():
     assert out1.model_dump() == out2.model_dump()
 
 
+def test_gen_simulations_without_rng_creates_default_rng():
+    definition = ScenarioInput.model_validate(MINIMAL_INPUT)
+    output = gen_simulations(definition, n_simulations=1)
+    assert isinstance(output, ScenarioSimulations)
+
+
 # ---------------------------------------------------------------------------
 # load_scenario_definition
 # ---------------------------------------------------------------------------

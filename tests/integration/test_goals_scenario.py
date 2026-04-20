@@ -3,7 +3,7 @@ import pyarrow.parquet as pq
 from avenir_goals_scenario._runner.pjnz import import_pjnz
 from avenir_goals_scenario.models.run_config import RunConfig
 from avenir_goals_scenario.runner import run_scenario_analysis
-from avenir_goals_scenario.scenarios import generate_simulations
+from avenir_goals_scenario.scenarios import draw_simulations
 
 _BASE_YEAR = 2010
 _N_SIMULATIONS = 2
@@ -15,21 +15,20 @@ _PJNZ_NAMES = ["Azerbaijan", "Botswana", "DRC", "Ethiopia", "Ghana", "SouthAfric
 def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_data):
     tmp = tmp_path_factory.mktemp("integration")
 
-    simulations_path = generate_simulations(
+    simulations = draw_simulations(
         test_data / "scenario_descriptions.csv",
-        tmp / "scenario.json",
         n_simulations=_N_SIMULATIONS,
+        base_year=_BASE_YEAR,
     )
 
     config = RunConfig(
         pjnz_dir=test_data / "pjnz",
-        scenario_path=simulations_path,
         output_dir=tmp / "output",
         base_year=_BASE_YEAR,
         output_indicators=_INDICATORS,
     )
 
-    out_dir = run_scenario_analysis(config)
+    out_dir = run_scenario_analysis(config, simulations)
 
     ## All indicators are output as top-level directories
     indicator_dirs = {p.name for p in out_dir.iterdir() if p.is_dir()}
