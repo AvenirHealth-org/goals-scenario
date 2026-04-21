@@ -30,7 +30,7 @@ def run_simulation(
 
     Applies the simulation parameters to *leapfrog_params* in-place, runs
     Goals, and returns the raw indicator arrays exactly as produced by
-    ``run_goals`` — no dimension reduction.
+    ``run_goals`` - no dimension reduction.
 
     Args:
         leapfrog_params: Leapfrog params for one PJNZ.

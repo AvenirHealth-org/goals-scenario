@@ -1,4 +1,4 @@
-import h5py
+import pyarrow.parquet as pq
 
 from avenir_goals_scenario._runner.pjnz import import_pjnz
 from avenir_goals_scenario.models.run_config import RunConfig
@@ -31,23 +31,29 @@ def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_data):
 
     out_dir = run_scenario_analysis(config)
 
-    ## All PJNZ files are output
-    subdirs = {p.name for p in out_dir.iterdir() if p.is_dir()}
-    assert subdirs == set(_PJNZ_NAMES)
+    ## All indicators are output as top-level directories
+    indicator_dirs = {p.name for p in out_dir.iterdir() if p.is_dir()}
+    assert indicator_dirs == set(_INDICATORS)
 
+    for indicator in _INDICATORS:
+        for pjnz_name in _PJNZ_NAMES:
+            ## Each PJNZ has the right number of scenario partitions
+            pjnz_dir = out_dir / indicator / f"pjnz_name={pjnz_name}"
+            scenario_dirs = {p.name for p in pjnz_dir.iterdir() if p.is_dir()}
+            assert scenario_dirs == {f"scenario_id={sid}" for sid in _SCENARIOS}
+
+    ## Spot-check p_hivpop schema and row count for scenario 1
     for pjnz_name in _PJNZ_NAMES:
-        ## We output the right number of scenarios
-        files = {p.name for p in (out_dir / pjnz_name).iterdir()}
-        assert files == {f"scenario_{sid}.h5" for sid in _SCENARIOS}
+        path = out_dir / "p_hivpop" / f"pjnz_name={pjnz_name}" / "scenario_id=1" / "part-0.parquet"
+        table = pq.read_table(path)
 
-        path = out_dir / pjnz_name / "scenario_1.h5"
-        with h5py.File(path, "r") as f:
-            ## All indicators are output
-            for indicator in _INDICATORS:
-                assert indicator in f, f"Missing dataset '{indicator}' in {path}"
+        assert "age" in table.schema.names
+        assert "sex" in table.schema.names
+        assert "year" in table.schema.names
+        assert "simulation" in table.schema.names
+        assert "value" in table.schema.names
 
-            params = import_pjnz(test_data / "pjnz" / f"{pjnz_name}.PJNZ")
-            expected_n_years = params["projection_end_year"] - _BASE_YEAR + 1
-            ## Shapes are as expected
-            assert f["p_hivpop"].shape[0] == _N_SIMULATIONS
-            assert f["p_hivpop"].shape[-1] == expected_n_years
+        params = import_pjnz(test_data / "pjnz" / f"{pjnz_name}.PJNZ")
+        expected_n_years = params["projection_end_year"] - _BASE_YEAR + 1
+        expected_rows = _N_SIMULATIONS * 81 * 2 * expected_n_years
+        assert len(table) == expected_rows

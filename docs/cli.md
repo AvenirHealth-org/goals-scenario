@@ -32,7 +32,7 @@ goals-scenario simulations scenario_definition.csv scenario_simulations.json
 
 Scenario definition CSV
 
-Each scenario ID maps to one or a group of interventions. Multiple rows sharing the same `Number` represent multiple target populations for that intervention — all parameter columns must be identical across those rows, only `Target Population` and `Sex` may differ. A combined scenario row has the IDs to combine joined by `+` in the `Product` column, with all other columns empty. Column headers are case-insensitive.
+Each scenario ID maps to one or a group of interventions. Multiple rows sharing the same `Number` represent multiple target populations for that intervention - all parameter columns must be identical across those rows, only `Target Population` and `Sex` may differ. A combined scenario row has the IDs to combine joined by `+` in the `Product` column, with all other columns empty. Column headers are case-insensitive.
 
 | Column | Description |
 |---|---|

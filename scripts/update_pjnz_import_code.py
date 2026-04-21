@@ -5,7 +5,7 @@ Update PJNZ import code from Spectrum Engine.
 Reads the ref from scripts/spectrum_engine_ref, shallow-clones that ref from
 GitHub, and copies the configured source paths into this repository.
 
-Authentication (required for private repos — tried in order):
+Authentication (required for private repos - tried in order):
   1. GITHUB_TOKEN environment variable
   2. `gh auth token` (GitHub CLI)
   3. Unauthenticated (public repos only)
@@ -22,7 +22,7 @@ from pathlib import Path
 import git
 
 # ---------------------------------------------------------------------------
-# File map — edit this to change what gets copied.
+# File map - edit this to change what gets copied.
 #
 # Each entry is:
 #   ("source/glob/pattern", "dest/relative/to/repo/root")
@@ -207,7 +207,7 @@ def main() -> None:
     print(f"Using ref: {ref}")
 
     if args.dry_run:
-        print("\nDry run — file map:")
+        print("\nDry run - file map:")
         for src, dest in FILE_MAP:
             print(f"  {src}  ->  {dest}")
         return
