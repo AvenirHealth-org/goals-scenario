@@ -1,6 +1,6 @@
 # CLI
 
-The `goals-scenario` CLI provides two commands.
+The `goals-scenario` CLI provides two commands: `draw` and `run`.
 
 ## Installation
 
@@ -10,29 +10,121 @@ pip install avenir_goals_scenario
 
 After installation, `goals-scenario` is available on your PATH.
 
-## Commands
+## Config file
 
-### `simulations`
+Both commands are driven by a single JSON config file. Field names are case-insensitive
+(`pjnz_dir`, `PJNZ_DIR`, and `Pjnz_Dir` are all accepted).
 
-Generates a scenario simulations file from a scenario definition.
-
-```bash
-goals-scenario simulations scenario_definition.csv scenario_simulations.json
+```json
+{
+  "pjnz_dir": "path/to/pjnz/files",
+  "definition_path": "path/to/scenario_definitions.csv",
+  "scenario_path": "path/to/draws.json",
+  "output_dir": "path/to/output",
+  "base_year": 2025,
+  "output_indicators": [
+    "p_hivpop",
+    "p_infections",
+    "p_hiv_deaths",
+    "h_artpop"
+  ],
+  "n_simulations": 100,
+  "seed": null
+}
 ```
 
-| Argument / Option | Description |
-|---|---|
-| `DEFINITION_PATH` | Path to the input scenario definition CSV file (positional) |
-| `SIMULATIONS_PATH` | Path to write the scenario simulations file to (positional) |
-| `-n`, `--n-simulations` | Number of simulations per scenario (default: 100) |
+| Field | Required | Description |
+|---|---|---|
+| `pjnz_dir` | Yes | Directory containing `.PJNZ` files |
+| `output_dir` | Yes | Directory to write results to (created if absent; parent must exist) |
+| `base_year` | Yes | First year of the output projection range |
+| `output_indicators` | Yes | Goals output indicator names to extract |
+| `definition_path` | No* | Path to the scenario definitions CSV file |
+| `scenario_path` | No* | Path to a scenario draws JSON file |
+| `n_simulations` | No | Number of draws per scenario (default: `100`) |
+| `seed` | No | Integer RNG seed for reproducible draws (default: `null` - random) |
+| `n_workers` | No | Parallel workers: `-1` for all CPUs, positive integer for explicit count (default: `4` or CPU count if fewer) |
+
+\* At least one of `definition_path` or `scenario_path` must be supplied for `run`.
+Both are required for `draw`.
 
 ---
 
-#### File formats
+## Commands
 
-Scenario definition CSV
+### `draw`
 
-Each scenario ID maps to one or a group of interventions. Multiple rows sharing the same `Number` represent multiple target populations for that intervention - all parameter columns must be identical across those rows, only `Target Population` and `Sex` may differ. A combined scenario row has the IDs to combine joined by `+` in the `Product` column, with all other columns empty. Column headers are case-insensitive.
+Generates scenario draws from a definition file and saves them to disk.
+
+Both `definition_path` and `scenario_path` must be set in the config.
+
+```bash
+goals-scenario draw config.json
+```
+
+| Argument | Description |
+|---|---|
+| `CONFIG_PATH` | Path to a JSON config file |
+
+---
+
+### `run`
+
+Runs scenario analysis across a directory of PJNZ files. Behaviour depends on
+which of `definition_path` and `scenario_path` are set in the config:
+
+| `definition_path` | `scenario_path` | Behaviour |
+|---|---|---|
+| Set | Not set | Draws in memory, saves to `<output_dir>/draws.json`, runs |
+| Not set | Set (file exists) | Loads draws from file, runs |
+| Set | Set (file exists) | Uses existing draws (logs a message), runs |
+| Set | Set (file missing) | Redraws, saves to `scenario_path`, runs |
+
+```bash
+goals-scenario run config.json
+```
+
+| Argument | Description |
+|---|---|
+| `CONFIG_PATH` | Path to a JSON config file (positional) |
+
+#### Typical workflows
+
+**One-shot** - draw and run in a single command, no intermediate file:
+
+```json
+{
+  "pjnz_dir": "path/to/pjnz",
+  "definition_path": "scenario_definitions.csv",
+  "output_dir": "path/to/output",
+  "base_year": 2025,
+  "output_indicators": ["p_hivpop", "p_infections"]
+}
+```
+
+```bash
+goals-scenario run config.json
+```
+
+**Two-step** - generate and inspect draws first, then run:
+
+```bash
+goals-scenario draw config.json   # writes draws to scenario_path
+goals-scenario run config.json    # reuses the same draws
+```
+
+---
+
+## File formats
+
+### Scenario definition CSV
+
+Each scenario ID maps to one or a group of interventions. Multiple rows sharing
+the same `Number` represent multiple target populations for that intervention -
+all parameter columns must be identical across those rows, only `Target
+Population` and `Sex` may differ. A combined scenario row has the IDs to
+combine joined by `+` in the `Product` column, with all other columns empty.
+Column headers are case-insensitive.
 
 | Column | Description |
 |---|---|
@@ -59,7 +151,10 @@ Number,Product,Efficacy mean,Efficacy STD,Adherence mean,Adherence STD,Target Co
 ...
 ```
 
-Scenario simulations
+### Scenario draws JSON
+
+The draws file produced by `draw` (or saved automatically by `run`) has this
+structure:
 
 ```json
 {
@@ -114,51 +209,13 @@ Scenario simulations
 }
 ```
 
-### `run`
-
-Runs scenario analysis across a directory of PJNZ files, driven by a JSON config file.
-
-```bash
-goals-scenario run config.json
-```
-
-| Argument | Description |
-|---|---|
-| `CONFIG_PATH` | Path to a JSON config file (positional) |
-
-#### Config file format
-
-Field names are case-insensitive (`pjnz_dir`, `PJNZ_DIR`, and `Pjnz_Dir` are all accepted).
-
-```json
-{
-  "pjnz_dir": "path/to/pjnz/files",
-  "scenario_path": "path/to/scenario_simulations.json",
-  "output_dir": "path/to/output",
-  "base_year": 2025,
-  "output_indicators": [
-    "p_hivpop",
-    "p_infections",
-    "p_hiv_deaths",
-    "h_artpop"
-  ]
-}
-```
-
-| Field | Description |
-|---|---|
-| `pjnz_dir` | Directory containing `.PJNZ` files |
-| `scenario_path` | Path to the scenario simulations JSON file |
-| `output_dir` | Directory to write results to (created if absent; parent must exist) |
-| `base_year` | First year of the output projection range |
-| `output_indicators` | Goals output indicator names to extract |
-
 ## Global options
 
 | Option | Description |
 |---|---|
 | `--version` | Show version and exit |
 | `--help`, `-h` | Show help and exit |
+| `-v`, `--verbose` | Enable debug logging |
 
 ## Tab completion
 

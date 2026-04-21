@@ -1,6 +1,5 @@
 import pickle
 from contextlib import ExitStack
-from pathlib import Path
 from queue import Queue
 from unittest.mock import MagicMock, patch
 
@@ -24,8 +23,8 @@ def _fake_modvars() -> dict:
     return {"projection_end_year": 2024}
 
 
-def _make_simulations_json(tmp_path, scenario_id: int = 1, n_simulations: int = 2) -> Path:
-    """Write a minimal ScenarioSimulations JSON and return the path."""
+def _make_simulations(scenario_id: int = 1, n_simulations: int = 2) -> ScenarioSimulations:
+    """Build a minimal ScenarioSimulations object."""
     from avenir_goals_scenario.models import (
         InterventionOut,
         InterventionSimulation,
@@ -43,19 +42,14 @@ def _make_simulations_json(tmp_path, scenario_id: int = 1, n_simulations: int = 
         interventions=[intervention],
         simulations=[simulation] * n_simulations,
     )
-    data = ScenarioSimulations(scenarios=[scenario])
-
-    path = tmp_path / "simulations.json"
-    path.write_text(data.model_dump_json(indent=2))
-    return path
+    return ScenarioSimulations(scenarios=[scenario])
 
 
-def _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=None, base_year=2020) -> RunConfig:
+def _make_run_config(tmp_path, pjnz_dir, indicators=None, base_year=2020) -> RunConfig:
     output_dir = tmp_path / "output"
     output_dir.mkdir(exist_ok=True)
     return RunConfig(
         pjnz_dir=pjnz_dir,
-        scenario_path=scenarios_path,
         output_dir=output_dir,
         base_year=base_year,
         output_indicators=indicators or ["PLHIV"],
@@ -206,11 +200,11 @@ def test_run_scenario_analysis_creates_parquet_per_pjnz_per_scenario(tmp_path):
     pjnz_dir.mkdir()
     (pjnz_dir / "country.PJNZ").touch()
 
-    scenarios_path = _make_simulations_json(tmp_path, scenario_id=1, n_simulations=2)
-    config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["p_hivpop"])
+    simulations = _make_simulations(scenario_id=1, n_simulations=2)
+    config = _make_run_config(tmp_path, pjnz_dir, indicators=["p_hivpop"])
 
     with _integration_patches(_SIM_RESULT):
-        run_scenario_analysis(config)
+        run_scenario_analysis(config, simulations)
 
     assert (config.output_dir / "p_hivpop" / "pjnz_name=country" / "scenario_id=1" / "part-0.parquet").exists()
 
@@ -223,11 +217,11 @@ def test_run_scenario_analysis_parquet_row_count(tmp_path):
     import pyarrow.parquet as pq
 
     n_sims = 3
-    scenarios_path = _make_simulations_json(tmp_path, scenario_id=1, n_simulations=n_sims)
-    config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["p_hivpop"])
+    simulations = _make_simulations(scenario_id=1, n_simulations=n_sims)
+    config = _make_run_config(tmp_path, pjnz_dir, indicators=["p_hivpop"])
 
     with _integration_patches(_SIM_RESULT):
-        run_scenario_analysis(config)
+        run_scenario_analysis(config, simulations)
 
     path = config.output_dir / "p_hivpop" / "pjnz_name=country" / "scenario_id=1" / "part-0.parquet"
     table = pq.read_table(path)
@@ -240,11 +234,11 @@ def test_run_scenario_analysis_multiple_pjnz_creates_separate_partitions(tmp_pat
     (pjnz_dir / "alpha.PJNZ").touch()
     (pjnz_dir / "beta.PJNZ").touch()
 
-    scenarios_path = _make_simulations_json(tmp_path, n_simulations=1)
-    config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["p_hivpop"])
+    simulations = _make_simulations(n_simulations=1)
+    config = _make_run_config(tmp_path, pjnz_dir, indicators=["p_hivpop"])
 
     with _integration_patches(_SIM_RESULT):
-        run_scenario_analysis(config)
+        run_scenario_analysis(config, simulations)
 
     assert (config.output_dir / "p_hivpop" / "pjnz_name=alpha" / "scenario_id=1" / "part-0.parquet").exists()
     assert (config.output_dir / "p_hivpop" / "pjnz_name=beta" / "scenario_id=1" / "part-0.parquet").exists()
@@ -255,14 +249,14 @@ def test_run_scenario_analysis_unknown_indicator_raises_before_pjnz_import(tmp_p
     pjnz_dir.mkdir()
     (pjnz_dir / "country.PJNZ").touch()
 
-    scenarios_path = _make_simulations_json(tmp_path, n_simulations=1)
-    config = _make_run_config(tmp_path, pjnz_dir, scenarios_path, indicators=["not_a_real_indicator"])
+    simulations = _make_simulations(n_simulations=1)
+    config = _make_run_config(tmp_path, pjnz_dir, indicators=["not_a_real_indicator"])
 
     with (
         patch("avenir_goals_scenario.runner.import_pjnz", return_value=_fake_modvars()) as mock_import,
         pytest.raises(Exception, match="not_a_real_indicator"),
     ):
-        run_scenario_analysis(config)
+        run_scenario_analysis(config, simulations)
 
     mock_import.assert_not_called()
 
@@ -272,10 +266,9 @@ def test_run_scenario_analysis_uses_parallel_when_multiple_workers(tmp_path):
     pjnz_dir.mkdir()
     (pjnz_dir / "country.PJNZ").touch()
 
-    scenarios_path = _make_simulations_json(tmp_path, n_simulations=1)
+    simulations = _make_simulations(n_simulations=1)
     config = RunConfig(
         pjnz_dir=pjnz_dir,
-        scenario_path=scenarios_path,
         output_dir=tmp_path / "output",
         base_year=2020,
         output_indicators=["p_hivpop"],
@@ -288,7 +281,7 @@ def test_run_scenario_analysis_uses_parallel_when_multiple_workers(tmp_path):
         patch("avenir_goals_scenario.runner.delayed"),
     ):
         mock_parallel.return_value.return_value = ["country"]
-        run_scenario_analysis(config)
+        run_scenario_analysis(config, simulations)
 
     mock_parallel.assert_called_once_with(n_jobs=2, return_as="generator_unordered")
 
@@ -308,7 +301,7 @@ def test_run_pjnz_scenario_configures_worker_logging_when_log_queue_provided(tmp
     scenario.simulations = [{}]
     scenario.scenario_id = 1
 
-    config = _make_run_config(tmp_path, tmp_path, _make_simulations_json(tmp_path), indicators=["PLHIV"])
+    config = _make_run_config(tmp_path, tmp_path, indicators=["PLHIV"])
     log_queue = Queue()
 
     with (
