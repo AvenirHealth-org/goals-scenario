@@ -13,7 +13,7 @@ from avenir_goals_scenario.models.scenario_simulations import ScenarioSimulation
 from avenir_goals_scenario.scenarios import draw_simulations, read_simulations, write_simulations
 
 _CONTEXT = {"help_option_names": ["-h", "--help"]}
-_DOCS_URL = "https://avenirhealth-org.github.io/goals-scenario/cli/"
+_DOCS_URL = "[link=https://avenirhealth-org.github.io/goals-scenario/cli/]https://avenirhealth-org.github.io/goals-scenario/cli/[/link]"
 
 app = typer.Typer(help="Goals scenario analysis CLI.", context_settings=_CONTEXT)
 
