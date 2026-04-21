@@ -29,6 +29,7 @@ Both commands are driven by a single JSON config file. Field names are case-inse
     "h_artpop"
   ],
   "n_simulations": 100,
+  "n_workers": 4,
   "seed": null
 }
 ```

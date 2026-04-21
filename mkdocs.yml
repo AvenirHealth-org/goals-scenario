@@ -10,7 +10,10 @@ copyright: Maintained by <a href="https://www.avenirhealth.org/">Avenir Health</
 nav:
   - Home: index.md
   - CLI: cli.md
+  - Indicators: indicators.md
   - Reference: reference.md
+hooks:
+  - docs/hooks.py
 plugins:
   - search
   - mkdocstrings:
@@ -49,6 +52,7 @@ extra:
       link: https://pypi.org/project/goals-scenario
 
 markdown_extensions:
+  - tables
   - toc:
       permalink: true
   - pymdownx.arithmatex:

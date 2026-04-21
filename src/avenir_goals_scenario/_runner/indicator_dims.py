@@ -1,9 +1,12 @@
 """Dimension specifications for Goals leapfrog output indicators.
 
 Each indicator produced by leapfrog is an F-contiguous numpy array whose axes
-are documented below.  ``build_indicator_dims`` maps every indicator name to an
-ordered tuple of :class:`DimSpec`. A trailing ``year`` dimension is always
+are documented below. ``build_indicator_dims`` maps every indicator name to an
+ordered tuple of `DimSpec`. A trailing ``year`` dimension is always
 appended implicitly.
+
+Use `list_indicators` to access both descriptions and dimension specs for
+all indicators (e.g. for CLI display or documentation generation).
 """
 
 import difflib
@@ -31,6 +34,20 @@ class DimSpec:
     name: str
     labels: list[str] | None = field(default=None)
     offset: int = 0
+
+
+@dataclass
+class IndicatorSpec:
+    """Specification for one Goals output indicator.
+
+    Args:
+        description: Human-readable description of what the indicator measures.
+        dims: Ordered dimension specs (outermost axis first), **excluding** the
+            trailing ``year`` dimension which is always appended automatically.
+    """
+
+    description: str
+    dims: Sequence[str | DimSpec]
 
 
 # Mapping of indicator name to per-dimension specs.
@@ -165,8 +182,208 @@ _mtct_source = DimSpec(
 
 
 # ---------------------------------------------------------------------------
-# Indicator dimension map
+# Common dimension combinations (year is always appended automatically)
 # ---------------------------------------------------------------------------
+
+_pag_ns = (_age, _sex)
+_hds_hag_ns = (_adult_disease_stage, _hiv_age, _sex)
+_hts_hds_hag_ns = (_treatment_stage, _adult_disease_stage, _hiv_age, _sex)
+
+
+# ---------------------------------------------------------------------------
+# Indicator registry
+# ---------------------------------------------------------------------------
+
+_INDICATOR_SPECS: dict[str, IndicatorSpec] = {
+    # --- population totals ---
+    "p_totpop": IndicatorSpec(
+        "Total population by single year of age and sex.",
+        dims=_pag_ns,
+    ),
+    "p_deaths_background_totpop": IndicatorSpec(
+        "Background (non-HIV) deaths in the total population by age and sex.",
+        dims=_pag_ns,
+    ),
+    "births": IndicatorSpec(
+        "Total births.",
+        dims=(),
+    ),
+    # --- HIV population ---
+    "p_hivpop": IndicatorSpec(
+        "HIV-positive population by age and sex.",
+        dims=_pag_ns,
+    ),
+    "p_deaths_background_hivpop": IndicatorSpec(
+        "Background (non-HIV) deaths in the HIV-positive population by age and sex.",
+        dims=_pag_ns,
+    ),
+    "p_infections": IndicatorSpec(
+        "New HIV infections by age and sex.",
+        dims=_pag_ns,
+    ),
+    "p_hiv_deaths": IndicatorSpec(
+        "HIV-related deaths by age and sex.",
+        dims=_pag_ns,
+    ),
+    "p_deaths_excess_nonaids": IndicatorSpec(
+        "Excess non-AIDS deaths (elevated mortality attributable to HIV) by age and sex.",
+        dims=_pag_ns,
+    ),
+    "p_net_migration_hivpop": IndicatorSpec(
+        "Number of HIV+ migrants by age and sex.",
+        dims=_pag_ns,
+    ),
+    "p_deaths_nonaids_artpop": IndicatorSpec(
+        "Non-AIDS deaths in the ART population by age and sex.",
+        dims=_pag_ns,
+    ),
+    "p_deaths_nonaids_hivpop": IndicatorSpec(
+        "Non-AIDS deaths in the HIV-positive population by age and sex.",
+        dims=_pag_ns,
+    ),
+    "p_excess_deaths_nonaids_on_art": IndicatorSpec(
+        "Excess non-AIDS deaths in HIV-positive individuals on ART by age and sex.",
+        dims=_pag_ns,
+    ),
+    "p_excess_deaths_nonaids_no_art": IndicatorSpec(
+        "Excess non-AIDS deaths in HIV-positive individuals not on ART by age and sex.",
+        dims=_pag_ns,
+    ),
+    # --- adult HIV (h_ prefix) ---
+    "h_hivpop": IndicatorSpec(
+        "Adult PLHIV not on ART by CD4 disease stage, age (15+), and sex.",
+        dims=_hds_hag_ns,
+    ),
+    "h_artpop": IndicatorSpec(
+        "Adult PLHIV on ART by treatment duration stage, CD4 disease stage, age (15+), and sex.",
+        dims=_hts_hds_hag_ns,
+    ),
+    "h_hiv_deaths_no_art": IndicatorSpec(
+        "HIV-related deaths in adults not on ART by CD4 disease stage, age (15+), and sex.",
+        dims=_hds_hag_ns,
+    ),
+    "h_deaths_excess_nonaids_no_art": IndicatorSpec(
+        "Excess non-AIDS deaths in adults not on ART by CD4 disease stage, age (15+), and sex.",
+        dims=_hds_hag_ns,
+    ),
+    "h_hiv_deaths_art": IndicatorSpec(
+        "HIV-related deaths in adults on ART by treatment stage, CD4 disease stage, age (15+), and sex.",
+        dims=_hts_hds_hag_ns,
+    ),
+    "h_deaths_excess_nonaids_on_art": IndicatorSpec(
+        "Excess non-AIDS deaths in adults on ART by treatment stage, CD4 disease stage, age (15+), and sex.",
+        dims=_hts_hds_hag_ns,
+    ),
+    "h_art_initiation": IndicatorSpec(
+        "ART initiations in adults by CD4 disease stage, age (15+), and sex.",
+        dims=_hds_hag_ns,
+    ),
+    # --- sub-annual HTS outputs ---
+    "prevalence_15to49_hts": IndicatorSpec(
+        "HIV prevalence among adults aged 15-49 at each sub-annual transmission step.",
+        dims=(_hiv_step,),
+    ),
+    "incidence_15to49_hts": IndicatorSpec(
+        "HIV incidence among adults aged 15-49 at each sub-annual transmission step.",
+        dims=(_hiv_step,),
+    ),
+    "artcoverage_15to49_hts": IndicatorSpec(
+        "ART coverage among HIV-positive adults aged 15-49 at each sub-annual transmission step.",
+        dims=(_hiv_step,),
+    ),
+    # --- births and fertility ---
+    "hiv_births_by_mat_age": IndicatorSpec(
+        "HIV-exposed births by maternal age group.",
+        dims=(_fertility_age,),
+    ),
+    "hiv_births": IndicatorSpec(
+        "Number of births to WLHIV.",
+        dims=(),
+    ),
+    # --- child HIV (hc_ prefix) ---
+    "hc1_hivpop": IndicatorSpec(
+        "PLHIV aged 0-4 not on ART by disease stage, transmission type, age, and sex.",
+        dims=(_hc1_disease_stage, _transmission_type, _hc1_age, _sex),
+    ),
+    "hc2_hivpop": IndicatorSpec(
+        "PLHIV aged 5-14 not on ART by disease stage, transmission type, age, and sex.",
+        dims=(_hc2_disease_stage, _transmission_type, _hc2_age, _sex),
+    ),
+    "hc1_artpop": IndicatorSpec(
+        "PLHIV aged 0-4 on ART by treatment stage, disease stage, age, and sex.",
+        dims=(_treatment_stage, _hc1_disease_stage, _hc1_age, _sex),
+    ),
+    "hc2_artpop": IndicatorSpec(
+        "PLHIV aged 5-14 on ART by treatment stage, disease stage, age, and sex.",
+        dims=(_treatment_stage, _hc2_disease_stage, _hc2_age, _sex),
+    ),
+    "hc1_noart_aids_deaths": IndicatorSpec(
+        "AIDS deaths among PLHIV aged 0-4 not on ART by disease stage, transmission type, age, and sex.",
+        dims=(_hc1_disease_stage, _transmission_type, _hc1_age, _sex),
+    ),
+    "hc2_noart_aids_deaths": IndicatorSpec(
+        "AIDS deaths among PLHIV aged 5-14 not on ART by disease stage, transmission type, age, and sex.",
+        dims=(_hc2_disease_stage, _transmission_type, _hc2_age, _sex),
+    ),
+    "hc1_art_aids_deaths": IndicatorSpec(
+        "AIDS deaths among PLHIV aged 0-4 on ART by treatment stage, disease stage, age, and sex.",
+        dims=(_treatment_stage, _hc1_disease_stage, _hc1_age, _sex),
+    ),
+    "hc2_art_aids_deaths": IndicatorSpec(
+        "AIDS deaths among PLHIV aged 5-14 on ART by treatment stage, disease stage, age, and sex.",
+        dims=(_treatment_stage, _hc2_disease_stage, _hc2_age, _sex),
+    ),
+    "hc_art_init": IndicatorSpec(
+        "Number of new ART initiates by 5-year age group.",
+        dims=(_hc_ag_coarse,),
+    ),
+    "hc_art_need_init": IndicatorSpec(
+        "Number of children who are eligible for ART by disease stage, transmission type, age, and sex.",
+        dims=(_hc1_disease_stage, _transmission_type, _hc_ag_end, _sex),
+    ),
+    "ctx_need": IndicatorSpec(
+        "Number of children needing co-trimoxazole (CTX) prophylaxis.",
+        dims=(),
+    ),
+    "infection_by_type": IndicatorSpec(
+        "New child HIV infections by transmission type, age, and sex.",
+        dims=(_transmission_type, _hc1_age, _sex),
+    ),
+    # --- MTCT ---
+    "mtct_by_source_tr": IndicatorSpec(
+        "Mother-to-child HIV transmissions by source (maternal ART/PMTCT regimen) and transmission type.",
+        dims=(_mtct_source, _transmission_type_expanded),
+    ),
+    "mtct_by_source_women": IndicatorSpec(
+        "Mother-to-child HIV transmissions by source (maternal ART/PMTCT regimen).",
+        dims=(_mtct_source,),
+    ),
+    "mtct_by_source_hc_infections": IndicatorSpec(
+        "New child HIV infections by MTCT source and transmission type.",
+        dims=(_mtct_source, _transmission_type_expanded),
+    ),
+    "pmtct_coverage_at_delivery": IndicatorSpec(
+        "PMTCT coverage at delivery by regimen.",
+        dims=(_pmtct_regimen,),
+    ),
+}
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+def list_indicators() -> dict[str, IndicatorSpec]:
+    """Return all supported indicator names and their specifications.
+
+    The returned dict preserves insertion order (population totals first,
+    then adult HIV, HTS, births, child HIV, and MTCT).  Each value is an
+    ``IndicatorSpec`` with a human-readable ``description`` and an
+    ordered tuple of ``DimSpec`` objects in ``dims`` (outermost axis
+    first, excluding the trailing ``year`` dimension).
+    """
+    return _INDICATOR_SPECS
 
 
 def build_indicator_dims(base_year: int) -> IndicatorDims:
@@ -179,59 +396,4 @@ def build_indicator_dims(base_year: int) -> IndicatorDims:
             calendar years (index + base_year).
     """
     year = DimSpec("year", offset=base_year)
-
-    # Common axis combinations
-    _pag_ns = (_age, _sex, year)
-    _hds_hag_ns = (_adult_disease_stage, _hiv_age, _sex, year)
-    _hts_hds_hag_ns = (_treatment_stage, _adult_disease_stage, _hiv_age, _sex, year)
-
-    return {
-        # --- population totals ---
-        "p_totpop": _pag_ns,
-        "p_deaths_background_totpop": _pag_ns,
-        "births": (year,),
-        # --- HIV population ---
-        "p_hivpop": _pag_ns,
-        "p_deaths_background_hivpop": _pag_ns,
-        "p_infections": _pag_ns,
-        "p_hiv_deaths": _pag_ns,
-        "p_deaths_excess_nonaids": _pag_ns,
-        "p_net_migration_hivpop": _pag_ns,
-        "p_deaths_nonaids_artpop": _pag_ns,
-        "p_deaths_nonaids_hivpop": _pag_ns,
-        "p_excess_deaths_nonaids_on_art": _pag_ns,
-        "p_excess_deaths_nonaids_no_art": _pag_ns,
-        # --- adult HIV (h_ prefix) ---
-        "h_hivpop": _hds_hag_ns,
-        "h_artpop": _hts_hds_hag_ns,
-        "h_hiv_deaths_no_art": _hds_hag_ns,
-        "h_deaths_excess_nonaids_no_art": _hds_hag_ns,
-        "h_hiv_deaths_art": _hts_hds_hag_ns,
-        "h_deaths_excess_nonaids_on_art": _hts_hds_hag_ns,
-        "h_art_initiation": _hds_hag_ns,
-        # --- sub-annual HTS outputs ---
-        "prevalence_15to49_hts": (_hiv_step, year),
-        "incidence_15to49_hts": (_hiv_step, year),
-        "artcoverage_15to49_hts": (_hiv_step, year),
-        # --- births and fertility ---
-        "hiv_births_by_mat_age": (_fertility_age, year),
-        "hiv_births": (year,),
-        # --- child HIV (hc_ prefix) ---
-        "hc1_hivpop": (_hc1_disease_stage, _transmission_type, _hc1_age, _sex, year),
-        "hc2_hivpop": (_hc2_disease_stage, _transmission_type, _hc2_age, _sex, year),
-        "hc1_artpop": (_treatment_stage, _hc1_disease_stage, _hc1_age, _sex, year),
-        "hc2_artpop": (_treatment_stage, _hc2_disease_stage, _hc2_age, _sex, year),
-        "hc1_noart_aids_deaths": (_hc1_disease_stage, _transmission_type, _hc1_age, _sex, year),
-        "hc2_noart_aids_deaths": (_hc2_disease_stage, _transmission_type, _hc2_age, _sex, year),
-        "hc1_art_aids_deaths": (_treatment_stage, _hc1_disease_stage, _hc1_age, _sex, year),
-        "hc2_art_aids_deaths": (_treatment_stage, _hc2_disease_stage, _hc2_age, _sex, year),
-        "hc_art_init": (_hc_ag_coarse, year),
-        "hc_art_need_init": (_hc1_disease_stage, _transmission_type, _hc_ag_end, _sex, year),
-        "ctx_need": (year,),
-        "infection_by_type": (_transmission_type, _hc1_age, _sex, year),
-        # --- MTCT ---
-        "mtct_by_source_tr": (_mtct_source, _transmission_type_expanded, year),
-        "mtct_by_source_women": (_mtct_source, year),
-        "mtct_by_source_hc_infections": (_mtct_source, _transmission_type_expanded, year),
-        "pmtct_coverage_at_delivery": (_pmtct_regimen, year),
-    }
+    return {name: (*spec.dims, year) for name, spec in _INDICATOR_SPECS.items()}
