@@ -6,8 +6,11 @@ from typing import Annotated
 import typer
 from loguru import logger
 from pydantic import ValidationError
+from rich.console import Console
+from rich.table import Table
 
 from avenir_goals_scenario._cli.cli_utils import configure_cli_logging, run_with_progress
+from avenir_goals_scenario._runner.indicator_dims import list_indicators
 from avenir_goals_scenario.models import RunConfig
 from avenir_goals_scenario.models.scenario_simulations import ScenarioSimulations
 from avenir_goals_scenario.scenarios import draw_simulations, read_simulations, write_simulations
@@ -179,6 +182,32 @@ def _load_config(path: Path) -> RunConfig:
 
     with open(path) as f:
         return RunConfig.model_validate_json(f.read())
+
+
+def _fmt_dim(d) -> str:
+    """Format a single dim spec as 'name [label1, label2, ...]' or just 'name'."""
+    if isinstance(d, str):
+        return d
+    if d.labels:
+        return f"{d.name} [{', '.join(d.labels)}]"
+    return d.name
+
+
+@app.command()
+def indicators() -> None:
+    """List all supported output indicators with descriptions and dimensions."""
+    table = Table(show_header=True, header_style="bold cyan", show_lines=True)
+    table.add_column("Indicator", style="bold", no_wrap=True)
+    table.add_column("Description")
+    table.add_column("Columns")
+
+    from rich.markup import escape
+
+    for name, spec in list_indicators().items():
+        dim_lines = [_fmt_dim(d) for d in spec.dims] + ["year"]
+        table.add_row(name, escape(spec.description), escape("\n".join(dim_lines)))
+
+    Console().print(table)
 
 
 def main() -> None:

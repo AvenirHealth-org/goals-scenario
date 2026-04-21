@@ -6,7 +6,8 @@ import pytest
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
-from avenir_goals_scenario.cli import _load_config, app
+from avenir_goals_scenario._runner.indicator_dims import DimSpec, list_indicators
+from avenir_goals_scenario.cli import _fmt_dim, _load_config, app
 from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
 
 runner = CliRunner()
@@ -384,6 +385,49 @@ def test_cli_help_short():
     result = runner.invoke(app, ["-h"])
 
     assert result.exit_code == 0
+
+
+# --- _fmt_dim ---
+
+
+def test_fmt_dim_string_passthrough():
+    assert _fmt_dim("year") == "year"
+
+
+def test_fmt_dim_dimspec_with_labels():
+    d = DimSpec("sex", labels=["male", "female"])
+    assert _fmt_dim(d) == "sex [male, female]"
+
+
+def test_fmt_dim_dimspec_without_labels():
+    d = DimSpec("age")
+    assert _fmt_dim(d) == "age"
+
+
+# --- CLI: indicators command ---
+
+
+def test_cli_indicators_lists_all_indicators():
+    result = runner.invoke(app, ["indicators"])
+
+    assert result.exit_code == 0
+    for name in list_indicators():
+        assert name in result.output
+
+
+def test_cli_indicators_shows_descriptions():
+    result = runner.invoke(app, ["indicators"])
+
+    assert result.exit_code == 0
+    assert "Total births" in result.output
+
+
+def test_cli_indicators_shows_dimension_labels():
+    result = runner.invoke(app, ["indicators"])
+
+    assert result.exit_code == 0
+    assert "male" in result.output
+    assert "female" in result.output
 
 
 # --- CLI: draw command ---
