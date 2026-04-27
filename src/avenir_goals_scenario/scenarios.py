@@ -11,9 +11,9 @@ from avenir_goals_scenario.models.scenario_simulations import ScenarioSimulation
 
 def draw_simulations(
     definition_path: Path | str,
+    base_year: int,
     n_simulations: int = 100,
     seed: int | None = None,
-    base_year: int | None = None,
 ) -> ScenarioSimulations:
     """Draw scenario simulations in memory from a scenario definitions file.
 

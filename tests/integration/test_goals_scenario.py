@@ -17,8 +17,8 @@ def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_data):
 
     simulations = draw_simulations(
         test_data / "scenario_descriptions.csv",
-        n_simulations=_N_SIMULATIONS,
         base_year=_BASE_YEAR,
+        n_simulations=_N_SIMULATIONS,
     )
 
     config = RunConfig(

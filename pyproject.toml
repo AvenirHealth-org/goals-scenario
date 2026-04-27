@@ -1,6 +1,6 @@
 [project]
 name = "avenir-goals-scenario"
-version = "0.0.6"
+version = "0.0.7"
 description = "Goals scenario analysis"
 authors = [{ name = "Rob Ashton", email = "rashton@avenirhealth.org" }]
 readme = "README.md"
@@ -15,7 +15,7 @@ dependencies = [
     "numpy==1.26.4",
     "avenir-spectrum-import-pjnz>=0.1.0",
     "avenir-spectrum-common>=0.1.0",
-    "leapfrog-goals>=0.0.2",
+    "leapfrog-goals>=0.0.3",
     "joblib>=1.3",
     "threadpoolctl>=3.0",
     "pyarrow>=23.0.1",

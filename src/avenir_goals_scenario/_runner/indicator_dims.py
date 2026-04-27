@@ -102,8 +102,8 @@ _adult_disease_stage = DimSpec(
     "disease_stage", labels=[">500", "350-500", "250-349", "200-249", "100-199", "50-99", "<50"]
 )
 
-# SS::hTS - HIV treatment stages
-_treatment_stage = DimSpec("treatment_stage", labels=["0 to 6 months", "7 to 12 months", "12+ months"])
+# SS::hTS - HIV treatment duration
+_treatment_duration = DimSpec("treatment_duration", labels=["0-6 months", "7-12 months", ">12 months"])
 
 # 10 sub-annual HIV transmission steps
 _hiv_step = DimSpec("hiv_step")
@@ -118,7 +118,7 @@ _hc1_disease_stage = DimSpec(
 
 # SS::hc2DS - disease stages for child 5 - 14 population
 _hc2_disease_stage = DimSpec(
-    "disease_stage_child5to14", labels=[">1000", "750-999", "500-749", "350-499", "200-349", "<200"]
+    "disease_stage_child_5to14", labels=[">1000", "750-999", "500-749", "350-499", "200-349", "<200"]
 )
 
 # SS::hc1AG - age groups for child 0 - 4 population
@@ -128,25 +128,25 @@ _hc1_age = DimSpec("age")
 _hc2_age = DimSpec("age", offset=int(ss["hc2_agestart"]))
 
 # SS::hcTT - child HIV transmission types
-_transmission_type = DimSpec(
-    "transmission_type",
+_transmission_timing = DimSpec(
+    "transmission_timing",
     labels=[
         "Perinatal",
-        "Breastfeeding 6 weeks - 2 months",
+        "Breastfeeding 6 weeks - 6 months",
         "Breastfeeding 6 - 11 months",
-        "Breastfeeding 12 - 23 months",
+        "Breastfeeding 12 - 36 months",
     ],
 )
 
 # SS::hcTT_expanded - expanded child transmission type
-_transmission_type_expanded = DimSpec(
-    "transmission_type",
+_transmission_timing_expanded = DimSpec(
+    "transmission_timing",
     labels=[
         "Perinatal",
-        "Breastfeeding 6 weeks - 2 months",
+        "Breastfeeding 6 weeks - 6 months",
         "Breastfeeding 6 - 11 months",
         "Breastfeeding 12 - 23 months",
-        "Breastfeeding 24-36 months",
+        "Breastfeeding 24 - 36 months",
     ],
 )
 
@@ -159,7 +159,15 @@ _hc_ag_end = DimSpec("age")
 # SS::hPS - PMTCT regimens at delivery
 _pmtct_regimen = DimSpec(
     "pmtct_regimen",
-    labels=["Option A", "Option B", "SDNVP", "Dual ARV", "Option B+ before", "Option B+ early", "Option B+ Late"],
+    labels=[
+        "Option A",
+        "Option B",
+        "sdNVP",
+        "Dual ARV",
+        "ART before pregnancy",
+        "ART early pregnancy",
+        "ART late pregnancy",
+    ],
 )
 
 # SS::mtct_source - source of mother-to-child transmission
@@ -168,15 +176,15 @@ _mtct_source = DimSpec(
     labels=[
         "Option A",
         "Option B",
-        "SDNVP",
+        "sdNVP",
         "Dual ARV",
-        "Option B+ before",
-        "Option B+ early",
-        "Option B+ Late",
+        "ART before pregnancy",
+        "ART early pregnancy",
+        "ART late pregnancy",
         "No ART",
         "Mother seroconverted",
-        "B+ Before dropout",
-        "B+ During dropout",
+        "ART before pregnancy, dropped out",
+        "ART during pregnancy, dropped out",
     ],
 )
 
@@ -187,7 +195,7 @@ _mtct_source = DimSpec(
 
 _pag_ns = (_age, _sex)
 _hds_hag_ns = (_adult_disease_stage, _hiv_age, _sex)
-_hts_hds_hag_ns = (_treatment_stage, _adult_disease_stage, _hiv_age, _sex)
+_hts_hds_hag_ns = (_treatment_duration, _adult_disease_stage, _hiv_age, _sex)
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +230,7 @@ _INDICATOR_SPECS: dict[str, IndicatorSpec] = {
         dims=_pag_ns,
     ),
     "p_hiv_deaths": IndicatorSpec(
-        "HIV-related deaths by age and sex.",
+        "AIDS deaths by age and sex.",
         dims=_pag_ns,
     ),
     "p_deaths_excess_nonaids": IndicatorSpec(
@@ -238,57 +246,58 @@ _INDICATOR_SPECS: dict[str, IndicatorSpec] = {
         dims=_pag_ns,
     ),
     "p_deaths_nonaids_hivpop": IndicatorSpec(
-        "Non-AIDS deaths in the HIV-positive population by age and sex.",
+        "Non-AIDS deaths in the HIV+ population by age and sex.",
         dims=_pag_ns,
     ),
     "p_excess_deaths_nonaids_on_art": IndicatorSpec(
-        "Excess non-AIDS deaths in HIV-positive individuals on ART by age and sex.",
+        "Excess non-AIDS deaths in HIV+ individuals on ART by age and sex.",
         dims=_pag_ns,
     ),
     "p_excess_deaths_nonaids_no_art": IndicatorSpec(
-        "Excess non-AIDS deaths in HIV-positive individuals not on ART by age and sex.",
+        "Excess non-AIDS deaths in HIV+ individuals not on ART by age and sex.",
         dims=_pag_ns,
     ),
     # --- adult HIV (h_ prefix) ---
     "h_hivpop": IndicatorSpec(
-        "Adult PLHIV not on ART by CD4 disease stage, age (15+), and sex.",
+        "Adult PLHIV not on ART by disease stage, age (15+), and sex.",
         dims=_hds_hag_ns,
     ),
     "h_artpop": IndicatorSpec(
-        "Adult PLHIV on ART by treatment duration stage, CD4 disease stage, age (15+), and sex.",
+        "Adult PLHIV on ART by treatment duration, disease stage, age (15+), and sex.",
         dims=_hts_hds_hag_ns,
     ),
     "h_hiv_deaths_no_art": IndicatorSpec(
-        "HIV-related deaths in adults not on ART by CD4 disease stage, age (15+), and sex.",
+        "AIDS deaths in adults not on ART by disease stage, age (15+), and sex.",
         dims=_hds_hag_ns,
     ),
     "h_deaths_excess_nonaids_no_art": IndicatorSpec(
-        "Excess non-AIDS deaths in adults not on ART by CD4 disease stage, age (15+), and sex.",
+        "Excess non-AIDS deaths in HIV+ adults not on ART by disease stage, age (15+), and sex.",
         dims=_hds_hag_ns,
     ),
     "h_hiv_deaths_art": IndicatorSpec(
-        "HIV-related deaths in adults on ART by treatment stage, CD4 disease stage, age (15+), and sex.",
+        "AIDS deaths in adults on ART by treatment duration, disease stage, age (15+), and sex.",
         dims=_hts_hds_hag_ns,
     ),
     "h_deaths_excess_nonaids_on_art": IndicatorSpec(
-        "Excess non-AIDS deaths in adults on ART by treatment stage, CD4 disease stage, age (15+), and sex.",
+        "Excess non-AIDS deaths in adults on ART by treatment duration, disease stage, age (15+), and sex.",
         dims=_hts_hds_hag_ns,
     ),
     "h_art_initiation": IndicatorSpec(
-        "ART initiations in adults by CD4 disease stage, age (15+), and sex.",
+        "ART initiations in adults by disease stage, age (15+), and sex.",
         dims=_hds_hag_ns,
     ),
-    # --- sub-annual HTS outputs ---
+    # --- HIV time step outputs ---
+    ## Rob remove these from being advertised as outputs
     "prevalence_15to49_hts": IndicatorSpec(
-        "HIV prevalence among adults aged 15-49 at each sub-annual transmission step.",
+        "HIV prevalence among adults aged 15-49 at each HIV time step.",
         dims=(_hiv_step,),
     ),
     "incidence_15to49_hts": IndicatorSpec(
-        "HIV incidence among adults aged 15-49 at each sub-annual transmission step.",
+        "HIV incidence among adults aged 15-49 at each HIV time step.",
         dims=(_hiv_step,),
     ),
     "artcoverage_15to49_hts": IndicatorSpec(
-        "ART coverage among HIV-positive adults aged 15-49 at each sub-annual transmission step.",
+        "ART coverage among HIV-positive adults aged 15-49 at each HIV time step.",
         dims=(_hiv_step,),
     ),
     # --- births and fertility ---
@@ -297,73 +306,73 @@ _INDICATOR_SPECS: dict[str, IndicatorSpec] = {
         dims=(_fertility_age,),
     ),
     "hiv_births": IndicatorSpec(
-        "Number of births to WLHIV.",
+        "HIV-exposed births.",
         dims=(),
     ),
     # --- child HIV (hc_ prefix) ---
     "hc1_hivpop": IndicatorSpec(
-        "PLHIV aged 0-4 not on ART by disease stage, transmission type, age, and sex.",
-        dims=(_hc1_disease_stage, _transmission_type, _hc1_age, _sex),
+        "CLHIV aged 0-4 not on ART by disease stage, transmission timing, age, and sex.",
+        dims=(_hc1_disease_stage, _transmission_timing, _hc1_age, _sex),
     ),
     "hc2_hivpop": IndicatorSpec(
-        "PLHIV aged 5-14 not on ART by disease stage, transmission type, age, and sex.",
-        dims=(_hc2_disease_stage, _transmission_type, _hc2_age, _sex),
+        "CLHIV aged 5-14 not on ART by disease stage, transmission timing, age, and sex.",
+        dims=(_hc2_disease_stage, _transmission_timing, _hc2_age, _sex),
     ),
     "hc1_artpop": IndicatorSpec(
-        "PLHIV aged 0-4 on ART by treatment stage, disease stage, age, and sex.",
-        dims=(_treatment_stage, _hc1_disease_stage, _hc1_age, _sex),
+        "CLHIV aged 0-4 on ART by treatment duration, disease stage, age, and sex.",
+        dims=(_treatment_duration, _hc1_disease_stage, _hc1_age, _sex),
     ),
     "hc2_artpop": IndicatorSpec(
-        "PLHIV aged 5-14 on ART by treatment stage, disease stage, age, and sex.",
-        dims=(_treatment_stage, _hc2_disease_stage, _hc2_age, _sex),
+        "CLHIV aged 5-14 on ART by treatment duration, disease stage, age, and sex.",
+        dims=(_treatment_duration, _hc2_disease_stage, _hc2_age, _sex),
     ),
     "hc1_noart_aids_deaths": IndicatorSpec(
-        "AIDS deaths among PLHIV aged 0-4 not on ART by disease stage, transmission type, age, and sex.",
-        dims=(_hc1_disease_stage, _transmission_type, _hc1_age, _sex),
+        "AIDS deaths among CLHIV aged 0-4 not on ART by disease stage, transmission timing, age, and sex.",
+        dims=(_hc1_disease_stage, _transmission_timing, _hc1_age, _sex),
     ),
     "hc2_noart_aids_deaths": IndicatorSpec(
-        "AIDS deaths among PLHIV aged 5-14 not on ART by disease stage, transmission type, age, and sex.",
-        dims=(_hc2_disease_stage, _transmission_type, _hc2_age, _sex),
+        "AIDS deaths among CLHIV aged 5-14 not on ART by disease stage, transmission timing, age, and sex.",
+        dims=(_hc2_disease_stage, _transmission_timing, _hc2_age, _sex),
     ),
     "hc1_art_aids_deaths": IndicatorSpec(
-        "AIDS deaths among PLHIV aged 0-4 on ART by treatment stage, disease stage, age, and sex.",
-        dims=(_treatment_stage, _hc1_disease_stage, _hc1_age, _sex),
+        "AIDS deaths among CLHIV aged 0-4 on ART by treatment duration, disease stage, age, and sex.",
+        dims=(_treatment_duration, _hc1_disease_stage, _hc1_age, _sex),
     ),
     "hc2_art_aids_deaths": IndicatorSpec(
-        "AIDS deaths among PLHIV aged 5-14 on ART by treatment stage, disease stage, age, and sex.",
-        dims=(_treatment_stage, _hc2_disease_stage, _hc2_age, _sex),
+        "AIDS deaths among CLHIV aged 5-14 on ART by treatment duration, disease stage, age, and sex.",
+        dims=(_treatment_duration, _hc2_disease_stage, _hc2_age, _sex),
     ),
     "hc_art_init": IndicatorSpec(
-        "Number of new ART initiates by 5-year age group.",
+        "Number of children initiating ART by 5-year age group.",
         dims=(_hc_ag_coarse,),
     ),
     "hc_art_need_init": IndicatorSpec(
-        "Number of children who are eligible for ART by disease stage, transmission type, age, and sex.",
-        dims=(_hc1_disease_stage, _transmission_type, _hc_ag_end, _sex),
+        "Number of children eligible for ART by disease stage, transmission timing, age, and sex.",
+        dims=(_hc1_disease_stage, _transmission_timing, _hc_ag_end, _sex),
     ),
     "ctx_need": IndicatorSpec(
-        "Number of children needing co-trimoxazole (CTX) prophylaxis.",
+        "Number of children needing co-trimoxazole prophylaxis.",
         dims=(),
     ),
     "infection_by_type": IndicatorSpec(
-        "New child HIV infections by transmission type, age, and sex.",
-        dims=(_transmission_type, _hc1_age, _sex),
+        "New child HIV infections by transmission timing, age, and sex.",
+        dims=(_transmission_timing, _hc1_age, _sex),
     ),
     # --- MTCT ---
     "mtct_by_source_tr": IndicatorSpec(
-        "Mother-to-child HIV transmissions by source (maternal ART/PMTCT regimen) and transmission type.",
-        dims=(_mtct_source, _transmission_type_expanded),
+        "Mother-to-child HIV transmissions by maternal ARV status and transmission timing.",
+        dims=(_mtct_source, _transmission_timing_expanded),
     ),
     "mtct_by_source_women": IndicatorSpec(
-        "Mother-to-child HIV transmissions by source (maternal ART/PMTCT regimen).",
+        "Mother-to-child HIV transmissions by maternal ARV status.",
         dims=(_mtct_source,),
     ),
     "mtct_by_source_hc_infections": IndicatorSpec(
-        "New child HIV infections by MTCT source and transmission type.",
-        dims=(_mtct_source, _transmission_type_expanded),
+        "New child HIV infections by maternal ARV status and transmission timing.",
+        dims=(_mtct_source, _transmission_timing_expanded),
     ),
     "pmtct_coverage_at_delivery": IndicatorSpec(
-        "PMTCT coverage at delivery by regimen.",
+        "PMTCT coverage at delivery by ARV regimen.",
         dims=(_pmtct_regimen,),
     ),
 }

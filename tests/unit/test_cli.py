@@ -456,9 +456,9 @@ def test_cli_draw_calls_draw_and_write(tmp_path):
     assert result.exit_code == 0
     mock_draw.assert_called_once_with(
         Path(config["definition_path"]).resolve(),
+        2025,
         100,
         None,
-        2025,  # base_year
     )
     mock_write.assert_called_once_with(mock_simulations, Path(config["scenario_path"]).resolve())
 
@@ -479,7 +479,7 @@ def test_cli_draw_passes_n_simulations_from_config(tmp_path):
         result = runner.invoke(app, ["draw", str(config_file)])
 
     assert result.exit_code == 0
-    assert mock_draw.call_args.args[1] == 50
+    assert mock_draw.call_args.args[2] == 50
 
 
 def test_cli_draw_passes_seed_from_config(tmp_path):
@@ -498,7 +498,7 @@ def test_cli_draw_passes_seed_from_config(tmp_path):
         result = runner.invoke(app, ["draw", str(config_file)])
 
     assert result.exit_code == 0
-    assert mock_draw.call_args.args[2] == 99
+    assert mock_draw.call_args.args[3] == 99
 
 
 def test_cli_draw_passes_base_year_from_config(tmp_path):
@@ -515,7 +515,7 @@ def test_cli_draw_passes_base_year_from_config(tmp_path):
     ):
         runner.invoke(app, ["draw", str(config_file)])
 
-    assert mock_draw.call_args.args[3] == config["base_year"]
+    assert mock_draw.call_args.args[1] == config["base_year"]
 
 
 def test_cli_draw_prints_success_message(tmp_path):
@@ -710,7 +710,7 @@ def test_cli_run_with_definition_only_draws_and_runs(tmp_path):
         result = runner.invoke(app, ["run", str(config_file)])
 
     assert result.exit_code == 0
-    mock_draw.assert_called_once_with(Path(config["definition_path"]).resolve(), 100, None, config["base_year"])
+    mock_draw.assert_called_once_with(Path(config["definition_path"]).resolve(), config["base_year"], 100, None)
     mock_write.assert_called_once()
     mock_run.assert_called_once()
 
@@ -752,8 +752,8 @@ def test_cli_run_with_definition_passes_seed_and_n_simulations(tmp_path):
     ):
         runner.invoke(app, ["run", str(config_file)])
 
-    assert mock_draw.call_args.args[1] == 50
-    assert mock_draw.call_args.args[2] == 7
+    assert mock_draw.call_args.args[2] == 50
+    assert mock_draw.call_args.args[3] == 7
 
 
 def test_cli_run_with_definition_passes_base_year(tmp_path):
@@ -771,7 +771,7 @@ def test_cli_run_with_definition_passes_base_year(tmp_path):
     ):
         runner.invoke(app, ["run", str(config_file)])
 
-    assert mock_draw.call_args.args[3] == config["base_year"]
+    assert mock_draw.call_args.args[1] == config["base_year"]
 
 
 # --- run: both provided, file exists (case 3) ---

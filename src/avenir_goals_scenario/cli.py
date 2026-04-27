@@ -78,7 +78,7 @@ def draw(
         raise typer.Exit(code=1)
 
     try:
-        simulations = draw_simulations(config.definition_path, config.n_simulations, config.seed, config.base_year)
+        simulations = draw_simulations(config.definition_path, config.base_year, config.n_simulations, config.seed)
         write_simulations(simulations, config.scenario_path)
     except Exception as e:
         logger.exception(_fmt_error(e))
@@ -136,7 +136,7 @@ def _prepare_simulations(config: RunConfig):
     """
 
     def _draw(definition_path: Path) -> ScenarioSimulations:
-        return draw_simulations(definition_path, config.n_simulations, config.seed, config.base_year)
+        return draw_simulations(definition_path, config.base_year, config.n_simulations, config.seed)
 
     if config.definition_path is None:
         # We can ignore invalid argument error, we've validated this previous
