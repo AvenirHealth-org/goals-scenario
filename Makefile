@@ -21,7 +21,10 @@ audit: ## Run pip-audit.
 ## CVE-2024-23342: safe to ignore for now, we should switch to python-jose[cryptography]
 ## to avoid vulnerable ecdsa package for serialization but that still depends on
 ## ecdsa so won't resolve this
-	@uv run pip-audit --desc -s osv --ignore-vuln CVE-2026-4539 --ignore-vuln CVE-2024-23342
+## CVE-2026-3219: safe to ignore for now, vulnerability in pip which is pulled in
+## by pip-audit itself. Has been fixed in pip, we need pip-audit to update to use
+## the fixed version of pip.
+	@uv run pip-audit --desc -s osv --ignore-vuln CVE-2026-4539 --ignore-vuln CVE-2024-23342 --ignore-vuln CVE-2026-3219
 
 .PHONY: test
 test: ## Test the code with pytest

@@ -64,7 +64,7 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Check vulnerabilities
-        run: uv run pip-audit -s osv --desc --ignore-vuln CVE-2026-4539 --ignore-vuln CVE-2024-23342
+        run: uv run pip-audit -s osv --desc --ignore-vuln CVE-2026-4539 --ignore-vuln CVE-2024-23342 --ignore-vuln CVE-2026-3219
 
   check-docs:
     runs-on: ubuntu-latest
