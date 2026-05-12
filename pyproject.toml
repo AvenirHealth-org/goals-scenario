@@ -1,6 +1,6 @@
 [project]
 name = "avenir-goals-scenario"
-version = "0.0.7"
+version = "0.0.8"
 description = "Goals scenario analysis"
 authors = [{ name = "Rob Ashton", email = "rashton@avenirhealth.org" }]
 readme = "README.md"
@@ -46,7 +46,6 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-    "gitpython>=3.1",
     "pytest>=9.0.2",
     "pre-commit>=4.5.1",
     "tox-uv>=1.35.1",
