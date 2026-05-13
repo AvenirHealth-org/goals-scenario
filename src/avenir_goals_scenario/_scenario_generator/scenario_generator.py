@@ -62,11 +62,7 @@ def gen_simulations(
             ScenarioSimulation(
                 scenario_id=scenario.id,
                 interventions=[
-                    InterventionOut(
-                        id=_product_to_id(iv.product),
-                        product=iv.product,
-                        targets=iv.targets,
-                    )
+                    InterventionOut(id=_product_to_id(iv.product), product=iv.product, targets=iv.targets)
                     for iv in scenario.interventions
                 ],
                 simulations=[
@@ -101,19 +97,6 @@ _EXPECTED_COLUMNS = frozenset({
     "sex",
 })
 
-# Columns that must be identical across all rows sharing the same scenario ID.
-_SHARED_ID_FIXED_COLUMNS = (
-    "product",
-    "efficacy mean",
-    "efficacy std",
-    "adherence mean",
-    "adherence std",
-    "target coverage mean",
-    "target coverage std",
-    "target year mean",
-    "target year std",
-)
-
 
 def _validate_csv_columns(fieldnames: list[str]) -> None:
     actual = frozenset(fieldnames)
@@ -128,54 +111,69 @@ def _validate_csv_columns(fieldnames: list[str]) -> None:
         raise ValueError("\n".join(errors))
 
 
-def _validate_consistent_rows(scenario_id: int, rows: list[dict]) -> None:
-    if len(rows) == 1:
-        return
-    reference = {col: rows[0][col] for col in _SHARED_ID_FIXED_COLUMNS}
+_PARAM_COLUMNS = (
+    "efficacy mean",
+    "efficacy std",
+    "adherence mean",
+    "adherence std",
+    "target coverage mean",
+    "target coverage std",
+    "target year mean",
+    "target year std",
+)
+
+
+def _validate_product_group(scenario_id: int, product: str, rows: list[dict[str, str]]) -> None:
+    """Within a product group: parameters must be identical; (population, sex) must be unique."""
+    ref = {col: rows[0][col] for col in _PARAM_COLUMNS}
+    seen_targets: set[tuple[str, str]] = set()
     for i, row in enumerate(rows[1:], start=2):
-        for col in _SHARED_ID_FIXED_COLUMNS:
-            if row[col] != reference[col]:
+        for col in _PARAM_COLUMNS:
+            if row[col] != ref[col]:
                 msg = (
-                    f"Scenario {scenario_id}: row {i} has {col!r} = {row[col]!r} "
-                    f"but row 1 has {reference[col]!r}. They must be identical."
+                    f"Scenario {scenario_id}, product {product!r}: row {i} has {col!r}={row[col]!r} "
+                    f"but row 1 has {ref[col]!r}. All rows for the same product must share identical parameters."
                 )
                 raise ValueError(msg)
+    for row in rows:
+        target = (row["target population"], row["sex"])
+        if target in seen_targets:
+            pop, sex = target
+            msg = f"Scenario {scenario_id}, product {product!r}: duplicate target population={pop!r}, sex={sex!r}."
+            raise ValueError(msg)
+        seen_targets.add(target)
 
 
 def _build_scenario_def(scenario_id: int, rows: list[dict[str, str]]) -> dict[str, Any]:
     first = rows[0]
-    product = first["product"]
-    if _COMBINED_PATTERN.match(product):
-        combines = [int(x) for x in product.split("+")]
-        scenario = {"id": scenario_id, "combines": combines}
-    else:
-        _validate_consistent_rows(scenario_id, rows)
-        scenario = {
-            "id": scenario_id,
-            "interventions": [
-                {
-                    "product": product,
-                    "targets": [{"population": r["target population"], "sex": r["sex"]} for r in rows],
-                    "parameters": {
-                        "efficacy": {"mean": float(first["efficacy mean"]), "sd": float(first["efficacy std"])},
-                        "adherence": {
-                            "mean": float(first["adherence mean"]),
-                            "sd": float(first["adherence std"]),
-                        },
-                        "target_coverage": {
-                            "mean": float(first["target coverage mean"]),
-                            "sd": float(first["target coverage std"]),
-                        },
-                        "target_year": {
-                            "mean": float(first["target year mean"]),
-                            "sd": float(first["target year std"]),
-                        },
-                    },
-                }
-            ],
-        }
+    if _COMBINED_PATTERN.match(first["product"]):
+        return {"id": scenario_id, "combines": [int(x) for x in first["product"].split("+")]}
 
-    return scenario
+    by_product: dict[str, list[dict[str, str]]] = {}
+    for row in rows:
+        by_product.setdefault(row["product"], []).append(row)
+
+    interventions = []
+    for product, product_rows in by_product.items():
+        _validate_product_group(scenario_id, product, product_rows)
+        first_row = product_rows[0]
+        interventions.append({
+            "product": product,
+            "targets": [{"population": r["target population"], "sex": r["sex"]} for r in product_rows],
+            "parameters": {
+                "efficacy": {"mean": float(first_row["efficacy mean"]), "sd": float(first_row["efficacy std"])},
+                "adherence": {"mean": float(first_row["adherence mean"]), "sd": float(first_row["adherence std"])},
+                "target_coverage": {
+                    "mean": float(first_row["target coverage mean"]),
+                    "sd": float(first_row["target coverage std"]),
+                },
+                "target_year": {
+                    "mean": float(first_row["target year mean"]),
+                    "sd": float(first_row["target year std"]),
+                },
+            },
+        })
+    return {"id": scenario_id, "interventions": interventions}
 
 
 def _read_csv_groups(path: Path) -> dict[int, list[dict]]:

@@ -373,7 +373,7 @@ def test_gen_simulations_without_rng_creates_default_rng():
 # load_scenario_definition
 # ---------------------------------------------------------------------------
 
-from scenario_csv import COMBINED_CSV, CSV_HEADER  # noqa: E402
+from scenario_csv import COMBINED_CSV, CSV_HEADER, MULTI_PRODUCT_CSV, MULTI_PRODUCT_MULTI_POP_CSV  # noqa: E402
 
 
 def test_load_valid_file(write_csv):
@@ -392,14 +392,79 @@ def test_load_multi_row_scenario_collects_targets(write_csv):
     assert targets[1].population == "Men who have sex with men"
 
 
-def test_load_inconsistent_rows_raises(write_csv):
+def test_load_inconsistent_params_for_same_product_raises(write_csv):
     content = CSV_HEADER + (
         "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,High risk heterosexual,Female\n"
-        "1,Daily PrEP,0.99,0.03,0.80,0.20,0.10,0.05,2027,2,Men who have sex with men,Male\n"  # efficacy mean differs
+        "1,Daily PrEP,0.99,0.03,0.80,0.20,0.10,0.05,2027,2,Men who have sex with men,Male\n"
     )
     path = write_csv(content)
     with pytest.raises(ValueError, match="efficacy mean"):
         load_scenario_definition(path)
+
+
+def test_load_multi_product_scenario_creates_two_interventions(write_csv):
+    path = write_csv(MULTI_PRODUCT_CSV, "scenario_definition.csv")
+    definition = load_scenario_definition(path)
+    s1 = next(s for s in definition.scenario_definitions if isinstance(s, SingleScenarioDef) and s.id == 1)
+    assert len(s1.interventions) == 2
+    products = {iv.product for iv in s1.interventions}
+    assert products == {"One month pill for PrEP", "Daily PrEP"}
+
+
+def test_load_multi_product_scenario_each_intervention_has_correct_target(write_csv):
+    path = write_csv(MULTI_PRODUCT_CSV, "scenario_definition.csv")
+    definition = load_scenario_definition(path)
+    s1 = next(s for s in definition.scenario_definitions if isinstance(s, SingleScenarioDef) and s.id == 1)
+    pill = next(iv for iv in s1.interventions if iv.product == "One month pill for PrEP")
+    daily = next(iv for iv in s1.interventions if iv.product == "Daily PrEP")
+    assert len(pill.targets) == 1
+    assert pill.targets[0].population == "High risk heterosexual"
+    assert len(daily.targets) == 1
+    assert daily.targets[0].population == "High risk heterosexual"
+
+
+def test_load_same_product_inconsistent_params_with_multi_product_raises(write_csv):
+    content = CSV_HEADER + (
+        "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,High risk heterosexual,Female\n"
+        "1,One month pill for PrEP,0.95,0.03,0.95,0.03,0.20,0.05,2028,2,High risk heterosexual,Female\n"
+        "1,Daily PrEP,0.99,0.03,0.80,0.20,0.10,0.05,2027,2,Men who have sex with men,Male\n"
+    )
+    path = write_csv(content)
+    with pytest.raises(ValueError, match="efficacy mean"):
+        load_scenario_definition(path)
+
+
+def test_load_duplicate_target_for_same_product_raises(write_csv):
+    content = CSV_HEADER + (
+        "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,High risk heterosexual,Female\n"
+        "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,High risk heterosexual,Female\n"
+    )
+    path = write_csv(content)
+    with pytest.raises(ValueError, match="duplicate target"):
+        load_scenario_definition(path)
+
+
+def test_load_same_product_different_target_year_raises(write_csv):
+    content = CSV_HEADER + (
+        "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,High risk heterosexual,Female\n"
+        "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2030,2,Men who have sex with men,Male\n"
+    )
+    path = write_csv(content)
+    with pytest.raises(ValueError, match="target year mean"):
+        load_scenario_definition(path)
+
+
+def test_load_multi_product_multi_population_with_combined(write_csv):
+    path = write_csv(MULTI_PRODUCT_MULTI_POP_CSV, "scenario_definition.csv")
+    definition = load_scenario_definition(path)
+    assert len(definition.scenario_definitions) == 3
+    s1 = next(s for s in definition.scenario_definitions if isinstance(s, SingleScenarioDef) and s.id == 1)
+    assert len(s1.interventions) == 3
+    products = {iv.product for iv in s1.interventions}
+    assert products == {"One month pill for PrEP", "Six month injectable PrEP", "bNABs"}
+    assert s1.interventions[0].targets[0].population == "High risk heterosexual"
+    assert s1.interventions[1].targets[0].population == "Men who have sex with men"
+    assert s1.interventions[2].targets[0].population == "Medium risk heterosexual"
 
 
 def test_load_missing_file_raises(tmp_path):

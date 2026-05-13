@@ -24,7 +24,13 @@ audit: ## Run pip-audit.
 ## CVE-2026-3219: safe to ignore for now, vulnerability in pip which is pulled in
 ## by pip-audit itself. Has been fixed in pip, we need pip-audit to update to use
 ## the fixed version of pip.
-	@uv run pip-audit --desc -s osv --ignore-vuln CVE-2026-4539 --ignore-vuln CVE-2024-23342 --ignore-vuln CVE-2026-3219
+## CVE-2026-6357: vulnerability in pip pulled in by pip-audit. Need pip-audit
+## to update to use new version of pip
+## CVE-2026-44432 and CVE-2026-44431: vulnerabilities in urllib, pulled in by
+## avenir-common via azure-storage-blob. We should be able to remove the
+## dependency on avenir-storage-blob in the future or at least update it to
+## a newer version once one has been released.
+	@uv run pip-audit --desc -s osv --ignore-vuln CVE-2026-4539 --ignore-vuln CVE-2024-23342 --ignore-vuln CVE-2026-3219 --ignore-vuln CVE-2026-6357 --ignore-vuln CVE-2026-44432 --ignore-vuln CVE-2026-44431
 
 .PHONY: test
 test: ## Test the code with pytest
