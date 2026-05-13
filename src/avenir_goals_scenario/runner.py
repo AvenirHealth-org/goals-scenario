@@ -38,7 +38,7 @@ def _run_pjnz_scenario(
 
     start = datetime.datetime.now()
     simulations_out = [
-        run_simulation(params, simulation, config.output_indicators, output_years)
+        run_simulation(params, simulation, config.output_indicators, output_years, scenario.interventions)
         for simulation in scenario.simulations
     ]
     elapsed_ms = (datetime.datetime.now() - start).total_seconds() * 1000

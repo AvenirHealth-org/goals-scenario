@@ -216,6 +216,53 @@ from SpectrumCommon.Const.GB.GBConst import (
 from SpectrumCommon.Const.PJ.PJNTags import PJN_FinalYearTag, PJN_FirstYearTag
 from SpectrumCommon.Util.DP.DPUtil import Calc_Single_Ages, getSexBirthRatioPercent
 
+from SpectrumCommon.Const.HV.HVTags import (
+    HVARTInputCoverageByRGTag,
+    HVCondomEffTag,
+    HVEpidemicStYrTag, 
+    HVAgeFirstSexTag,
+    HVBalanceSexActsTag,
+    HVBehaviorTag,
+    HVCondomPercentTag,
+    HVInfectMultiplierOnARTTag,
+    HVInfectiousnessTag,
+    HVMonthsInPrimaryStageTag,
+    HVNewInfectionsTag,
+    HVPerIDUsharingTag,
+    HVPercMarriedTag,
+    HVRedWHenCircumTag,
+    HVSTIPrevTag,
+    HVSexActsTag,
+    HVNumPartTag,
+    HVInitialPulseTag,
+    HVIncRecruitmentTag,
+    HVTransHIVFTag,
+    HVTransMultMTag,
+)
+
+from SpectrumCommon.Const.RN.RNTags import (
+    RNADHTreatCovTag,
+    RNADHTreatReducMortTag,
+    RNCoverageTag,
+    RNMethodMixTag,
+    RNPrEPEffectivenessTag,
+    RNPointOfCareTag,
+    RNPOCEffectTag,
+    RNPrEPCoverageTag,
+    RNVacCoverageTag,
+    RNVaccineCovTypeTag,
+    RNVaccineEffectivenessTag,
+    RNVaccineTargetingTag,
+
+)
+
+
+from SpectrumCommon.Const.HV.HVConst import HV_MSMHR, HV_MSMIDU, HV_MSM_F3, HV_AvgDur, HV_Female, HV_Infect, HV_SympART, HV_PercPop
+from SpectrumCommon.Const.PJ.PJNTags import PJN_FirstYearTag, PJN_FinalYearTag
+from SpectrumCommon.Const.DP.DPConst import GB_Female
+from SpectrumCommon.Const.RN.RNConst import RN_POC_VL, RN_Duration, RN_MaxInterventions, RN_NoProt, RN_PrepInterventions, RN_DurationMonths
+
+
 Modvars = dict[str, int | float | bool | np.ndarray | dict]
 
 # Lepafrog runs with single-ages, use this to transfer from spectrum stored HIV age group to
@@ -826,6 +873,168 @@ def _map_dll_internals_to_zero(modvars: Modvars, n_years: int):
     modvars[AM_NewlyStartingARTTag][:] = 0
 
 
+def _hv_modvars_leapfrog(modvars: Modvars, final_year_idx: int):
+   
+    epi_start_year = int(modvars[HVEpidemicStYrTag])
+
+    epi_months_in_primary = float(modvars[HVMonthsInPrimaryStageTag])
+
+    b_balance_sex_acts = int(modvars[HVBalanceSexActsTag])
+
+    epi_initial_pulse = float(modvars[HVInitialPulseTag])
+
+    #array[HV_None..HV_MSM_F3] of HV_TDoubleDynYearArray;
+    b_condom_prop = modvars[HVCondomPercentTag][
+        : (HV_MSM_F3 + 1), : (final_year_idx + 1)
+    ].copy(order="F")
+
+    #array [HV_AllRisk..HV_MSM_F3,HV_PercPop..HV_AvgDur] of Double;
+    # Source is shape (nRG, 3): cols are [unused, HV_PercPop(%), HV_AvgDur(duration)].
+    # C++ expects (nRG+1, rRG_DUR=2): col 0 = PERC_POP, col 1 = DUR_AVG.
+    # Select the two meaningful columns, then pad one zero row for RG_ALL (index nRG).
+    b_behav_dur = modvars[HVBehaviorTag][:, HV_PercPop : HV_AvgDur + 1].copy(order="F")
+    # b_behav_dur = np.vstack(
+    #     [_behav_raw, np.zeros((1, HV_AvgDur - HV_PercPop + 1), dtype=_behav_raw.dtype)]
+    # ).copy(order="F")
+
+    #array[HV_AllRisk..{HV_IDU_F1}HV_MSM_F3] of HV_TDoubleDynYearArray;
+    b_sex_acts = modvars[HVSexActsTag][
+        : (HV_MSM_F3 + 1), : (final_year_idx + 1)
+    ].copy(order="F"
+    )
+
+    #array[HV_AllRisk..{HV_IDU_F1}HV_MSM_F3] of HV_TDoubleDynYearArray;
+    b_num_partners = modvars[HVNumPartTag][
+        : (HV_MSM_F3 + 1), : (final_year_idx + 1)
+    ].copy(order="F")
+
+    #array[HV_BothSexes..HV_Female,HV_AllRisk..HV_MSMIDU] of Double;
+    b_incr_recruit = modvars[HVIncRecruitmentTag][
+        : (GB_Female+1), : (HV_MSMIDU + 1)
+    ].copy(order="F")
+
+    #array [HV_AllRisk..HV_MSM_F3] of double;
+    b_married_prop = modvars[HVPercMarriedTag][
+        : (HV_MSM_F3+1)
+    ].copy(order="F")
+    
+    #array [HV_BothSexes..HV_Female] of HV_TDoubleDynYearArra
+    b_age_first_sex = modvars[HVAgeFirstSexTag][
+         : (GB_Female+1), : (final_year_idx + 1)
+    ].copy(order="F")
+
+    #HV_TDoubleDynYearArray
+    b_idu_share_prop = modvars[HVPerIDUsharingTag][
+         : (final_year_idx + 1)
+    ].copy(order="F")
+
+    #GB_TDoubleDyn2DArray
+    rn_poc_cov = modvars[RNPointOfCareTag ][
+        : (RN_POC_VL + 1), : (final_year_idx + 1)
+    ].copy(order="F")
+    
+   #array [RN_Efficacy..RN_Duration] of Double;
+    rn_vac_params = modvars[RNVaccineEffectivenessTag ][
+        : (RN_Duration+1)
+    ].copy(order="F")
+
+   #array [RN_AllRisk..RN_MSM_F] of RN_TDoubleDynYearArray;
+    rn_vac_coverage = modvars[RNVacCoverageTag ][
+        : (HV_MSM_F3+1), : (final_year_idx + 1)
+    ].copy(order="F")
+
+    rn_vac_cov_type = int(modvars[RNVaccineCovTypeTag])
+
+    rn_vac_targetting = int(modvars[RNVaccineTargetingTag])
+
+    epi_infectiousness = modvars[HVInfectiousnessTag][
+        : (HV_SympART+1) 
+    ].copy(order="F")
+
+    epi_inf_mult_art = modvars[HVInfectMultiplierOnARTTag ][
+        : (final_year_idx + 1) 
+    ].copy(order="F")
+
+    out_new_inf = modvars[HVNewInfectionsTag ][
+        : (GB_Female+1), : (HV_MSMIDU+1), : (RN_NoProt+1), : (final_year_idx + 1) 
+    ].copy(order="F")
+
+    epi_trans_mult_M = float(modvars[HVTransMultMTag])
+
+    epi_trans_hiv_F = float(modvars[HVTransHIVFTag])
+
+    epi_trans_sti_mult = float(modvars[HVTransHIVFTag])
+
+    epi_condom_effect = float(modvars[HVCondomEffTag])
+
+    epi_redwhen_circum = modvars[HVRedWHenCircumTag][
+        : (HV_Infect+1) 
+    ].copy(order="F")
+
+
+    epi_sti_prev = modvars[HVSTIPrevTag][
+        : (HV_MSM_F3 + 1), : (final_year_idx + 1)
+    ].copy(order="F")
+
+   
+    prep_cov = modvars[RNPrEPCoverageTag ][
+        : (GB_Female+1), : (HV_MSMIDU+1), : (final_year_idx + 1) 
+    ].copy(order="F")
+
+    prep_method_mix = modvars[RNMethodMixTag ][
+        : (GB_Female+1), : (HV_MSMIDU+1), : (RN_MaxInterventions), : (final_year_idx + 1) 
+    ].copy(order="F")
+
+    prep_effectiveness = modvars[RNPrEPEffectivenessTag][
+        : (RN_MaxInterventions),  : (RN_DurationMonths+1)
+    ].copy(order="F") 
+
+    rn_coverage = modvars[RNCoverageTag ][  
+        : (RN_MaxInterventions+1), : (final_year_idx + 1) 
+    ].copy(order="F")
+
+
+    return {
+        "epi_start_year": epi_start_year,
+        "epi_months_in_primary":epi_months_in_primary,
+        "b_balance_sex_acts": b_balance_sex_acts,
+        "epi_initial_pulse": epi_initial_pulse,
+        "b_condom_prop": b_condom_prop,
+        "b_behav_dur": b_behav_dur/100,
+        "b_sex_acts": b_sex_acts,
+        "b_num_partners": b_num_partners,
+        "b_incr_recruit": b_incr_recruit,
+        "b_married_prop": b_married_prop, 
+        "b_age_first_sex":b_age_first_sex,
+        "b_idu_share_prop":b_idu_share_prop,
+        "rn_poc_cov":rn_poc_cov,
+        "rn_vac_params":rn_vac_params,
+        "rn_vac_coverage":rn_vac_coverage,
+        "rn_vac_cov_type":rn_vac_cov_type,
+        "rn_vac_targetting":rn_vac_targetting,
+        "epi_infectiousness":epi_infectiousness,
+        "epi_inf_mult_art":epi_inf_mult_art,
+        "out_new_inf":out_new_inf,
+        "epi_trans_mult_M":epi_trans_mult_M,
+        "epi_trans_hiv_F":epi_trans_hiv_F,
+        "epi_trans_sti_mult": epi_trans_sti_mult,
+        "epi_condom_effect":epi_condom_effect,
+        "epi_redwhen_circum":epi_redwhen_circum,
+        "epi_sti_prev":epi_sti_prev,
+        "prep_cov":prep_cov,
+        "prep_method_mix":prep_method_mix,
+        "prep_effectiveness":prep_effectiveness,
+        "rn_coverage":rn_coverage,
+
+    }
+
+
+ 
+def _rn_modvars_leapfrog(modvars: Modvars, final_year_idx: int):
+
+    return {}
+
+
 def modvars_to_leapfrog(modvars: Modvars, ss: dict):
 
     first_year = modvars[PJN_FirstYearTag]
@@ -840,7 +1049,10 @@ def modvars_to_leapfrog(modvars: Modvars, ss: dict):
 
     child_modvars = _hiv_child_modvars_leapfrog(modvars, final_year_idx, ss)
 
-    return {**opts, **dp_modvars, **adult_modvars, **child_modvars}
+    hv_modvars = _hv_modvars_leapfrog(modvars, final_year_idx)
+    rn_modvars = _rn_modvars_leapfrog(modvars, final_year_idx)
+
+    return {**opts, **dp_modvars, **adult_modvars, **child_modvars, **hv_modvars, **rn_modvars}
 
 
 def _get_t_art_start(modvars, final_year_idx):
