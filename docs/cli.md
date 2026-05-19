@@ -4,11 +4,17 @@ The `goals-scenario` CLI provides two commands: `draw` and `run`.
 
 ## Installation
 
+**Via pip (Python required)**
+
 ```bash
 pip install avenir_goals_scenario
 ```
 
 After installation, `goals-scenario` is available on your PATH.
+
+**Windows standalone executable (no Python required)**
+
+Download `goals-scenario-windows.zip` from the [releases page](https://github.com/avenirhealth-org/goals-scenario/releases), unzip it, and run `goals-scenario.exe` from the extracted folder. Optionally add the folder to your `PATH` so the command is available globally.
 
 ## Config file
 
@@ -17,10 +23,10 @@ Both commands are driven by a single JSON config file. Field names are case-inse
 
 ```json
 {
-  "pjnz_dir": "path/to/pjnz/files",
-  "definition_path": "path/to/scenario_definitions.csv",
-  "scenario_path": "path/to/draws.json",
-  "output_dir": "path/to/output",
+  "pjnz_dir": "C:\\path\\to\\pjnz\\files",
+  "definition_path": "C:\\path\\to\\scenario_definitions.csv",
+  "scenario_path": "C:\\path\\to\\draws.json",
+  "output_dir": "C:\\path\\to\\output",
   "base_year": 2025,
   "output_indicators": [
     "p_hivpop",
@@ -33,6 +39,8 @@ Both commands are driven by a single JSON config file. Field names are case-inse
   "seed": null
 }
 ```
+
+Note you need to escape the `\` in windows-style file paths, so use `\\`. Alternatively you can use unix-style `/` and the tool will translate them for you.
 
 | Field | Required | Description |
 |---|---|---|

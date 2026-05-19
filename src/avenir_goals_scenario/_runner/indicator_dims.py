@@ -105,9 +105,6 @@ _adult_disease_stage = DimSpec(
 # SS::hTS - HIV treatment duration
 _treatment_duration = DimSpec("treatment_duration", labels=["0-6 months", "7-12 months", ">12 months"])
 
-# 10 sub-annual HIV transmission steps
-_hiv_step = DimSpec("hiv_step")
-
 # SS::hAG_fertility - 35 maternal fertility age groups
 _fertility_age = DimSpec("age", offset=int(ss["p_fertility_age_groups"]))
 
@@ -285,20 +282,6 @@ _INDICATOR_SPECS: dict[str, IndicatorSpec] = {
     "h_art_initiation": IndicatorSpec(
         "ART initiations in adults by disease stage, age (15+), and sex.",
         dims=_hds_hag_ns,
-    ),
-    # --- HIV time step outputs ---
-    ## Rob remove these from being advertised as outputs
-    "prevalence_15to49_hts": IndicatorSpec(
-        "HIV prevalence among adults aged 15-49 at each HIV time step.",
-        dims=(_hiv_step,),
-    ),
-    "incidence_15to49_hts": IndicatorSpec(
-        "HIV incidence among adults aged 15-49 at each HIV time step.",
-        dims=(_hiv_step,),
-    ),
-    "artcoverage_15to49_hts": IndicatorSpec(
-        "ART coverage among HIV-positive adults aged 15-49 at each HIV time step.",
-        dims=(_hiv_step,),
     ),
     # --- births and fertility ---
     "hiv_births_by_mat_age": IndicatorSpec(

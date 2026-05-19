@@ -1,0 +1,114 @@
+name: build-windows-exe
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-exe:
+    runs-on: windows-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v6
+
+      - name: Set up the environment
+        uses: ./.github/actions/setup-python-env
+
+      - name: Build Windows executable
+        run: uv run pyinstaller --distpath dist --workpath build packaging/goals-scenario.spec
+
+      - name: Zip executable
+        run: Compress-Archive -Path dist\goals-scenario -DestinationPath goals-scenario-windows.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: goals-scenario-windows
+          path: goals-scenario-windows.zip
+
+  test-exe:
+    needs: build-exe
+    runs-on: windows-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v6
+
+      - name: Download executable artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: goals-scenario-windows
+
+      - name: Extract executable
+        run: Expand-Archive -Path goals-scenario-windows.zip -DestinationPath dist
+
+      - name: Switch Docker to Windows containers
+        run: |
+          & "C:\Program Files\Docker\Docker\DockerCli.exe" -SwitchDaemon
+          Start-Sleep -Seconds 30
+
+      - name: Build Docker image
+        run: docker build -f packaging/Dockerfile.win -t goals-scenario-test .
+
+      - name: Test --version
+        run: docker run --rm goals-scenario-test --version
+
+      - name: Create test output directory and configs
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\gs-output" | Out-Null
+
+          $drawConfig = @{
+            pjnz_dir          = "C:/test_data/pjnz"
+            definition_path   = "C:/test_data/scenario_descriptions.csv"
+            scenario_path     = "C:/output/draws.json"
+            output_dir        = "C:/output"
+            base_year         = 2010
+            output_indicators = @("p_hivpop")
+            n_simulations     = 2
+            seed              = 42
+          } | ConvertTo-Json
+          Set-Content -Path "$env:RUNNER_TEMP\gs-output\draw_config.json" -Value $drawConfig -Encoding utf8
+
+          $runConfig = @{
+            pjnz_dir          = "C:/test_data/pjnz"
+            scenario_path     = "C:/output/draws.json"
+            output_dir        = "C:/output"
+            base_year         = 2010
+            output_indicators = @("p_hivpop")
+          } | ConvertTo-Json
+          Set-Content -Path "$env:RUNNER_TEMP\gs-output\run_config.json" -Value $runConfig -Encoding utf8
+
+      - name: Test draw command
+        run: |
+          $testData = "${{ github.workspace }}\tests\test_data"
+          $output = "$env:RUNNER_TEMP\gs-output"
+          docker run --rm `
+            -v "${testData}:C:\test_data" `
+            -v "${output}:C:\output" `
+            goals-scenario-test draw C:\output\draw_config.json
+        shell: pwsh
+
+      - name: Verify draw output
+        run: |
+          if (-not (Test-Path "$env:RUNNER_TEMP\gs-output\draws.json" -PathType Leaf)) {
+            Write-Error "draws.json was not created by draw command"
+            exit 1
+          }
+
+      - name: Test run command
+        run: |
+          $testData = "${{ github.workspace }}\tests\test_data"
+          $output = "$env:RUNNER_TEMP\gs-output"
+          docker run --rm `
+            -v "${testData}:C:\test_data" `
+            -v "${output}:C:\output" `
+            goals-scenario-test run C:\output\run_config.json
+        shell: pwsh
+
+      - name: Verify run output
+        run: |
+          if (-not (Test-Path "$env:RUNNER_TEMP\gs-output\p_hivpop" -PathType Container)) {
+            Write-Error "p_hivpop output directory was not created by run command"
+            exit 1
+          }

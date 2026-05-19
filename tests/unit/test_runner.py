@@ -53,7 +53,7 @@ def _make_run_config(tmp_path, pjnz_dir, indicators=None, base_year=2020) -> Run
         output_dir=output_dir,
         base_year=base_year,
         output_indicators=indicators or ["PLHIV"],
-        # n_workers=1 keeps joblib sequential so unittest.mock patches are visible
+        # n_workers=1 keeps execution sequential so unittest.mock patches are visible
         # to the code under test (patches do not propagate across process boundaries).
         n_workers=1,
     )
@@ -261,7 +261,7 @@ def test_run_scenario_analysis_unknown_indicator_raises_before_pjnz_import(tmp_p
     mock_import.assert_not_called()
 
 
-def test_run_scenario_analysis_uses_parallel_when_multiple_workers(tmp_path):
+def test_run_scenario_analysis_uses_pool_when_multiple_workers(tmp_path):
     pjnz_dir = tmp_path / "pjnz"
     pjnz_dir.mkdir()
     (pjnz_dir / "country.PJNZ").touch()
@@ -275,15 +275,19 @@ def test_run_scenario_analysis_uses_parallel_when_multiple_workers(tmp_path):
         n_workers=2,
     )
 
+    mock_pool_instance = MagicMock()
+    mock_pool_instance.imap_unordered.return_value = iter(["country"])
+
     with (
         patch("avenir_goals_scenario.runner.import_pjnz", return_value=_fake_modvars()),
-        patch("avenir_goals_scenario.runner.Parallel") as mock_parallel,
-        patch("avenir_goals_scenario.runner.delayed"),
+        patch("avenir_goals_scenario.runner.consolidate_metadata"),
+        patch("avenir_goals_scenario.runner.Pool") as mock_pool_class,
     ):
-        mock_parallel.return_value.return_value = ["country"]
+        mock_pool_class.return_value.__enter__.return_value = mock_pool_instance
         run_scenario_analysis(config, simulations)
 
-    mock_parallel.assert_called_once_with(n_jobs=2, return_as="generator_unordered")
+    mock_pool_class.assert_called_once_with(processes=2)
+    mock_pool_instance.imap_unordered.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

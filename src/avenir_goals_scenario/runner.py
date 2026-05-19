@@ -2,10 +2,10 @@ import datetime
 import os
 import pickle
 import tempfile
+from multiprocessing import Pool
 from pathlib import Path
 from queue import Queue
 
-from joblib import Parallel, delayed
 from loguru import logger
 
 from avenir_goals_scenario._runner.indicator_dims import build_indicator_dims
@@ -161,15 +161,18 @@ def _run_scenario_analysis(
                 stem = _run_pjnz_scenario(params_path, pjnz_stem, scenario, config, end_year)
                 callbacks.on_scenario_complete(stem)
         else:
-            results = Parallel(n_jobs=effective_workers, return_as="generator_unordered")(
-                delayed(_run_pjnz_scenario)(params_path, pjnz_stem, scenario, config, end_year, log_queue)
-                for params_path, pjnz_stem, scenario, end_year in work_units
-            )
-            for stem in results:
-                callbacks.on_scenario_complete(stem)
+            packed = [(params_path, pjnz_stem, scenario, config, end_year, log_queue)
+                      for params_path, pjnz_stem, scenario, end_year in work_units]
+            with Pool(processes=effective_workers) as pool:
+                for stem in pool.imap_unordered(_run_pjnz_scenario_star, packed):
+                    callbacks.on_scenario_complete(stem)
 
     callbacks.on_run_complete()
 
     consolidate_metadata(config.output_dir)
     logger.info("Done. Results written to {}", config.output_dir)
     return config.output_dir
+
+
+def _run_pjnz_scenario_star(args):
+    return _run_pjnz_scenario(*args)
