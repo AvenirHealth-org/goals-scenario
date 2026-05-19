@@ -530,6 +530,16 @@ def test_load_missing_column_raises(write_csv):
         load_scenario_definition(path)
 
 
+def test_load_proportion_params_have_0_1_bounds(write_csv):
+    path = write_csv(COMBINED_CSV, "scenario_definition.csv")
+    definition = load_scenario_definition(path)
+    single = next(s for s in definition.scenario_definitions if isinstance(s, SingleScenarioDef) and s.id == 1)
+    for param_name in ("efficacy", "adherence", "target_coverage"):
+        dist = single.interventions[0].parameters[param_name]
+        assert dist.min_value == 0.0, f"{param_name}.min_value"
+        assert dist.max_value == 1.0, f"{param_name}.max_value"
+
+
 def test_load_missing_column_error_names_missing(write_csv):
     bad_header = CSV_HEADER.replace(",Sex\n", "\n")
     content = bad_header + "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops\n"

@@ -161,11 +161,23 @@ def _build_scenario_def(scenario_id: int, rows: list[dict[str, str]]) -> dict[st
             "product": product,
             "targets": [{"population": r["target population"], "sex": r["sex"]} for r in product_rows],
             "parameters": {
-                "efficacy": {"mean": float(first_row["efficacy mean"]), "sd": float(first_row["efficacy std"])},
-                "adherence": {"mean": float(first_row["adherence mean"]), "sd": float(first_row["adherence std"])},
+                "efficacy": {
+                    "mean": float(first_row["efficacy mean"]),
+                    "sd": float(first_row["efficacy std"]),
+                    "min_value": 0.0,
+                    "max_value": 1.0,
+                },
+                "adherence": {
+                    "mean": float(first_row["adherence mean"]),
+                    "sd": float(first_row["adherence std"]),
+                    "min_value": 0.0,
+                    "max_value": 1.0,
+                },
                 "target_coverage": {
                     "mean": float(first_row["target coverage mean"]),
                     "sd": float(first_row["target coverage std"]),
+                    "min_value": 0.0,
+                    "max_value": 1.0,
                 },
                 "target_year": {
                     "mean": float(first_row["target year mean"]),

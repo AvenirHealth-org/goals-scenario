@@ -59,7 +59,7 @@ def import_pjnz(path: Path) -> dict:
     leapfrog_params = modvars_to_leapfrog(modvars_base, ss)
     # Temporarily add in required input data for this in-progress
     # version of leapfrog goals
-    leapfrog_params["ex_input"] = np.full((ss["pAG"], ss["NS"]), 1)  # ty: ignore[invalid-argument-type]
+    leapfrog_params["ex_input"] = np.full((ss["pAG"], ss["NS"]), 1)  # ty: ignore[no-matching-overload]
     return leapfrog_params
 
 
