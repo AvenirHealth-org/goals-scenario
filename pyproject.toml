@@ -129,6 +129,12 @@ preview = true
 
 [tool.coverage.report]
 skip_empty = true
+exclude_also = [
+    # 1. Comments to turn coverage on and off:
+    'no cover: start(?s:.)*?no cover: stop',
+    # 2. A pragma comment that excludes an entire file:
+    '\A(?s:.*# pragma: exclude file.*)\Z',
+]
 
 [tool.coverage.run]
 branch = true

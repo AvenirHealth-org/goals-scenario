@@ -133,6 +133,7 @@ def _run_scenario_analysis(
     check_indicator_dims(config.output_indicators, build_indicator_dims(config.base_year))
 
     config.output_dir.mkdir(exist_ok=True)
+    _warn_if_output_exists(config.output_dir)
     pjnz_files = find_pjnz_files(config.pjnz_dir)
     logger.info("Found {} PJNZ file(s) in {}", len(pjnz_files), config.pjnz_dir)
 
@@ -161,8 +162,10 @@ def _run_scenario_analysis(
                 stem = _run_pjnz_scenario(params_path, pjnz_stem, scenario, config, end_year)
                 callbacks.on_scenario_complete(stem)
         else:
-            packed = [(params_path, pjnz_stem, scenario, config, end_year, log_queue)
-                      for params_path, pjnz_stem, scenario, end_year in work_units]
+            packed = [
+                (params_path, pjnz_stem, scenario, config, end_year, log_queue)
+                for params_path, pjnz_stem, scenario, end_year in work_units
+            ]
             with Pool(processes=effective_workers) as pool:
                 for stem in pool.imap_unordered(_run_pjnz_scenario_star, packed):
                     callbacks.on_scenario_complete(stem)
@@ -175,4 +178,17 @@ def _run_scenario_analysis(
 
 
 def _run_pjnz_scenario_star(args):
-    return _run_pjnz_scenario(*args)
+    return _run_pjnz_scenario(*args)  # pragma: no cover (used when running in parallel)
+
+
+def _warn_if_output_exists(output_dir: Path) -> None:
+    existing = [d for d in output_dir.iterdir() if d.is_dir()]
+    if existing:
+        logger.warning(
+            "output_dir {} already contains data from a previous run ({} indicator(s): {}). "
+            "Files for matching (PJNZ, scenario) combinations will be overwritten. "
+            "Delete existing output_dir to start completely fresh.",
+            output_dir,
+            len(existing),
+            ", ".join(d.name for d in existing),
+        )

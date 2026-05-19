@@ -52,14 +52,22 @@ def import_pjnz(path: Path) -> dict:
         Dict of parameters for leapfrog-goals.
 
     Raises:
-        ValueError: If the PJNZ file cannot be parsed.
+        ValueError: If the PJNZ file cannot be parsed or is missing expected fields.
     """
-    modvars_base = _import_pjnz_modvars(path)
-    ss = get_goals_ss()
-    leapfrog_params = modvars_to_leapfrog(modvars_base, ss)
-    # Temporarily add in required input data for this in-progress
-    # version of leapfrog goals
-    leapfrog_params["ex_input"] = np.full((ss["pAG"], ss["NS"]), 1)  # ty: ignore[no-matching-overload]
+    try:
+        modvars_base = _import_pjnz_modvars(path)
+        ss = get_goals_ss()
+        leapfrog_params = modvars_to_leapfrog(modvars_base, ss)
+        # Temporarily add in required input data for this in-progress
+        # version of leapfrog goals
+        leapfrog_params["ex_input"] = np.full((ss["pAG"], ss["NS"]), 1)  # ty: ignore[no-matching-overload]
+    except KeyError as exc:
+        err_msg = (
+            f"Failed to read expected field {exc} from {path.name}. "
+            "The file may be from an unsupported Spectrum version or missing required data."
+        )
+        raise ValueError(err_msg) from exc
+
     return leapfrog_params
 
 

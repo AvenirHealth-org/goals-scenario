@@ -9,7 +9,7 @@ import pytest
 from avenir_goals_scenario._runner.pjnz import _import_pjnz_modvars, find_pjnz_files, import_pjnz, modvars_to_numpy
 from avenir_goals_scenario._runner.simulation import _extract_indicators, run_simulation
 from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
-from avenir_goals_scenario.runner import _run_pjnz_scenario, run_scenario_analysis
+from avenir_goals_scenario.runner import _run_pjnz_scenario, _warn_if_output_exists, run_scenario_analysis
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -352,3 +352,43 @@ def test_import_pjnz_returns_leapfrog_params_with_ex_input(tmp_path):
 
     assert "ex_input" in result
     assert result["ex_input"].shape == (17, 2)
+
+
+def test_import_pjnz_wraps_key_error_with_field_and_filename(tmp_path):
+    pjnz_path = tmp_path / "BadCountry.PJNZ"
+    pjnz_path.touch()
+    fake_ss = {"pAG": 17, "NS": 2}
+
+    with (
+        patch("avenir_goals_scenario._runner.pjnz._import_pjnz_modvars", return_value={}),
+        patch("avenir_goals_scenario._runner.pjnz.get_goals_ss", return_value=fake_ss),
+        patch("avenir_goals_scenario._runner.pjnz.modvars_to_leapfrog", side_effect=KeyError("missing_leapfrog_key")),
+        pytest.raises(ValueError) as exc_info,
+    ):
+        import_pjnz(pjnz_path)
+
+    assert "missing_leapfrog_key" in str(exc_info.value)
+    assert "BadCountry.PJNZ" in str(exc_info.value)
+
+
+# ---------------------------------------------------------------------------
+# _warn_if_output_exists
+# ---------------------------------------------------------------------------
+
+
+def test_warn_if_output_exists_warns_when_indicator_dirs_present(tmp_path):
+    (tmp_path / "p_hivpop").mkdir()
+    (tmp_path / "p_infections").mkdir()
+
+    with patch("avenir_goals_scenario.runner.logger") as mock_logger:
+        _warn_if_output_exists(tmp_path)
+
+    mock_logger.warning.assert_called_once()
+    assert "already contains data" in mock_logger.warning.call_args[0][0]
+
+
+def test_warn_if_output_exists_silent_when_no_dirs(tmp_path):
+    with patch("avenir_goals_scenario.runner.logger") as mock_logger:
+        _warn_if_output_exists(tmp_path)
+
+    mock_logger.warning.assert_not_called()

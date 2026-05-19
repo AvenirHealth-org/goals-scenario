@@ -215,6 +215,9 @@ def main() -> None:
     app()  # pragma: no cover
 
 
-if __name__ == '__main__':
+# no cover: start
+# Block used only when running exe created by Pyinstaller
+if __name__ == "__main__":
     multiprocessing.freeze_support()
     main()
+# no cover: stop

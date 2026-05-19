@@ -296,3 +296,26 @@ def test_consolidate_metadata_skips_empty_indicator_dir(tmp_path):
 
 def test_consolidate_metadata_warns_when_no_dirs(tmp_path):
     consolidate_metadata(tmp_path)  # should not raise
+
+
+def test_consolidate_metadata_raises_on_schema_mismatch(tmp_path):
+    indicator_dir = tmp_path / "p_hivpop"
+
+    part1 = indicator_dir / "pjnz_name=Kenya" / "scenario_id=1"
+    part1.mkdir(parents=True)
+    schema_v1 = pa.schema([pa.field("age", pa.int16()), pa.field("value", pa.float64())])
+    pq.write_table(
+        pa.table({"age": pa.array([1, 2], type=pa.int16()), "value": pa.array([1.0, 2.0])}, schema=schema_v1),
+        part1 / "part-0.parquet",
+    )
+
+    part2 = indicator_dir / "pjnz_name=Zambia" / "scenario_id=1"
+    part2.mkdir(parents=True)
+    schema_v2 = pa.schema([pa.field("age", pa.int32()), pa.field("value", pa.float64())])
+    pq.write_table(
+        pa.table({"age": pa.array([1, 2], type=pa.int32()), "value": pa.array([1.0, 2.0])}, schema=schema_v2),
+        part2 / "part-0.parquet",
+    )
+
+    with pytest.raises(ValueError, match="Schema mismatch"):
+        consolidate_metadata(tmp_path)
