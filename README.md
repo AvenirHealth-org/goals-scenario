@@ -199,10 +199,54 @@ Creating a release will
 
 1. Build & push the package to PyPI
 2. Build an updated docs site
+3. Build a Windows `.exe` and attach it as `goals-scenario.zip` to the GitHub release
 
 To create a release you need to
 
 1. Update the version number in the `pyproject.toml` or ensure it has updated since the last release
 2. Go to the [releases page](https://github.com/AvenirHealth-org/goals-scenario/releases) and "Draft a new release"
 3. Create a new tag, I usually use a tag which matches the version number you are releasing. Set a release title and text. Usually useful to include in the text a summary of the changes since the last release.
-4. Publish the release. This will trigger a GitHub action which will push the package to PyPI and update the docs site.
+4. Publish the release. This will trigger a GitHub action which will push the package to PyPI, update the docs site, and build the Windows executable.
+
+### Building the Windows executable locally
+
+The Windows `.exe` is built with [PyInstaller](https://pyinstaller.org/) using the spec file at `packaging/goals-scenario.spec`. To build it locally on Windows:
+
+```bash
+uv run pyinstaller --distpath dist --workpath build packaging/goals-scenario.spec
+```
+
+The output lands in `dist/goals-scenario/`. The `goals-scenario.exe` inside that folder is the entry point. You can test it by running `dist\goals-scenario\goals-scenario.exe --version`.
+
+The `packaging/Dockerfile.win` Docker image is used in CI to smoke-test the built exe in an isolated Windows Server Core container. To build and test it locally (requires Docker in Windows container mode):
+
+```powershell
+docker build -f packaging/Dockerfile.win -t goals-scenario-test .
+docker run --rm goals-scenario-test --version
+```
+
+To run `draw` and `run` via Docker, mount your data directory and an output directory into the container. The config file must reference the container-side paths and be accessible from a mounted directory:
+
+```powershell
+# Place your config.json in the output directory before running.
+# Example config.json referencing container paths:
+# {
+#   "pjnz_dir": "C:/data/pjnz",
+#   "definition_path": "C:/data/scenario_definitions.csv",
+#   "scenario_path": "C:/output/draws.json",
+#   "output_dir": "C:/output",
+#   "base_year": 2025,
+#   "output_indicators": ["p_hivpop", "p_infections", "p_hiv_deaths", "h_artpop"],
+#   "n_simulations": 100
+# }
+
+docker run --rm `
+  -v "C:\path\to\your\data:C:\data" `
+  -v "C:\path\to\output:C:\output" `
+  goals-scenario-test draw C:\output\config.json
+
+docker run --rm `
+  -v "C:\path\to\your\data:C:\data" `
+  -v "C:\path\to\output:C:\output" `
+  goals-scenario-test run C:\output\config.json
+```
