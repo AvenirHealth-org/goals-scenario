@@ -129,7 +129,16 @@ def consolidate_metadata(output_dir: Path) -> None:
             continue
         combined = pq.read_metadata(files[0])
         for path in files[1:]:
-            combined.append_row_groups(pq.read_metadata(path))
+            try:
+                combined.append_row_groups(pq.read_metadata(path))
+            except Exception as exc:
+                err_msg = (
+                    f"Schema mismatch in {indicator_dir.name}: cannot combine "
+                    f"{path.relative_to(indicator_dir)} with earlier files. "
+                    "This usually means output from different versions of goals-scenario "
+                    f"is mixed in {indicator_dir}. Delete that directory and re-run to resolve."
+                )
+                raise ValueError(err_msg) from exc
         combined.write_metadata_file(str(indicator_dir / "_metadata"))
         logger.debug("Written _metadata under {}", indicator_dir)
 

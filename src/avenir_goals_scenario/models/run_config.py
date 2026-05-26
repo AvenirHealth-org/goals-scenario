@@ -33,8 +33,8 @@ class RunConfig(BaseModel):
             100). Ignored when loading draws from an existing ``scenario_path``.
         seed (int | None): Optional RNG seed for reproducible draws. ``None``
             (the default) uses a random seed.
-        n_workers (int): Number of parallel worker processes. Follows joblib
-            conventions: ``-1`` uses all available CPUs, ``1`` runs
+        n_workers (int): Number of parallel worker processes. ``-1`` uses all
+            available CPUs, ``1`` runs
             sequentially, and any positive integer sets an explicit worker
             count. Zero is not valid. Uses 4 by default or the number of
             available CPUs if fewer than 4.

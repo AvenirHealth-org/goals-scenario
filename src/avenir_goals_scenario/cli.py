@@ -1,3 +1,4 @@
+import multiprocessing
 import os
 from importlib.metadata import version as pkg_version
 from pathlib import Path
@@ -212,3 +213,11 @@ def indicators() -> None:
 
 def main() -> None:
     app()  # pragma: no cover
+
+
+# no cover: start
+# Block used only when running exe created by Pyinstaller
+if __name__ == "__main__":
+    multiprocessing.freeze_support()
+    main()
+# no cover: stop

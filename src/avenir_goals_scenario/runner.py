@@ -2,10 +2,10 @@ import datetime
 import os
 import pickle
 import tempfile
+from multiprocessing import Pool
 from pathlib import Path
 from queue import Queue
 
-from joblib import Parallel, delayed
 from loguru import logger
 
 from avenir_goals_scenario._runner.indicator_dims import build_indicator_dims
@@ -133,6 +133,7 @@ def _run_scenario_analysis(
     check_indicator_dims(config.output_indicators, build_indicator_dims(config.base_year))
 
     config.output_dir.mkdir(exist_ok=True)
+    _warn_if_output_exists(config.output_dir)
     pjnz_files = find_pjnz_files(config.pjnz_dir)
     logger.info("Found {} PJNZ file(s) in {}", len(pjnz_files), config.pjnz_dir)
 
@@ -161,15 +162,33 @@ def _run_scenario_analysis(
                 stem = _run_pjnz_scenario(params_path, pjnz_stem, scenario, config, end_year)
                 callbacks.on_scenario_complete(stem)
         else:
-            results = Parallel(n_jobs=effective_workers, return_as="generator_unordered")(
-                delayed(_run_pjnz_scenario)(params_path, pjnz_stem, scenario, config, end_year, log_queue)
+            packed = [
+                (params_path, pjnz_stem, scenario, config, end_year, log_queue)
                 for params_path, pjnz_stem, scenario, end_year in work_units
-            )
-            for stem in results:
-                callbacks.on_scenario_complete(stem)
+            ]
+            with Pool(processes=effective_workers) as pool:
+                for stem in pool.imap_unordered(_run_pjnz_scenario_star, packed):
+                    callbacks.on_scenario_complete(stem)
 
     callbacks.on_run_complete()
 
     consolidate_metadata(config.output_dir)
     logger.info("Done. Results written to {}", config.output_dir)
     return config.output_dir
+
+
+def _run_pjnz_scenario_star(args):
+    return _run_pjnz_scenario(*args)  # pragma: no cover (used when running in parallel)
+
+
+def _warn_if_output_exists(output_dir: Path) -> None:
+    existing = [d for d in output_dir.iterdir() if d.is_dir()]
+    if existing:
+        logger.warning(
+            "output_dir {} already contains data from a previous run ({} indicator(s): {}). "
+            "Files for matching (PJNZ, scenario) combinations will be overwritten. "
+            "Delete existing output_dir to start completely fresh.",
+            output_dir,
+            len(existing),
+            ", ".join(d.name for d in existing),
+        )

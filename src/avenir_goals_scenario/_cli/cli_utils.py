@@ -94,7 +94,7 @@ def configure_worker_logging(log_queue: Queue) -> None:
 
     Called at the start of each worker function so that all ``logger`` calls
     are forwarded to the main process for display rather than being captured
-    by joblib's loky backend.
+    by the multiprocessing backend.
     """
 
     def _sink(message) -> None:
