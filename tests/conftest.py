@@ -4,6 +4,14 @@ from typing import Any
 import orjson
 import pytest
 
+_TEST_DATA = Path(__file__).parent / "test_data"
+_PJNZ_DIR = _TEST_DATA / "pjnz"
+
+requires_test_data = pytest.mark.skipif(
+    not _PJNZ_DIR.exists(),
+    reason=("Test data submodule not initialised. Run: git submodule update --init --recursive"),
+)
+
 
 @pytest.fixture
 def write_json(tmp_path: Path):
@@ -31,4 +39,4 @@ def write_csv(tmp_path: Path):
 
 @pytest.fixture
 def test_data():
-    return Path(__file__).parent / "test_data"
+    return _TEST_DATA
