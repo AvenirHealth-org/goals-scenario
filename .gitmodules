@@ -1,0 +1,3 @@
+[submodule "tests/test_data/pjnz"]
+	path = tests/test_data/pjnz
+	url = git@github.com:AvenirHealth-org/pjnz-test-files.git

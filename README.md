@@ -84,6 +84,11 @@ goals-scenario --install-completion
 
 * [uv](https://docs.astral.sh/uv/) for installing Python, package management
 * (Optionally) [make](https://www.gnu.org/software/make/). Should be installed by default, except on windows, where it is easiest to install it via [Chocolatey](https://chocolatey.org/install) `choco install make`
+* Test data (PJNZ files) are stored in a git submodule. Initialise it after cloning:
+
+  ```bash
+  git submodule update --init --recursive
+  ```
 
 ### Development with make
 

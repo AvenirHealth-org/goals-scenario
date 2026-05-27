@@ -4,6 +4,7 @@ from avenir_goals_scenario._runner.pjnz import import_pjnz
 from avenir_goals_scenario.models.run_config import RunConfig
 from avenir_goals_scenario.runner import run_scenario_analysis
 from avenir_goals_scenario.scenarios import draw_simulations
+from tests.conftest import requires_test_data
 
 _BASE_YEAR = 2010
 _N_SIMULATIONS = 2
@@ -12,6 +13,7 @@ _SCENARIOS = [1, 2, 3, 4]
 _PJNZ_NAMES = ["Azerbaijan", "Botswana", "DRC", "Ethiopia", "Ghana", "SouthAfrica", "Zambia", "Zimbabwe"]
 
 
+@requires_test_data
 def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_data):
     tmp = tmp_path_factory.mktemp("integration")
 
@@ -22,7 +24,7 @@ def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_data):
     )
 
     config = RunConfig(
-        pjnz_dir=test_data / "pjnz",
+        pjnz_dir=test_data / "pjnz" / "goals",
         output_dir=tmp / "output",
         base_year=_BASE_YEAR,
         output_indicators=_INDICATORS,
@@ -52,7 +54,7 @@ def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_data):
         assert "simulation" in table.schema.names
         assert "value" in table.schema.names
 
-        params = import_pjnz(test_data / "pjnz" / f"{pjnz_name}.PJNZ")
+        params = import_pjnz(test_data / "pjnz" / "goals" / f"{pjnz_name}.PJNZ")
         expected_n_years = params["projection_end_year"] - _BASE_YEAR + 1
         expected_rows = _N_SIMULATIONS * 81 * 2 * expected_n_years
         assert len(table) == expected_rows
