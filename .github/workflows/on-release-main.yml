@@ -73,6 +73,8 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v6
+        with:
+          submodules: true
 
       - name: Download executable artifact
         uses: actions/download-artifact@v8
@@ -93,7 +95,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\gs-output" | Out-Null
 
           $runConfig = @{
-            pjnz_dir          = "C:/test_data/pjnz"
+            pjnz_dir          = "C:/test_data/pjnz/goals"
             definition_path   = "C:/test_data/scenario_descriptions.csv"
             scenario_path     = "C:/output/draws.json"
             output_dir        = "C:/output"
