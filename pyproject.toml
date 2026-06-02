@@ -14,9 +14,9 @@ dependencies = [
     "pyarrow>=23.0.1",
     "pandas>=3.0.3",
     "loguru>=0.7.3",
-    "leapfrog-goals",
-    "avenir-spectrum-common",
-    "avenir-spectrum-import-pjnz"
+    "avenir-spectrum-common>=0.1.4",
+    "leapfrog-goals>=0.0.4",
+    "avenir-spectrum-import-pjnz>=0.1.4",
 ]
 classifiers = [
     "Intended Audience :: Developers",
