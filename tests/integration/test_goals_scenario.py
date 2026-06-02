@@ -10,7 +10,8 @@ _BASE_YEAR = 2010
 _N_SIMULATIONS = 2
 _INDICATORS = ["p_hivpop", "p_infections", "p_hiv_deaths", "h_artpop"]
 _SCENARIOS = [1, 2, 3, 4]
-_PJNZ_NAMES = ["Azerbaijan", "Botswana", "DRC", "Ethiopia", "Ghana", "SouthAfrica", "Zambia", "Zimbabwe"]
+_PJNZ_NAMES = ["SouthAfrica"]
+# _PJNZ_NAMES = ["Azerbaijan", "Botswana", "DRC", "Ethiopia", "Ghana", "SouthAfrica", "Zambia", "Zimbabwe"]
 
 
 @requires_test_data

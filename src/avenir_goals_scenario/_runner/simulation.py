@@ -17,7 +17,7 @@ from SpectrumCommon.Const.RN import (
     RN_Adherence,
     RN_AHDTreatment,
     RN_AllRisk,
-    RN_Cure,
+    RN_CureAdultsChildren,
     RN_Effectiveness,
     RN_POC_CD4_Int,
     RN_POC_VL_Int,
@@ -48,7 +48,7 @@ _interv_map = {
     "implantable_prep": RN_PrEPImplant,
     "bnabs": RN_PrEPbNABs,
     "vaccine": RN_Vaccines,
-    "cure": RN_Cure,
+    "cure": RN_CureAdultsChildren,
     "ahd_treatment": RN_AHDTreatment,
     "point_of_care_cd4_test": RN_POC_CD4_Int,
     "point_of_care_viral_load_test": RN_POC_VL_Int,
@@ -84,9 +84,11 @@ def _apply_prep_intervention(
     pop_type_idx: int,
     target_idx: int,
 ) -> None:
-    leapfrog_params["prep_effectiveness"][interv_id, RN_Effectiveness] = efficacy
-    leapfrog_params["prep_effectiveness"][interv_id, RN_Adherence] = adherence
-    leapfrog_params["prep_cov"][sex_idx, pop_type_idx, target_idx] = target_coverage
+    prep_offset = interv_id - RN_PrEPOralDaily  # Index offset to align all PrEP interventions in the same slice
+    sex_offset = sex_idx - 1 # BothSexes is removed so need to shift
+    leapfrog_params["prep_effectiveness"][prep_offset, RN_Effectiveness] = efficacy
+    leapfrog_params["prep_effectiveness"][prep_offset, RN_Adherence] = adherence
+    leapfrog_params["prep_cov"][sex_offset, pop_type_idx, target_idx] = target_coverage
 
 
 def _apply_vaccine_intervention(
@@ -169,7 +171,7 @@ def _apply_intervention_target(
         )
         return
 
-    if interv_id == RN_Cure:
+    if interv_id == RN_CureAdultsChildren:
         _apply_cure_intervention(
             leapfrog_params,
             target_coverage,

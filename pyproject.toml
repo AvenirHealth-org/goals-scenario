@@ -13,6 +13,10 @@ dependencies = [
     "numpy>=2.4.4",
     "pyarrow>=23.0.1",
     "pandas>=3.0.3",
+    "loguru>=0.7.3",
+    "leapfrog-goals",
+    "avenir-spectrum-common",
+    "avenir-spectrum-import-pjnz"
 ]
 classifiers = [
     "Intended Audience :: Developers",
@@ -66,7 +70,7 @@ exclude = [
 [tool.uv.sources]
 avenir-spectrum-common = { path = "C:\\Proj\\Spectrum\\SpectrumCommon", editable = true }
 avenir-spectrum-import-pjnz = { path = "C:\\Proj\\Spectrum\\Tools\\ImportPJNZ", editable = true }
-leapfrog-goals = { path = "C:\\Proj\\leapfrog", editable = true }
+leapfrog-goals = { path = "C:\\Proj\\leapfrog\\goals", editable = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

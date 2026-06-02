@@ -7,7 +7,7 @@ import numpy as np
 from leapfrog_goals import get_goals_ss
 from Tools.ImportPJNZ.Importer import GB_ImportProjectionFromFile
 
-from avenir_goals_scenario._leapfrog.LeapfrogDataMapping import modvars_to_leapfrog
+from SpectrumCommon.Util.LeapfrogDataMapping import modvars_to_leapfrog
 
 
 def find_pjnz_files(pjnz_dir: Path) -> list[Path]:
@@ -57,7 +57,7 @@ def import_pjnz(path: Path) -> dict:
     try:
         modvars_base = _import_pjnz_modvars(path)
         ss = get_goals_ss()
-        leapfrog_params = modvars_to_leapfrog(modvars_base, ss)
+        leapfrog_params = modvars_to_leapfrog(modvars_base, ss, "Goals")
         # Temporarily add in required input data for this in-progress
         # version of leapfrog goals
         leapfrog_params["ex_input"] = np.full((ss["pAG"], ss["NS"]), 1)  # ty: ignore[no-matching-overload]
