@@ -5,9 +5,8 @@ from typing import Any
 
 import numpy as np
 from leapfrog_goals import get_goals_ss
-from Tools.ImportPJNZ.Importer import GB_ImportProjectionFromFile
-
 from SpectrumCommon.Util.LeapfrogDataMapping import modvars_to_leapfrog
+from Tools.ImportPJNZ.Importer import GB_ImportProjectionFromFile
 
 
 def find_pjnz_files(pjnz_dir: Path) -> list[Path]:

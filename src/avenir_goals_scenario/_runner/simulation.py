@@ -85,7 +85,7 @@ def _apply_prep_intervention(
     target_idx: int,
 ) -> None:
     prep_offset = interv_id - RN_PrEPOralDaily  # Index offset to align all PrEP interventions in the same slice
-    sex_offset = sex_idx - 1 # BothSexes is removed so need to shift
+    sex_offset = sex_idx - 1  # BothSexes is removed so need to shift
     leapfrog_params["prep_effectiveness"][prep_offset, RN_Effectiveness] = efficacy
     leapfrog_params["prep_effectiveness"][prep_offset, RN_Adherence] = adherence
     leapfrog_params["prep_cov"][sex_offset, pop_type_idx, target_idx] = target_coverage
