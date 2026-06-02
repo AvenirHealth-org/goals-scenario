@@ -67,10 +67,10 @@ exclude = [
     "src/avenir_goals_scenario/_leapfrog"
 ]
 
-[tool.uv.sources]
-avenir-spectrum-common = { path = "C:\\Proj\\Spectrum\\SpectrumCommon", editable = true }
-avenir-spectrum-import-pjnz = { path = "C:\\Proj\\Spectrum\\Tools\\ImportPJNZ", editable = true }
-leapfrog-goals = { path = "C:\\Proj\\leapfrog\\goals", editable = true }
+# [tool.uv.sources]
+# avenir-spectrum-common = { path = "C:\\Proj\\Spectrum\\SpectrumCommon", editable = true }
+# avenir-spectrum-import-pjnz = { path = "C:\\Proj\\Spectrum\\Tools\\ImportPJNZ", editable = true }
+# leapfrog-goals = { path = "C:\\Proj\\leapfrog\\goals", editable = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
