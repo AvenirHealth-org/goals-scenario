@@ -271,8 +271,6 @@ def run_simulation(
     apply_simulation(leapfrog_params, simulation, interventions)
     goals_output = run_goals(leapfrog_params, output_years)
     
-    # Test line to force different hiv population outputs under different scenarios - to be removed when we have an updated model
-    goals_output["p_hivpop"] = goals_output["p_hivpop"]*leapfrog_params["prep_effectiveness"][1, 0] 
     return _extract_indicators(goals_output, output_indicators)
 
 
