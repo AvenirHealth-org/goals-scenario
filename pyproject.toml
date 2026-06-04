@@ -14,7 +14,7 @@ dependencies = [
     "pyarrow>=23.0.1",
     "pandas>=3.0.3",
     "loguru>=0.7.3",
-    "avenir-spectrum-common>=0.1.5",
+    "avenir-spectrum-common>=0.1.6",
     "leapfrog-goals>=0.0.5",
     "avenir-spectrum-import-pjnz>=0.1.5",
 ]
@@ -59,13 +59,6 @@ dev = [
 [tool.ty.environment]
 python = "./.venv"
 python-version = "3.14"
-
-[tool.ty.src]
-exclude = [
-    "src/avenir_goals_scenario/_const",
-    "src/avenir_goals_scenario/_import",
-    "src/avenir_goals_scenario/_leapfrog"
-]
 
 # [tool.uv.sources]
 # avenir-spectrum-common = { path = "C:\\Proj\\Spectrum\\SpectrumCommon", editable = true }
