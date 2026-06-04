@@ -35,7 +35,7 @@ from SpectrumCommon.Const.RN import (
     RN_Vaccines,
 )
 
-from avenir_goals_scenario.models.scenario_simulations import InterventionSimulation
+from avenir_goals_scenario.models.scenario_simulations import InterventionOut, InterventionSimulation
 
 _interv_map = {
     "one_month_pill_for_prep": RN_PrEPOralMonthly,
@@ -196,7 +196,7 @@ def _apply_intervention_target(
 def apply_simulation(
     leapfrog_params: dict,
     simulation: dict[str, InterventionSimulation],
-    interventions: list[InterventionSimulation],
+    interventions: list[InterventionOut],
 ) -> None:
     """Apply sampled intervention parameters to leapfrog_params.
 
@@ -246,7 +246,7 @@ def run_simulation(
     simulation: dict[str, InterventionSimulation],
     output_indicators: list[str],
     output_years: range,
-    interventions: list[InterventionSimulation],
+    interventions: list[InterventionOut],
 ) -> dict[str, np.ndarray]:
     """Run one simulation and return the requested output indicators.
 
@@ -270,7 +270,7 @@ def run_simulation(
     """
     apply_simulation(leapfrog_params, simulation, interventions)
     goals_output = run_goals(leapfrog_params, output_years)
-    
+
     return _extract_indicators(goals_output, output_indicators)
 
 
