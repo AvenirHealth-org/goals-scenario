@@ -12,6 +12,7 @@ from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
 from avenir_goals_scenario.runner import (
     _run_pjnz_scenario,
     _scenario_applies,
+    _select_pjnz_files,
     _warn_if_output_exists,
     run_scenario_analysis,
 )
@@ -437,3 +438,105 @@ def test_warn_if_output_exists_silent_when_no_dirs(tmp_path):
         _warn_if_output_exists(tmp_path)
 
     mock_logger.warning.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _select_pjnz_files
+# ---------------------------------------------------------------------------
+
+
+def _make_simulations_with_names(*pjnz_names_per_scenario: list[str] | None) -> ScenarioSimulations:
+    """Build a ScenarioSimulations where each scenario has the given pjnz_names."""
+    from avenir_goals_scenario.models import InterventionOut, InterventionSimulation, ScenarioSimulation
+
+    scenarios = []
+    for i, pjnz_names in enumerate(pjnz_names_per_scenario):
+        iv = InterventionOut(id="daily_prep", product="Daily PrEP", targets=[])
+        sim = {"daily_prep": InterventionSimulation({"target_year": 2025})}
+        sc = ScenarioSimulation(id=str(i), interventions=[iv], simulations=[sim])
+        sc.pjnz_names = pjnz_names
+        scenarios.append(sc)
+    return ScenarioSimulations(scenarios=scenarios)
+
+
+def test_select_pjnz_files_returns_all_when_any_scenario_has_no_pjnz_names(tmp_path):
+    (tmp_path / "Kenya.PJNZ").touch()
+    (tmp_path / "Nigeria.PJNZ").touch()
+    simulations = _make_simulations_with_names(None)  # one scenario targets all
+
+    result = _select_pjnz_files(tmp_path, simulations)
+
+    assert {f.stem for f in result} == {"Kenya", "Nigeria"}
+
+
+def test_select_pjnz_files_returns_all_when_mixed_none_and_named(tmp_path):
+    (tmp_path / "Kenya.PJNZ").touch()
+    (tmp_path / "Nigeria.PJNZ").touch()
+    # One scenario targets all, one targets only Kenya — should still load all
+    simulations = _make_simulations_with_names(None, ["Kenya"])
+
+    result = _select_pjnz_files(tmp_path, simulations)
+
+    assert {f.stem for f in result} == {"Kenya", "Nigeria"}
+
+
+def test_select_pjnz_files_returns_only_needed_when_all_scenarios_specify_names(tmp_path):
+    (tmp_path / "Kenya.PJNZ").touch()
+    (tmp_path / "Nigeria.PJNZ").touch()
+    (tmp_path / "Ukraine.PJNZ").touch()
+    simulations = _make_simulations_with_names(["Kenya"], ["Nigeria"])
+
+    result = _select_pjnz_files(tmp_path, simulations)
+
+    assert {f.stem for f in result} == {"Kenya", "Nigeria"}
+    assert all(f.stem != "Ukraine" for f in result)
+
+
+def test_select_pjnz_files_warns_for_missing_pjnz(tmp_path):
+    (tmp_path / "Kenya.PJNZ").touch()
+    simulations = _make_simulations_with_names(["Kenya", "Nigeria"])  # Nigeria missing
+
+    with patch("avenir_goals_scenario.runner.logger") as mock_logger:
+        result = _select_pjnz_files(tmp_path, simulations)
+
+    assert {f.stem for f in result} == {"Kenya"}
+    # loguru: logger.warning("msg {}", name, ...) — name is in args[1]
+    warned_names = [c.args[1] for c in mock_logger.warning.call_args_list]
+    assert "Nigeria" in warned_names
+
+
+def test_select_pjnz_files_raises_when_all_specified_pjnz_are_missing(tmp_path):
+    (tmp_path / "Uganda.PJNZ").touch()  # on disk but not needed
+    simulations = _make_simulations_with_names(["Kenya", "Nigeria"])  # neither on disk
+
+    with pytest.raises(FileNotFoundError, match="No PJNZ files matched"):
+        _select_pjnz_files(tmp_path, simulations)
+
+
+def test_select_pjnz_files_raises_when_directory_is_empty(tmp_path):
+    simulations = _make_simulations_with_names(["Kenya"])
+
+    with pytest.raises(FileNotFoundError):
+        _select_pjnz_files(tmp_path, simulations)
+
+
+def test_run_only_imports_needed_pjnz_when_all_scenarios_specify_names(tmp_path):
+    pjnz_dir = tmp_path / "pjnz"
+    pjnz_dir.mkdir()
+    (pjnz_dir / "Kenya.PJNZ").touch()
+    (pjnz_dir / "Ukraine.PJNZ").touch()  # not referenced by any scenario
+
+    simulations = _make_simulations(scenario_id=1, n_simulations=1)
+    simulations.scenarios[0].pjnz_names = ["Kenya"]
+    config = _make_run_config(tmp_path, pjnz_dir, indicators=["p_hivpop"])
+
+    with (
+        patch("avenir_goals_scenario.runner.import_pjnz", return_value=_fake_modvars()) as mock_import,
+        patch("avenir_goals_scenario.runner.run_simulation", return_value=_SIM_RESULT),
+        patch("avenir_goals_scenario.runner.consolidate_metadata"),
+    ):
+        run_scenario_analysis(config, simulations)
+
+    imported_names = {call.args[0].stem for call in mock_import.call_args_list}
+    assert imported_names == {"Kenya"}
+    assert "Ukraine" not in imported_names
