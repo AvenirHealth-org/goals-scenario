@@ -1,4 +1,4 @@
-from typing import TypedDict, assert_never, cast, get_args
+from typing import TypeAlias, TypedDict, assert_never, cast, get_args
 
 import numpy as np
 from leapfrog_goals import run_goals
@@ -37,6 +37,7 @@ from SpectrumCommon.Const.RN import (
 )
 
 from avenir_goals_scenario._scenario_generator.scenario_generator import _product_to_id
+from avenir_goals_scenario.models import PopulationTarget
 from avenir_goals_scenario.models.scenario_definition import PopulationName, PrepProduct, SexName
 from avenir_goals_scenario.models.scenario_simulations import InterventionOut, InterventionSimulation
 
@@ -105,11 +106,6 @@ def _sex_idx(sex: SexName) -> int:
             assert_never(unreachable)
 
 
-def _target_year_idx(lp: LeapfrogParams, draw: dict[str, float | int | str]) -> int:
-    """Convert ``draw["target_year"]`` to a zero-based year index into leapfrog arrays."""
-    return int(draw["target_year"]) - lp["projection_start_year"]
-
-
 # ---------------------------------------------------------------------------
 # Typed shapes for sampled draw dicts (mirrors *Parameters models but with
 # concrete values instead of distributions).
@@ -155,23 +151,31 @@ class _POCTestDraw(TypedDict):
     effect: float
 
 
+_Draw: TypeAlias = _PrepDraw | _VaccineDraw | _CureDraw | _AHDTreatmentDraw | _POCTestDraw
+
+
+def _target_year_idx(lp: LeapfrogParams, draw: _Draw) -> int:
+    """Convert ``draw["target_year"]`` to a zero-based year index into leapfrog arrays."""
+    return int(draw["target_year"]) - lp["projection_start_year"]
+
+
 # ---------------------------------------------------------------------------
 # Per-intervention application functions
 # ---------------------------------------------------------------------------
 
 
-def _apply_prep(lp: LeapfrogParams, iv: InterventionOut, draw: _PrepDraw) -> None:
+def _apply_prep(lp: LeapfrogParams, iv_id: str, targets: list[PopulationTarget], draw: _PrepDraw) -> None:
     year_idx = _target_year_idx(lp, draw)
-    prep_offset = _interv_map[iv.id] - RN_PrEPOralDaily
+    prep_offset = _interv_map[iv_id] - RN_PrEPOralDaily
     lp["prep_effectiveness"][prep_offset, RN_Effectiveness] = draw["efficacy"]
     lp["prep_effectiveness"][prep_offset, RN_Adherence] = draw["adherence"]
-    for target in iv.targets:
+    for target in targets:
         lp["prep_cov"][_sex_idx(target.sex), _pop_idx(target.population), year_idx] = draw["target_coverage"]
 
 
-def _apply_vaccine(lp: LeapfrogParams, iv: InterventionOut, draw: _VaccineDraw) -> None:
+def _apply_vaccine(lp: LeapfrogParams, targets: list[PopulationTarget], draw: _VaccineDraw) -> None:
     year_idx = _target_year_idx(lp, draw)
-    for target in iv.targets:
+    for target in targets:
         if lp["rn_vac_cov_type"] == RN_Single:
             lp["rn_vac_coverage"][RN_AllRisk, year_idx] = draw["target_coverage"]
         else:
@@ -181,9 +185,9 @@ def _apply_vaccine(lp: LeapfrogParams, iv: InterventionOut, draw: _VaccineDraw) 
     raise NotImplementedError("Vaccine parameters beyond target_coverage are not yet implemented in leapfrog.")
 
 
-def _apply_cure(lp: LeapfrogParams, iv: InterventionOut, draw: _CureDraw) -> None:
+def _apply_cure(lp: LeapfrogParams, targets: list[PopulationTarget], draw: _CureDraw) -> None:
     year_idx = _target_year_idx(lp, draw)
-    for target in iv.targets:
+    for target in targets:
         if lp["rn_cure_cov_type"] == RN_Single:
             lp["rn_cure_coverage"][RN_AllRisk, year_idx] = draw["target_coverage"]
         else:
@@ -210,11 +214,11 @@ def _apply_poc(lp: LeapfrogParams, poc_type: int, draw: _POCTestDraw) -> None:
 def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict[str, float | int | str]) -> None:
     match iv.id:
         case prep_id if prep_id in _PREP_IDS:
-            _apply_prep(lp, iv, cast(_PrepDraw, draw))
+            _apply_prep(lp, prep_id, cast(list[PopulationTarget], iv.targets), cast(_PrepDraw, draw))
         case "vaccine":
-            _apply_vaccine(lp, iv, cast(_VaccineDraw, draw))
+            _apply_vaccine(lp, cast(list[PopulationTarget], iv.targets), cast(_VaccineDraw, draw))
         case "cure":
-            _apply_cure(lp, iv, cast(_CureDraw, draw))
+            _apply_cure(lp, cast(list[PopulationTarget], iv.targets), cast(_CureDraw, draw))
         case "ahd_treatment":
             _apply_ahd(lp, cast(_AHDTreatmentDraw, draw))
         case "point_of_care_viral_load_test":

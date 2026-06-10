@@ -373,7 +373,7 @@ def test_target_year_value_is_near_mean():
     definition = ScenarioInput.model_validate(MINIMAL_INPUT)
     output = gen_simulations(definition, n_simulations=50, rng=np.random.default_rng(0))
     years = [sim["one_month_pill_for_prep"].root["target_year"] for sim in output.scenarios[0].simulations]
-    assert all(2020 <= y <= 2040 for y in years), f"Unexpected target_year values: {years}"
+    assert all(2020 <= y <= 2040 for y in years), f"Unexpected target_year values: {years}"  # ty: ignore[unsupported-operator]
 
 
 def test_output_is_scenario_output_instance():
@@ -546,7 +546,7 @@ def test_load_proportion_params_have_0_1_bounds(tmp_path):
     path.write_text(json.dumps({"scenarios": [{"id": "1", "interventions": [PREP_PILL_INTERVENTION]}]}))
     definition = load_scenario_definition(path)
     single = definition.scenarios[0]
-    iv = single.interventions[0]
+    iv = single.interventions[0]  # ty: ignore[unresolved-attribute]
     for param_name in ("efficacy", "adherence", "target_coverage"):
         dist = getattr(iv.parameters, param_name)
         assert dist.min_value == 0.0, f"{param_name}.min_value"

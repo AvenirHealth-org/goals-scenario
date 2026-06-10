@@ -82,7 +82,7 @@ def test_draw_simulations_base_year_clamps_target_year(write_json):
     for scenario in result.scenarios:
         for sim in scenario.simulations:
             for iv_sim in sim.values():
-                assert iv_sim.root["target_year"] >= base_year
+                assert iv_sim.root["target_year"] >= base_year  # ty: ignore[unsupported-operator]
 
 
 # --- write_simulations ---
