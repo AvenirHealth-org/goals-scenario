@@ -9,7 +9,12 @@ import pytest
 from avenir_goals_scenario._runner.pjnz import _import_pjnz_modvars, find_pjnz_files, import_pjnz, modvars_to_numpy
 from avenir_goals_scenario._runner.simulation import _extract_indicators, run_simulation
 from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
-from avenir_goals_scenario.runner import _run_pjnz_scenario, _warn_if_output_exists, run_scenario_analysis
+from avenir_goals_scenario.runner import (
+    _run_pjnz_scenario,
+    _scenario_applies,
+    _warn_if_output_exists,
+    run_scenario_analysis,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -32,13 +37,13 @@ def _make_simulations(scenario_id: int = 1, n_simulations: int = 2) -> ScenarioS
         ScenarioSimulation,
     )
 
-    target = PopulationTarget(population="General", sex="Both")
+    target = PopulationTarget(population="High risk heterosexual", sex="Female")
     intervention = InterventionOut(id="daily_prep", product="Daily PrEP", targets=[target])
     sim_params = InterventionSimulation({"efficacy": 0.9, "adherence": 0.8})
     simulation = {"daily_prep": sim_params}
 
     scenario = ScenarioSimulation(
-        scenario_id=scenario_id,
+        id=str(scenario_id),
         interventions=[intervention],
         simulations=[simulation] * n_simulations,
     )
@@ -149,7 +154,7 @@ def test_modvars_to_numpy_non_list_passthrough():
 def test_run_simulation_calls_run_goals_and_extracts_indicators():
     goals_output = {"PLHIV": np.ones(5), "Deaths": np.ones(5)}
     with patch("avenir_goals_scenario._runner.simulation.run_goals", return_value=goals_output) as mock_goals:
-        result = run_simulation({}, {}, ["PLHIV"], range(2020, 2025), [])
+        result = run_simulation({}, [], {}, ["PLHIV"], range(2020, 2025))
 
     mock_goals.assert_called_once_with({}, range(2020, 2025))
     assert list(result.keys()) == ["PLHIV"]
@@ -303,7 +308,7 @@ def test_run_pjnz_scenario_configures_worker_logging_when_log_queue_provided(tmp
 
     scenario = MagicMock()
     scenario.simulations = [{}]
-    scenario.scenario_id = 1
+    scenario.id = "1"
 
     config = _make_run_config(tmp_path, tmp_path, indicators=["PLHIV"])
     log_queue = Queue()
@@ -369,6 +374,46 @@ def test_import_pjnz_wraps_key_error_with_field_and_filename(tmp_path):
 
     assert "missing_leapfrog_key" in str(exc_info.value)
     assert "BadCountry.PJNZ" in str(exc_info.value)
+
+
+# ---------------------------------------------------------------------------
+# _scenario_applies - pjnz_names filter
+# ---------------------------------------------------------------------------
+
+
+def test_scenario_applies_when_pjnz_names_is_none():
+    scenario = MagicMock()
+    scenario.pjnz_names = None
+    assert _scenario_applies(scenario, "Zimbabwe") is True
+
+
+def test_scenario_applies_when_stem_matches():
+    scenario = MagicMock()
+    scenario.pjnz_names = ["Zimbabwe", "Botswana"]
+    assert _scenario_applies(scenario, "Zimbabwe") is True
+
+
+def test_scenario_applies_when_stem_not_in_list():
+    scenario = MagicMock()
+    scenario.pjnz_names = ["Zimbabwe", "Botswana"]
+    assert _scenario_applies(scenario, "Kenya") is False
+
+
+def test_run_skips_pjnz_not_in_scenario_pjnz_names(tmp_path):
+    pjnz_dir = tmp_path / "pjnz"
+    pjnz_dir.mkdir()
+    (pjnz_dir / "Zimbabwe.PJNZ").touch()
+    (pjnz_dir / "Botswana.PJNZ").touch()
+
+    simulations = _make_simulations(scenario_id=1, n_simulations=1)
+    simulations.scenarios[0].pjnz_names = ["Zimbabwe"]
+    config = _make_run_config(tmp_path, pjnz_dir, indicators=["p_hivpop"])
+
+    with _integration_patches(_SIM_RESULT):
+        run_scenario_analysis(config, simulations)
+
+    assert (config.output_dir / "p_hivpop" / "pjnz_name=Zimbabwe" / "scenario_id=1" / "part-0.parquet").exists()
+    assert not (config.output_dir / "p_hivpop" / "pjnz_name=Botswana" / "scenario_id=1" / "part-0.parquet").exists()
 
 
 # ---------------------------------------------------------------------------

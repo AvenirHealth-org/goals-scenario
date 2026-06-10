@@ -1,3 +1,5 @@
+from typing import TypedDict, assert_never, cast, get_args
+
 import numpy as np
 from leapfrog_goals import run_goals
 from SpectrumCommon.Const.RN import (
@@ -26,7 +28,6 @@ from SpectrumCommon.Const.RN import (
     RN_PrEPInject1Mo,
     RN_PrEPInject2Mo,
     RN_PrEPInject6Mo,
-    RN_PrepInterventions,
     RN_PrEPOralDaily,
     RN_PrEPOralMonthly,
     RN_PrEPOralPlusCon,
@@ -35,9 +36,14 @@ from SpectrumCommon.Const.RN import (
     RN_Vaccines,
 )
 
+from avenir_goals_scenario._scenario_generator.scenario_generator import _product_to_id
+from avenir_goals_scenario.models.scenario_definition import PopulationName, PrepProduct, SexName
 from avenir_goals_scenario.models.scenario_simulations import InterventionOut, InterventionSimulation
 
-_interv_map = {
+# Opaque dict produced by import_pjnz() and modified in-place before running Goals.
+LeapfrogParams = dict
+
+_interv_map: dict[str, int] = {
     "one_month_pill_for_prep": RN_PrEPOralMonthly,
     "daily_prep": RN_PrEPOralDaily,
     "one_month_injectable_prep": RN_PrEPInject1Mo,
@@ -52,231 +58,226 @@ _interv_map = {
     "ahd_treatment": RN_AHDTreatment,
     "point_of_care_cd4_test": RN_POC_CD4_Int,
     "point_of_care_viral_load_test": RN_POC_VL_Int,
-    # 'long_acting_treatment': RN_LongActingTreatment
+    # "long_acting_treatment": RN_LongActingTreatment,
 }
 
-_sex_map = {"all": 0, "male": 1, "female": 2}
-
-_pop_map = {
-    "low risk heterosexual": RN_LRH,
-    "medium risk heterosexual": RN_MRH,
-    "high risk heterosexual": RN_HRH,
-    "people who inject drugs": RN_IDU,
-    "men who have sex with men": RN_MSM,
-}
-
-_pop_map_female = {
-    "low risk heterosexual": RN_LRH_F,
-    "medium risk heterosexual": RN_MRH_F,
-    "high risk heterosexual": RN_HRH_F,
-    "people who inject drugs": RN_IDU_F,
-    "men who have sex with men": RN_MSM_F,
-}
+# Derived from PrepProduct so the two stay in sync automatically.
+_PREP_IDS = frozenset(_product_to_id(p) for p in get_args(PrepProduct))
 
 
-def _apply_prep_intervention(
-    leapfrog_params: dict,
-    interv_id: int,
-    efficacy: float,
-    adherence: float,
-    target_coverage: float,
-    sex_idx: int,
-    pop_type_idx: int,
-    target_idx: int,
-) -> None:
-    prep_offset = interv_id - RN_PrEPOralDaily  # Index offset to align all PrEP interventions in the same slice
-    sex_offset = sex_idx - 1  # BothSexes is removed so need to shift
-    leapfrog_params["prep_effectiveness"][prep_offset, RN_Effectiveness] = efficacy
-    leapfrog_params["prep_effectiveness"][prep_offset, RN_Adherence] = adherence
-    leapfrog_params["prep_cov"][sex_offset, pop_type_idx, target_idx] = target_coverage
+def _pop_idx(pop: PopulationName, *, female: bool = False) -> int:
+    """Return the leapfrog population index for *pop*.
+
+    Pass ``female=True`` for vaccine/cure coverage arrays, where male and
+    female populations have distinct indices. For PrEP, the sex dimension is
+    a separate axis, so always use the default ``female=False``.
+    """
+    match pop:
+        case "Low risk heterosexual":
+            return RN_LRH_F if female else RN_LRH
+        case "Medium risk heterosexual":
+            return RN_MRH_F if female else RN_MRH
+        case "High risk heterosexual":
+            return RN_HRH_F if female else RN_HRH
+        case "People who inject drugs":
+            return RN_IDU_F if female else RN_IDU
+        case "Men who have sex with men":
+            return RN_MSM_F if female else RN_MSM
+        case _ as unreachable:
+            assert_never(unreachable)
 
 
-def _apply_vaccine_intervention(
-    leapfrog_params: dict,
-    target_coverage: float,
-    pop_type_idx: int,
-    sex: str,
-    pop_type: str,
-    target_idx: int,
-) -> None:
-    if leapfrog_params["rn_vac_cov_type"] == RN_Single:
-        leapfrog_params["rn_vac_coverage"][RN_AllRisk, target_idx] = target_coverage
-    else:
-        if sex == "female":
-            pop_type_idx = _pop_map_female[pop_type]
-        leapfrog_params["rn_vac_coverage"][pop_type_idx, target_idx] = target_coverage
+def _sex_idx(sex: SexName) -> int:
+    """Return the sex-axis index for ``prep_cov`` (Male=0, Female=1).
+
+    Adding a new value to ``SexName`` in scenario_definition.py will cause a
+    static type error here until the new case is handled.
+    """
+    match sex:
+        case "Male":
+            return 0
+        case "Female":
+            return 1
+        case "Both":
+            msg = "'Both' sex is not yet supported in per-sex coverage arrays."
+            raise NotImplementedError(msg)
+        case _ as unreachable:
+            assert_never(unreachable)
 
 
-def _apply_cure_intervention(
-    leapfrog_params: dict,
-    target_coverage: float,
-    pop_type_idx: int,
-    sex: str,
-    pop_type: str,
-    target_idx: int,
-) -> None:
-    if leapfrog_params["rn_cure_cov_type"] == RN_Single:
-        leapfrog_params["rn_cure_coverage"][RN_AllRisk, target_idx] = target_coverage
-    else:
-        if sex == "female":
-            pop_type_idx = _pop_map_female[pop_type]
-        leapfrog_params["rn_cure_coverage"][pop_type_idx, target_idx] = target_coverage
+def _target_year_idx(lp: LeapfrogParams, draw: dict[str, float | int | str]) -> int:
+    """Convert ``draw["target_year"]`` to a zero-based year index into leapfrog arrays."""
+    return int(draw["target_year"]) - lp["projection_start_year"]
 
 
-def _apply_poc_intervention(
-    leapfrog_params: dict,
-    interv_id: int,
-    target_coverage: float,
-    target_idx: int,
-) -> None:
-    if interv_id == RN_POC_CD4_Int:
-        leapfrog_params["rn_poc_coverage"][RN_POC_CD4, target_idx] = target_coverage
-    elif interv_id == RN_POC_VL_Int:
-        leapfrog_params["rn_poc_coverage"][RN_POC_VL, target_idx] = target_coverage
+# ---------------------------------------------------------------------------
+# Typed shapes for sampled draw dicts (mirrors *Parameters models but with
+# concrete values instead of distributions).
+# ---------------------------------------------------------------------------
 
 
-def _apply_intervention_target(
-    leapfrog_params: dict,
-    interv_id: int,
-    efficacy: float,
-    adherence: float,
-    target_coverage: float,
-    sex: str,
-    sex_idx: int,
-    pop_type: str,
-    pop_type_idx: int,
-    target_idx: int,
-) -> None:
-    if interv_id in RN_PrepInterventions:
-        _apply_prep_intervention(
-            leapfrog_params,
-            interv_id,
-            efficacy,
-            adherence,
-            target_coverage,
-            sex_idx,
-            pop_type_idx,
-            target_idx,
-        )
-        return
+class _PrepDraw(TypedDict):
+    efficacy: float
+    adherence: float
+    target_coverage: float
+    target_year: int
 
-    if interv_id == RN_Vaccines:
-        _apply_vaccine_intervention(
-            leapfrog_params,
-            target_coverage,
-            pop_type_idx,
-            sex,
-            pop_type,
-            target_idx,
-        )
-        return
 
-    if interv_id == RN_CureAdultsChildren:
-        _apply_cure_intervention(
-            leapfrog_params,
-            target_coverage,
-            pop_type_idx,
-            sex,
-            pop_type,
-            target_idx,
-        )
-        return
+class _VaccineDraw(TypedDict):
+    target_year: int
+    target_coverage: float
+    reduction_in_susceptibility: float
+    reduction_in_infectiousness: float
+    increase_in_progression_time_to_aids: float
+    vaccine_duration_years: float
+    vaccine_action_type: str
+    targeting: str
+    behavior_change_reversal_vaccinated: float
+    behavior_change_reversal_all_adults: float
 
-    if interv_id == RN_AHDTreatment:
-        leapfrog_params["rn_ahd_treatment_coverage"][target_idx] = target_coverage
-        return
 
-    if interv_id in {RN_POC_CD4_Int, RN_POC_VL_Int}:
-        _apply_poc_intervention(leapfrog_params, interv_id, target_coverage, target_idx)
-        return
+class _CureDraw(TypedDict):
+    target_year: int
+    target_coverage: float
+    efficacy: float
+    duration_of_cure: float
 
-    leapfrog_params["rn_coverage"][interv_id, target_idx] = target_coverage
+
+class _AHDTreatmentDraw(TypedDict):
+    target_year: int
+    target_coverage: float
+    reduction_in_mortality: float
+
+
+class _POCTestDraw(TypedDict):
+    target_year: int
+    target_coverage: float
+    effect: float
+
+
+# ---------------------------------------------------------------------------
+# Per-intervention application functions
+# ---------------------------------------------------------------------------
+
+
+def _apply_prep(lp: LeapfrogParams, iv: InterventionOut, draw: _PrepDraw) -> None:
+    year_idx = _target_year_idx(lp, draw)
+    prep_offset = _interv_map[iv.id] - RN_PrEPOralDaily
+    lp["prep_effectiveness"][prep_offset, RN_Effectiveness] = draw["efficacy"]
+    lp["prep_effectiveness"][prep_offset, RN_Adherence] = draw["adherence"]
+    for target in iv.targets:
+        lp["prep_cov"][_sex_idx(target.sex), _pop_idx(target.population), year_idx] = draw["target_coverage"]
+
+
+def _apply_vaccine(lp: LeapfrogParams, iv: InterventionOut, draw: _VaccineDraw) -> None:
+    year_idx = _target_year_idx(lp, draw)
+    for target in iv.targets:
+        if lp["rn_vac_cov_type"] == RN_Single:
+            lp["rn_vac_coverage"][RN_AllRisk, year_idx] = draw["target_coverage"]
+        else:
+            lp["rn_vac_coverage"][_pop_idx(target.population, female=(target.sex == "Female")), year_idx] = draw[
+                "target_coverage"
+            ]
+    raise NotImplementedError("Vaccine parameters beyond target_coverage are not yet implemented in leapfrog.")
+
+
+def _apply_cure(lp: LeapfrogParams, iv: InterventionOut, draw: _CureDraw) -> None:
+    year_idx = _target_year_idx(lp, draw)
+    for target in iv.targets:
+        if lp["rn_cure_cov_type"] == RN_Single:
+            lp["rn_cure_coverage"][RN_AllRisk, year_idx] = draw["target_coverage"]
+        else:
+            lp["rn_cure_coverage"][_pop_idx(target.population, female=(target.sex == "Female")), year_idx] = draw[
+                "target_coverage"
+            ]
+    raise NotImplementedError("Cure parameters 'efficacy' and 'duration_of_cure' are not yet implemented in leapfrog.")
+
+
+def _apply_ahd(lp: LeapfrogParams, draw: _AHDTreatmentDraw) -> None:
+    year_idx = _target_year_idx(lp, draw)
+    lp["rn_ahd_treatment_coverage"][year_idx] = draw["target_coverage"]
+    raise NotImplementedError("AHD treatment parameter 'reduction_in_mortality' is not yet implemented in leapfrog.")
+
+
+def _apply_poc(lp: LeapfrogParams, poc_type: int, draw: _POCTestDraw) -> None:
+    """Apply point-of-care test coverage. *poc_type* is ``RN_POC_CD4_Int`` or ``RN_POC_VL_Int``."""
+    year_idx = _target_year_idx(lp, draw)
+    rn_poc = RN_POC_CD4 if poc_type == RN_POC_CD4_Int else RN_POC_VL
+    lp["rn_poc_coverage"][rn_poc, year_idx] = draw["target_coverage"]
+    raise NotImplementedError("POC test parameter 'effect' is not yet implemented in leapfrog.")
+
+
+def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict[str, float | int | str]) -> None:
+    match iv.id:
+        case prep_id if prep_id in _PREP_IDS:
+            _apply_prep(lp, iv, cast(_PrepDraw, draw))
+        case "vaccine":
+            _apply_vaccine(lp, iv, cast(_VaccineDraw, draw))
+        case "cure":
+            _apply_cure(lp, iv, cast(_CureDraw, draw))
+        case "ahd_treatment":
+            _apply_ahd(lp, cast(_AHDTreatmentDraw, draw))
+        case "point_of_care_viral_load_test":
+            _apply_poc(lp, RN_POC_VL_Int, cast(_POCTestDraw, draw))
+        case "point_of_care_cd4_test":
+            _apply_poc(lp, RN_POC_CD4_Int, cast(_POCTestDraw, draw))
+        case "long_acting_treatment":
+            raise NotImplementedError("Long-acting treatment application is not yet implemented.")
+        case _:
+            msg = f"Unknown intervention: {iv.id!r}"
+            raise ValueError(msg)
 
 
 def apply_simulation(
-    leapfrog_params: dict,
-    simulation: dict[str, InterventionSimulation],
+    leapfrog_params: LeapfrogParams,
     interventions: list[InterventionOut],
+    simulation: dict[str, InterventionSimulation],
 ) -> None:
-    """Apply sampled intervention parameters to leapfrog_params.
-
-    This is the integration point between scenario simulation data and the
-    Goals model.  Implement this function to translate the sampled values
-    (efficacy, adherence, target coverage, target year) for each intervention
-    into the corresponding leapfrog_params entries before the model is run.
+    """Apply one sampled draw of intervention parameters to *leapfrog_params* in-place.
 
     Args:
-        leapfrog_params: Mutable leapfrog params dict.  Modify in-place to
-            reflect the scenario parameters.
-        simulation: Mapping of intervention ID to sampled parameter values for
-            one draw.
+        leapfrog_params: Goals model parameter dict from ``import_pjnz``. Modified in-place.
+        interventions: Intervention metadata for the current scenario.
+        simulation: Mapping of intervention ID → sampled parameter values for one draw.
     """
-
-    intervention_meta = {iv.id: iv for iv in interventions}
+    meta = {iv.id: iv for iv in interventions}
     for intervention_id, sim in simulation.items():
-        params = sim.root
-        efficacy = params["efficacy"]
-        adherence = params["adherence"]
-        target_coverage = params["target_coverage"]
-        target_year = params["target_year"]
-        target_idx = target_year - leapfrog_params["projection_start_year"]
-        targets = intervention_meta[intervention_id].targets
-        for target in targets:
-            pop_type = target.population.lower()
-            pop_type_idx = _pop_map[pop_type]
-            sex = target.sex.lower()
-            sex_idx = _sex_map[sex]
-            interv_id = _interv_map[intervention_id]
-            _apply_intervention_target(
-                leapfrog_params,
-                interv_id,
-                efficacy,
-                adherence,
-                target_coverage,
-                sex,
-                sex_idx,
-                pop_type,
-                pop_type_idx,
-                target_idx,
-            )
+        _dispatch(leapfrog_params, meta[intervention_id], sim.root)
 
 
 def run_simulation(
-    leapfrog_params: dict,
+    leapfrog_params: LeapfrogParams,
+    interventions: list[InterventionOut],
     simulation: dict[str, InterventionSimulation],
     output_indicators: list[str],
     output_years: range,
-    interventions: list[InterventionOut],
 ) -> dict[str, np.ndarray]:
-    """Run one simulation and return the requested output indicators.
+    """Apply a sampled draw, run Goals, and return the requested indicator arrays.
 
-    Applies the simulation parameters to *leapfrog_params* in-place, runs
-    Goals, and returns the raw indicator arrays exactly as produced by
-    ``run_goals`` - no dimension reduction.
+    Applies *simulation* to *leapfrog_params* in-place, runs Goals, and returns
+    the raw indicator arrays as produced by ``run_goals`` — no dimension reduction.
 
     Args:
-        leapfrog_params: Leapfrog params for one PJNZ.
-        simulation: Sampled intervention parameters for one draw.
+        leapfrog_params: Goals model parameter dict for one PJNZ. Modified in-place.
+        interventions: Intervention metadata for the current scenario.
+        simulation: Sampled parameter values for one draw.
         output_indicators: Indicator names to extract from Goals output.
         output_years: Year range passed to ``run_goals``.
 
     Returns:
-        Dict mapping each indicator name to a NumPy array whose last axis is
-        indexed by year.  All other dimensions are preserved as-is.
+        Mapping of indicator name → NumPy array (last axis indexed by year).
 
     Raises:
-        ValueError: If any of *output_indicators* are not present in the
-            Goals output.
+        ValueError: If any indicator in *output_indicators* is absent from Goals output.
     """
-    apply_simulation(leapfrog_params, simulation, interventions)
+    apply_simulation(leapfrog_params, interventions, simulation)
     goals_output = run_goals(leapfrog_params, output_years)
-
     return _extract_indicators(goals_output, output_indicators)
 
 
 def _extract_indicators(goals_output: dict, output_indicators: list[str]) -> dict[str, np.ndarray]:
     missing = [k for k in output_indicators if k not in goals_output]
     if missing:
-        err_msg = f"Output indicators not found in Goals output: {missing}"
-        raise ValueError(err_msg)
+        msg = f"Output indicators not found in Goals output: {missing}"
+        raise ValueError(msg)
     return {k: goals_output[k] for k in output_indicators}

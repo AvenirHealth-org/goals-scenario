@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import pytest
 from pydantic import ValidationError
@@ -9,8 +11,8 @@ from avenir_goals_scenario._scenario_generator.scenario_generator import (
 )
 from avenir_goals_scenario.models import (
     CombinedScenarioDef,
-    InterventionDef,
     NormalDistParameters,
+    PrepInterventionDef,
     ScenarioInput,
     ScenarioSimulations,
     SingleScenarioDef,
@@ -46,17 +48,17 @@ DAILY_PREP_INTERVENTION = {
 }
 
 MINIMAL_INPUT = {
-    "scenario_definitions": [
-        {"id": 1, "interventions": [PREP_PILL_INTERVENTION]},
-        {"id": 2, "interventions": [DAILY_PREP_INTERVENTION]},
+    "scenarios": [
+        {"id": "1", "interventions": [PREP_PILL_INTERVENTION]},
+        {"id": "2", "interventions": [DAILY_PREP_INTERVENTION]},
     ]
 }
 
 COMBINED_INPUT = {
-    "scenario_definitions": [
-        {"id": 1, "interventions": [PREP_PILL_INTERVENTION]},
-        {"id": 2, "interventions": [DAILY_PREP_INTERVENTION]},
-        {"id": 3, "combines": [1, 2]},
+    "scenarios": [
+        {"id": "1", "interventions": [PREP_PILL_INTERVENTION]},
+        {"id": "2", "interventions": [DAILY_PREP_INTERVENTION]},
+        {"id": "3", "combines": ["1", "2"]},
     ]
 }
 
@@ -123,25 +125,24 @@ def test_sample_returns_float_when_not_integer():
 
 
 # ---------------------------------------------------------------------------
-# InterventionDef - parameter constraints applied during parsing
+# PrepInterventionDef - parameter constraints applied during parsing
 # ---------------------------------------------------------------------------
 
 
 def test_target_year_gets_integer_flag():
-    iv = InterventionDef.model_validate(PREP_PILL_INTERVENTION)
-    assert iv.parameters["target_year"].integer is True
+    iv = PrepInterventionDef.model_validate(PREP_PILL_INTERVENTION)
+    assert iv.parameters.target_year.integer is True
 
 
 def test_target_year_gets_min_value():
-    iv = InterventionDef.model_validate(PREP_PILL_INTERVENTION)
-    assert iv.parameters["target_year"].min_value == 1970.0
+    iv = PrepInterventionDef.model_validate(PREP_PILL_INTERVENTION)
+    assert iv.parameters.target_year.min_value == 1970.0
 
 
 def test_proportion_params_get_bounds():
-    iv = InterventionDef.model_validate(PREP_PILL_INTERVENTION)
-    efficacy = iv.parameters["efficacy"]
-    assert efficacy.min_value == 0.0
-    assert efficacy.max_value == 1.0
+    iv = PrepInterventionDef.model_validate(PREP_PILL_INTERVENTION)
+    assert iv.parameters.efficacy.min_value == 0.0
+    assert iv.parameters.efficacy.max_value == 1.0
 
 
 def test_extra_fields_rejected_on_parameter_dist():
@@ -149,16 +150,31 @@ def test_extra_fields_rejected_on_parameter_dist():
         NormalDistParameters(mean=0.9, sd=0.01, typo_field=True)  # ty: ignore
 
 
-def test_extra_fields_rejected_on_intervention_def():
+def test_extra_fields_rejected_on_prep_intervention_def():
     bad = {**PREP_PILL_INTERVENTION, "unexpected_key": "oops"}
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        InterventionDef.model_validate(bad)
+        PrepInterventionDef.model_validate(bad)
 
 
 def test_extra_fields_rejected_on_scenario_input():
     bad = {**MINIMAL_INPUT, "unexpected_key": "oops"}
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         ScenarioInput.model_validate(bad)
+
+
+def test_extra_fields_on_scenario_are_ignored():
+    data = {
+        "scenarios": [
+            {
+                "id": "1",
+                "branch_probability": 0.5,
+                "market_outcome": "Product A",
+                "interventions": [PREP_PILL_INTERVENTION],
+            },
+        ]
+    }
+    definition = ScenarioInput.model_validate(data)
+    assert len(definition.scenarios) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -168,22 +184,22 @@ def test_extra_fields_rejected_on_scenario_input():
 
 def test_parse_valid_single_scenarios():
     definition = ScenarioInput.model_validate(MINIMAL_INPUT)
-    assert len(definition.scenario_definitions) == 2
-    assert isinstance(definition.scenario_definitions[0], SingleScenarioDef)
+    assert len(definition.scenarios) == 2
+    assert isinstance(definition.scenarios[0], SingleScenarioDef)
 
 
 def test_parse_valid_combined_scenario():
     definition = ScenarioInput.model_validate(COMBINED_INPUT)
-    combined = definition.scenario_definitions[2]
+    combined = definition.scenarios[2]
     assert isinstance(combined, CombinedScenarioDef)
-    assert combined.combines == [1, 2]
+    assert combined.combines == ["1", "2"]
 
 
 def test_duplicate_ids_raise():
     data = {
-        "scenario_definitions": [
-            {"id": 1, "interventions": [PREP_PILL_INTERVENTION]},
-            {"id": 1, "interventions": [DAILY_PREP_INTERVENTION]},
+        "scenarios": [
+            {"id": "1", "interventions": [PREP_PILL_INTERVENTION]},
+            {"id": "1", "interventions": [DAILY_PREP_INTERVENTION]},
         ]
     }
     with pytest.raises(ValidationError, match="unique"):
@@ -192,9 +208,9 @@ def test_duplicate_ids_raise():
 
 def test_combines_unknown_id_raises():
     data = {
-        "scenario_definitions": [
-            {"id": 1, "interventions": [PREP_PILL_INTERVENTION]},
-            {"id": 99, "combines": [1, 42]},
+        "scenarios": [
+            {"id": "1", "interventions": [PREP_PILL_INTERVENTION]},
+            {"id": "99", "combines": ["1", "42"]},
         ]
     }
     with pytest.raises(ValidationError, match="unknown scenario id 42"):
@@ -203,11 +219,11 @@ def test_combines_unknown_id_raises():
 
 def test_chained_combines_raises():
     data = {
-        "scenario_definitions": [
-            {"id": 1, "interventions": [PREP_PILL_INTERVENTION]},
-            {"id": 2, "interventions": [DAILY_PREP_INTERVENTION]},
-            {"id": 3, "combines": [1, 2]},
-            {"id": 4, "combines": [1, 3]},
+        "scenarios": [
+            {"id": "1", "interventions": [PREP_PILL_INTERVENTION]},
+            {"id": "2", "interventions": [DAILY_PREP_INTERVENTION]},
+            {"id": "3", "combines": ["1", "2"]},
+            {"id": "4", "combines": ["1", "3"]},
         ]
     }
     with pytest.raises(ValidationError, match="Chained combines are not allowed"):
@@ -216,9 +232,9 @@ def test_chained_combines_raises():
 
 def test_combines_requires_at_least_two():
     data = {
-        "scenario_definitions": [
-            {"id": 1, "interventions": [PREP_PILL_INTERVENTION]},
-            {"id": 2, "combines": [1]},
+        "scenarios": [
+            {"id": "1", "interventions": [PREP_PILL_INTERVENTION]},
+            {"id": "2", "combines": ["1"]},
         ]
     }
     with pytest.raises(ValidationError):
@@ -227,8 +243,8 @@ def test_combines_requires_at_least_two():
 
 def test_duplicate_products_within_single_scenario_raises():
     data = {
-        "scenario_definitions": [
-            {"id": 1, "interventions": [PREP_PILL_INTERVENTION, PREP_PILL_INTERVENTION]},
+        "scenarios": [
+            {"id": "1", "interventions": [PREP_PILL_INTERVENTION, PREP_PILL_INTERVENTION]},
         ]
     }
     with pytest.raises(ValidationError, match="unique product names"):
@@ -237,10 +253,10 @@ def test_duplicate_products_within_single_scenario_raises():
 
 def test_duplicate_products_across_combined_scenarios_raises():
     data = {
-        "scenario_definitions": [
-            {"id": 1, "interventions": [PREP_PILL_INTERVENTION]},
-            {"id": 2, "interventions": [PREP_PILL_INTERVENTION]},
-            {"id": 3, "combines": [1, 2]},
+        "scenarios": [
+            {"id": "1", "interventions": [PREP_PILL_INTERVENTION]},
+            {"id": "2", "interventions": [PREP_PILL_INTERVENTION]},
+            {"id": "3", "combines": ["1", "2"]},
         ]
     }
     with pytest.raises(ValidationError, match="share product"):
@@ -249,10 +265,20 @@ def test_duplicate_products_across_combined_scenarios_raises():
 
 def test_sd_must_be_non_negative():
     data = {
-        "scenario_definitions": [
+        "scenarios": [
             {
-                "id": 1,
-                "interventions": [{**PREP_PILL_INTERVENTION, "parameters": {"efficacy": {"mean": 0.9, "sd": -0.1}}}],
+                "id": "1",
+                "interventions": [
+                    {
+                        **PREP_PILL_INTERVENTION,
+                        "parameters": {
+                            "efficacy": {"mean": 0.9, "sd": -0.1},
+                            "adherence": {"mean": 0.8, "sd": 0.1},
+                            "target_coverage": {"mean": 0.1, "sd": 0.01},
+                            "target_year": {"mean": 2028, "sd": 2},
+                        },
+                    }
+                ],
             }
         ]
     }
@@ -273,12 +299,12 @@ def test_resolved_scenarios_count():
 def test_combined_resolved_has_merged_interventions():
     definition = ScenarioInput.model_validate(COMBINED_INPUT)
     resolved = definition.resolved_scenarios()
-    combined = next(r for r in resolved if r.id == 3)
+    combined = next(r for r in resolved if r.id == "3")
     assert len(combined.interventions) == 2
 
 
 # ---------------------------------------------------------------------------
-# generate_simulations
+# gen_simulations
 # ---------------------------------------------------------------------------
 
 
@@ -369,180 +395,159 @@ def test_gen_simulations_without_rng_creates_default_rng():
     assert isinstance(output, ScenarioSimulations)
 
 
+def test_no_targets_intervention_has_empty_targets_in_output():
+    """AHD treatment has no targets in its def; InterventionOut.targets should be empty."""
+    data = {
+        "scenarios": [
+            {
+                "id": "1",
+                "interventions": [
+                    {
+                        "product": "AHD treatment",
+                        "parameters": {
+                            "target_year": {"mean": 2028, "sd": 2},
+                            "target_coverage": {"mean": 0.5, "sd": 0.1},
+                            "reduction_in_mortality": {"mean": 0.3, "sd": 0.05},
+                        },
+                    }
+                ],
+            }
+        ]
+    }
+    definition = ScenarioInput.model_validate(data)
+    output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
+    assert output.scenarios[0].interventions[0].targets == []
+
+
+def test_categorical_params_passed_through_unchanged():
+    """Vaccine categorical params (vaccine_action_type, targeting) survive in the simulation draw."""
+    data = {
+        "scenarios": [
+            {
+                "id": "1",
+                "interventions": [
+                    {
+                        "product": "Vaccine",
+                        "targets": [{"population": "High risk heterosexual", "sex": "Female"}],
+                        "parameters": {
+                            "target_year": {"mean": 2030, "sd": 2},
+                            "target_coverage": {"mean": 0.5, "sd": 0.1},
+                            "reduction_in_susceptibility": {"mean": 0.6, "sd": 0.05},
+                            "reduction_in_infectiousness": {"mean": 0.4, "sd": 0.05},
+                            "increase_in_progression_time_to_aids": {"mean": 0.2, "sd": 0.02},
+                            "vaccine_duration_years": {"mean": 5, "sd": 1},
+                            "vaccine_action_type": "Take",
+                            "targeting": "Vaccinate only HIV-negative individuals",
+                            "behavior_change_reversal_vaccinated": {"mean": 0.1, "sd": 0.01},
+                            "behavior_change_reversal_all_adults": {"mean": 0.05, "sd": 0.005},
+                        },
+                    }
+                ],
+            }
+        ]
+    }
+    definition = ScenarioInput.model_validate(data)
+    output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
+    params = output.scenarios[0].simulations[0]["vaccine"].root
+    assert params["vaccine_action_type"] == "Take"
+    assert params["targeting"] == "Vaccinate only HIV-negative individuals"
+
+
 # ---------------------------------------------------------------------------
 # load_scenario_definition
 # ---------------------------------------------------------------------------
 
-from scenario_csv import COMBINED_CSV, CSV_HEADER, MULTI_PRODUCT_CSV, MULTI_PRODUCT_MULTI_POP_CSV  # noqa: E402
 
-
-def test_load_valid_file(write_csv):
-    path = write_csv(COMBINED_CSV, "scenario_definition.csv")
-    definition = load_scenario_definition(path)
-    assert len(definition.scenario_definitions) == 3
-
-
-def test_load_multi_row_scenario_collects_targets(write_csv):
-    path = write_csv(COMBINED_CSV, "scenario_definition.csv")
-    definition = load_scenario_definition(path)
-    single = next(s for s in definition.scenario_definitions if isinstance(s, SingleScenarioDef) and s.id == 1)
-    targets = single.interventions[0].targets
-    assert len(targets) == 2
-    assert targets[0].population == "High risk heterosexual"
-    assert targets[1].population == "Men who have sex with men"
-
-
-def test_load_inconsistent_params_for_same_product_raises(write_csv):
-    content = CSV_HEADER + (
-        "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,High risk heterosexual,Female\n"
-        "1,Daily PrEP,0.99,0.03,0.80,0.20,0.10,0.05,2027,2,Men who have sex with men,Male\n"
+def test_load_valid_json_file(tmp_path):
+    path = tmp_path / "scenarios.json"
+    path.write_text(
+        json.dumps({
+            "scenarios": [
+                {"id": "1", "interventions": [PREP_PILL_INTERVENTION]},
+                {"id": "2", "interventions": [DAILY_PREP_INTERVENTION]},
+            ]
+        })
     )
-    path = write_csv(content)
-    with pytest.raises(ValueError, match="efficacy mean"):
-        load_scenario_definition(path)
-
-
-def test_load_multi_product_scenario_creates_two_interventions(write_csv):
-    path = write_csv(MULTI_PRODUCT_CSV, "scenario_definition.csv")
     definition = load_scenario_definition(path)
-    s1 = next(s for s in definition.scenario_definitions if isinstance(s, SingleScenarioDef) and s.id == 1)
-    assert len(s1.interventions) == 2
-    products = {iv.product for iv in s1.interventions}
-    assert products == {"One month pill for PrEP", "Daily PrEP"}
+    assert len(definition.scenarios) == 2
+    assert definition.scenarios[0].id == "1"
 
 
-def test_load_multi_product_scenario_each_intervention_has_correct_target(write_csv):
-    path = write_csv(MULTI_PRODUCT_CSV, "scenario_definition.csv")
+def test_load_json_with_pjnz_names(tmp_path):
+    path = tmp_path / "scenarios.json"
+    path.write_text(
+        json.dumps({
+            "scenarios": [
+                {"id": "1", "pjnz_names": ["Zimbabwe", "Botswana"], "interventions": [PREP_PILL_INTERVENTION]},
+            ]
+        })
+    )
     definition = load_scenario_definition(path)
-    s1 = next(s for s in definition.scenario_definitions if isinstance(s, SingleScenarioDef) and s.id == 1)
-    pill = next(iv for iv in s1.interventions if iv.product == "One month pill for PrEP")
-    daily = next(iv for iv in s1.interventions if iv.product == "Daily PrEP")
-    assert len(pill.targets) == 1
-    assert pill.targets[0].population == "High risk heterosexual"
-    assert len(daily.targets) == 1
-    assert daily.targets[0].population == "High risk heterosexual"
+    assert definition.scenarios[0].pjnz_names == ["Zimbabwe", "Botswana"]
 
 
-def test_load_same_product_inconsistent_params_with_multi_product_raises(write_csv):
-    content = CSV_HEADER + (
-        "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,High risk heterosexual,Female\n"
-        "1,One month pill for PrEP,0.95,0.03,0.95,0.03,0.20,0.05,2028,2,High risk heterosexual,Female\n"
-        "1,Daily PrEP,0.99,0.03,0.80,0.20,0.10,0.05,2027,2,Men who have sex with men,Male\n"
+def test_load_json_combined_scenario(tmp_path):
+    path = tmp_path / "scenarios.json"
+    path.write_text(
+        json.dumps({
+            "scenarios": [
+                {"id": "1", "interventions": [PREP_PILL_INTERVENTION]},
+                {"id": "2", "interventions": [DAILY_PREP_INTERVENTION]},
+                {"id": "3", "combines": ["1", "2"]},
+            ]
+        })
     )
-    path = write_csv(content)
-    with pytest.raises(ValueError, match="efficacy mean"):
-        load_scenario_definition(path)
-
-
-def test_load_duplicate_target_for_same_product_raises(write_csv):
-    content = CSV_HEADER + (
-        "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,High risk heterosexual,Female\n"
-        "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,High risk heterosexual,Female\n"
-    )
-    path = write_csv(content)
-    with pytest.raises(ValueError, match="duplicate target"):
-        load_scenario_definition(path)
-
-
-def test_load_same_product_different_target_year_raises(write_csv):
-    content = CSV_HEADER + (
-        "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,High risk heterosexual,Female\n"
-        "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2030,2,Men who have sex with men,Male\n"
-    )
-    path = write_csv(content)
-    with pytest.raises(ValueError, match="target year mean"):
-        load_scenario_definition(path)
-
-
-def test_load_multi_product_multi_population_with_combined(write_csv):
-    path = write_csv(MULTI_PRODUCT_MULTI_POP_CSV, "scenario_definition.csv")
     definition = load_scenario_definition(path)
-    assert len(definition.scenario_definitions) == 3
-    s1 = next(s for s in definition.scenario_definitions if isinstance(s, SingleScenarioDef) and s.id == 1)
-    assert len(s1.interventions) == 3
-    products = {iv.product for iv in s1.interventions}
-    assert products == {"One month pill for PrEP", "Six month injectable PrEP", "bNABs"}
-    assert s1.interventions[0].targets[0].population == "High risk heterosexual"
-    assert s1.interventions[1].targets[0].population == "Men who have sex with men"
-    assert s1.interventions[2].targets[0].population == "Medium risk heterosexual"
+    assert len(definition.scenarios) == 3
+    assert isinstance(definition.scenarios[2], CombinedScenarioDef)
+
+
+def test_load_json_extra_fields_ignored(tmp_path):
+    path = tmp_path / "scenarios.json"
+    path.write_text(
+        json.dumps({
+            "scenarios": [
+                {
+                    "id": "1",
+                    "branch_probability": 0.25,
+                    "market_outcome": "Product A",
+                    "interventions": [PREP_PILL_INTERVENTION],
+                },
+            ]
+        })
+    )
+    definition = load_scenario_definition(path)
+    assert len(definition.scenarios) == 1
 
 
 def test_load_missing_file_raises(tmp_path):
     with pytest.raises(FileNotFoundError, match="not found"):
-        load_scenario_definition(tmp_path / "missing.csv")
+        load_scenario_definition(tmp_path / "missing.json")
 
 
-def test_load_non_csv_extension_raises(tmp_path):
-    path = tmp_path / "input.json"
-    path.write_text("{}")
-    with pytest.raises(ValueError, match=r"\.csv"):
+def test_load_unsupported_extension_raises(tmp_path):
+    path = tmp_path / "input.xlsx"
+    path.write_text("data")
+    with pytest.raises(ValueError, match=r"\.json"):
         load_scenario_definition(path)
 
 
-def test_load_invalid_csv_raises(tmp_path):
-    path = tmp_path / "bad.csv"
-    path.write_text(CSV_HEADER + "1,Daily PrEP,not-a-number,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops,both\n")
+def test_load_invalid_json_raises(tmp_path):
+    path = tmp_path / "bad.json"
+    path.write_text(
+        '{"scenarios": [{"id": "1", "interventions": [{"product": "Unknown product", "targets": [], "parameters": {}}]}]}'
+    )
     with pytest.raises(ValueError, match="Invalid scenario definition"):
         load_scenario_definition(path)
 
 
-def test_load_non_integer_number_raises(tmp_path):
-    path = tmp_path / "bad.csv"
-    path.write_text(CSV_HEADER + "1.5,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops,both\n")
-    with pytest.raises(ValueError, match="'Number' must be an integer"):
-        load_scenario_definition(path)
-
-
-def test_load_invalid_schema_raises(write_csv):
-    # Combined row references a non-existent single scenario ID.
-    content = CSV_HEADER + "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops,both\n99,1+42,,,,,,,,,,\n"
-    path = write_csv(content)
-    with pytest.raises(ValueError, match="Invalid scenario definition"):
-        load_scenario_definition(path)
-
-
-# ---------------------------------------------------------------------------
-# Column validation
-# ---------------------------------------------------------------------------
-
-
-def test_load_unknown_column_raises(write_csv):
-    bad_header = CSV_HEADER.rstrip("\n") + ",Extra column\n"
-    content = bad_header + "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops,both,oops\n"
-    path = write_csv(content)
-    with pytest.raises(ValueError, match="Unknown column"):
-        load_scenario_definition(path)
-
-
-def test_load_unknown_column_error_includes_expected(write_csv):
-    bad_header = CSV_HEADER.rstrip("\n") + ",Typo col\n"
-    content = bad_header + "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops,both,x\n"
-    path = write_csv(content)
-    with pytest.raises(ValueError, match="Expected columns"):
-        load_scenario_definition(path)
-
-
-def test_load_missing_column_raises(write_csv):
-    bad_header = CSV_HEADER.replace(",Sex\n", "\n")
-    content = bad_header + "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops\n"
-    path = write_csv(content)
-    with pytest.raises(ValueError, match="Missing column"):
-        load_scenario_definition(path)
-
-
-def test_load_proportion_params_have_0_1_bounds(write_csv):
-    path = write_csv(COMBINED_CSV, "scenario_definition.csv")
+def test_load_proportion_params_have_0_1_bounds(tmp_path):
+    path = tmp_path / "scenarios.json"
+    path.write_text(json.dumps({"scenarios": [{"id": "1", "interventions": [PREP_PILL_INTERVENTION]}]}))
     definition = load_scenario_definition(path)
-    single = next(s for s in definition.scenario_definitions if isinstance(s, SingleScenarioDef) and s.id == 1)
+    single = definition.scenarios[0]
+    iv = single.interventions[0]
     for param_name in ("efficacy", "adherence", "target_coverage"):
-        dist = single.interventions[0].parameters[param_name]
+        dist = getattr(iv.parameters, param_name)
         assert dist.min_value == 0.0, f"{param_name}.min_value"
         assert dist.max_value == 1.0, f"{param_name}.max_value"
-
-
-def test_load_missing_column_error_names_missing(write_csv):
-    bad_header = CSV_HEADER.replace(",Sex\n", "\n")
-    content = bad_header + "1,Daily PrEP,0.95,0.03,0.80,0.20,0.10,0.05,2027,2,key_pops\n"
-    path = write_csv(content)
-    with pytest.raises(ValueError, match="sex"):
-        load_scenario_definition(path)

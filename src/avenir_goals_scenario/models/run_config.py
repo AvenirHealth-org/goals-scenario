@@ -16,7 +16,7 @@ class RunConfig(BaseModel):
 
     Attributes:
         pjnz_dir (Path): Directory containing ``.PJNZ`` files.
-        definition_path (Path | None): Path to the scenario definition CSV file.
+        definition_path (Path | None): Path to the scenario definition JSON file.
             Required for the ``draw`` command and for ``run`` when draws are not
             pre-generated. Either ``definition_path``, ``scenario_path``, or
             both must be supplied for ``run``.
@@ -89,7 +89,7 @@ class RunConfig(BaseModel):
 
     @field_validator("definition_path")
     @classmethod
-    def _definition_path_must_be_csv(cls, v: Path | None) -> Path | None:
+    def _definition_path_must_be_json(cls, v: Path | None) -> Path | None:
         if v is None:
             return None
         path = v.expanduser().resolve()
@@ -99,8 +99,8 @@ class RunConfig(BaseModel):
         if not path.is_file():
             msg = f"definition_path is not a file: {path}"
             raise ValueError(msg)
-        if path.suffix.lower() != ".csv":
-            msg = f"definition_path must be a .csv file, got: {path.suffix or '(no extension)'}"
+        if path.suffix.lower() != ".json":
+            msg = f"definition_path must be a .json file, got: {path.suffix or '(no extension)'}"
             raise ValueError(msg)
         return path
 

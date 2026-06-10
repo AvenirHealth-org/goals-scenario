@@ -38,19 +38,19 @@ def _run_pjnz_scenario(
 
     start = datetime.datetime.now()
     simulations_out = [
-        run_simulation(params, simulation, config.output_indicators, output_years, scenario.interventions)
+        run_simulation(params, scenario.interventions, simulation, config.output_indicators, output_years)
         for simulation in scenario.simulations
     ]
     elapsed_ms = (datetime.datetime.now() - start).total_seconds() * 1000
     logger.debug(
         "Scenario run finished {} ({} simulation(s)) for {} in {}ms",
-        scenario.scenario_id,
+        scenario.id,
         len(scenario.simulations),
         pjnz_stem,
         elapsed_ms,
     )
     write_scenario_results(
-        scenario.scenario_id,
+        scenario.id,
         pjnz_stem,
         simulations_out,
         config.output_dir,
@@ -109,6 +109,13 @@ def run_scenario_analysis(config: RunConfig, simulations: ScenarioSimulations) -
     return _run_scenario_analysis(config, simulations, RunCallbacks())
 
 
+def _scenario_applies(scenario, pjnz_stem: str) -> bool:
+    """Return True if this scenario should run against the given PJNZ file."""
+    if scenario.pjnz_names is None:
+        return True
+    return pjnz_stem in scenario.pjnz_names
+
+
 def _run_scenario_analysis(
     config: RunConfig,
     simulations: ScenarioSimulations,
@@ -147,7 +154,12 @@ def _run_scenario_analysis(
             os.cpu_count(),
             config.n_workers,
         )
-        work_units = [(params_paths[p], p.stem, s, end_years[p]) for p in pjnz_files for s in simulations.scenarios]
+        work_units = [
+            (params_paths[p], p.stem, s, end_years[p])
+            for p in pjnz_files
+            for s in simulations.scenarios
+            if _scenario_applies(s, p.stem)
+        ]
         logger.info(
             "Running {} work unit(s) ({} PJNZ x {} scenario(s)) with n_workers={}",
             len(work_units),

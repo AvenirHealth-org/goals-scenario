@@ -140,7 +140,7 @@ def _prepare_simulations(config: RunConfig):
         return draw_simulations(definition_path, config.base_year, config.n_simulations, config.seed)
 
     if config.definition_path is None:
-        # We can ignore invalid argument error, we've validated this previous
+        # We can ignore invalid argument error, we've validated this previously
         return read_simulations(config.scenario_path)  # ty: ignore[invalid-argument-type]
 
     if config.scenario_path is None:

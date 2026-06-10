@@ -19,7 +19,7 @@ def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_data):
     tmp = tmp_path_factory.mktemp("integration")
 
     simulations = draw_simulations(
-        test_data / "scenario_descriptions.csv",
+        test_data / "scenario_definitions.json",
         base_year=_BASE_YEAR,
         n_simulations=_N_SIMULATIONS,
     )
