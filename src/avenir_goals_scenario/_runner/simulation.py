@@ -177,9 +177,9 @@ def _apply_vaccine(lp: LeapfrogParams, targets: list[PopulationTarget], draw: _V
     year_idx = _target_year_idx(lp, draw)
     for target in targets:
         if lp["rn_vac_cov_type"] == RN_Single:
-            lp["rn_vac_coverage"][RN_AllRisk, year_idx] = draw["target_coverage"]
+            lp["rn_vac_coverage_rg"][RN_AllRisk, year_idx] = draw["target_coverage"]
         else:
-            lp["rn_vac_coverage"][_pop_idx(target.population, female=(target.sex == "Female")), year_idx] = draw[
+            lp["rn_vac_coverage_rg"][_pop_idx(target.population, female=(target.sex == "Female")), year_idx] = draw[
                 "target_coverage"
             ]
     raise NotImplementedError("Vaccine parameters beyond target_coverage are not yet implemented in leapfrog.")
@@ -188,10 +188,10 @@ def _apply_vaccine(lp: LeapfrogParams, targets: list[PopulationTarget], draw: _V
 def _apply_cure(lp: LeapfrogParams, targets: list[PopulationTarget], draw: _CureDraw) -> None:
     year_idx = _target_year_idx(lp, draw)
     for target in targets:
-        if lp["rn_cure_cov_type"] == RN_Single:
-            lp["rn_cure_coverage"][RN_AllRisk, year_idx] = draw["target_coverage"]
+        if lp["rn_cure_coverage_type"] == RN_Single:
+            lp["rn_cure_coverage_rg"][RN_AllRisk, year_idx] = draw["target_coverage"]
         else:
-            lp["rn_cure_coverage"][_pop_idx(target.population, female=(target.sex == "Female")), year_idx] = draw[
+            lp["rn_cure_coverage_rg"][_pop_idx(target.population, female=(target.sex == "Female")), year_idx] = draw[
                 "target_coverage"
             ]
     raise NotImplementedError("Cure parameters 'efficacy' and 'duration_of_cure' are not yet implemented in leapfrog.")
@@ -199,7 +199,7 @@ def _apply_cure(lp: LeapfrogParams, targets: list[PopulationTarget], draw: _Cure
 
 def _apply_ahd(lp: LeapfrogParams, draw: _AHDTreatmentDraw) -> None:
     year_idx = _target_year_idx(lp, draw)
-    lp["rn_ahd_treatment_coverage"][year_idx] = draw["target_coverage"]
+    lp["rn_ahd_treat_cov"][year_idx] = draw["target_coverage"]
     raise NotImplementedError("AHD treatment parameter 'reduction_in_mortality' is not yet implemented in leapfrog.")
 
 
@@ -207,7 +207,7 @@ def _apply_poc(lp: LeapfrogParams, poc_type: int, draw: _POCTestDraw) -> None:
     """Apply point-of-care test coverage. *poc_type* is ``RN_POC_CD4_Int`` or ``RN_POC_VL_Int``."""
     year_idx = _target_year_idx(lp, draw)
     rn_poc = RN_POC_CD4 if poc_type == RN_POC_CD4_Int else RN_POC_VL
-    lp["rn_poc_coverage"][rn_poc, year_idx] = draw["target_coverage"]
+    lp["rn_poc_cov"][rn_poc, year_idx] = draw["target_coverage"]
     raise NotImplementedError("POC test parameter 'effect' is not yet implemented in leapfrog.")
 
 
