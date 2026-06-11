@@ -10,8 +10,15 @@ from SpectrumCommon.Const.RN import (
     RN_POC_VL,
     RN_Adherence,
     RN_AllRisk,
+    RN_DegreeAction,
+    RN_Duration,
     RN_Effectiveness,
+    RN_Efficacy,
+    RN_Infectiousness,
+    RN_Progression,
     RN_Single,
+    RN_TakeAction,
+    RN_Type,
 )
 
 from avenir_goals_scenario._runner.simulation import apply_simulation
@@ -56,29 +63,34 @@ def _vaccine_params(*, single: bool = True) -> dict:
     return {
         "projection_start_year": _START_YEAR,
         "rn_vac_cov_type": RN_Single if single else RN_Single + 1,
-        "rn_vac_coverage": np.zeros((_N_VAC_POPS, _N_YEARS)),
+        "rn_vac_coverage_rg": np.zeros((_N_VAC_POPS, _N_YEARS)),
+        "rn_vac_params": np.zeros(5),  # Efficacy=0, Infectiousness=1, Progression=2, Duration=3, Type=4
+        "rn_vac_targetting": 0,
     }
 
 
 def _cure_params(*, single: bool = True) -> dict:
     return {
         "projection_start_year": _START_YEAR,
-        "rn_cure_cov_type": RN_Single if single else RN_Single + 1,
-        "rn_cure_coverage": np.zeros((_N_VAC_POPS, _N_YEARS)),
+        "rn_cure_coverage_type": RN_Single if single else RN_Single + 1,
+        "rn_cure_coverage_rg": np.zeros((_N_VAC_POPS, _N_YEARS)),
+        "rn_cure_effect": np.zeros(4),  # Efficacy=0, Duration=3
     }
 
 
 def _ahd_params() -> dict:
     return {
         "projection_start_year": _START_YEAR,
-        "rn_ahd_treatment_coverage": np.zeros(_N_YEARS),
+        "rn_ahd_treat_cov": np.zeros(_N_YEARS),
+        "rn_ahd_treat_reduc_mort": 0.0,
     }
 
 
 def _poc_params() -> dict:
     return {
         "projection_start_year": _START_YEAR,
-        "rn_poc_coverage": np.zeros((2, _N_YEARS)),  # [CD4=0, VL=1]
+        "rn_poc_cov": np.zeros((2, _N_YEARS)),  # [CD4=0, VL=1]
+        "rn_poc_effect": np.zeros(2),
     }
 
 
@@ -172,7 +184,7 @@ def test_prep_does_not_write_other_products():
 # ---------------------------------------------------------------------------
 
 
-def test_vaccine_single_coverage_writes_all_risk_and_raises():
+def test_vaccine_single_coverage_writes_all_risk():
     lp = _vaccine_params(single=True)
     ivs = _iv("vaccine", "Vaccine", [_msm()])
     sim = _sim(
@@ -182,20 +194,24 @@ def test_vaccine_single_coverage_writes_all_risk_and_raises():
         reduction_in_infectiousness=0.4,
         increase_in_progression_time_to_aids=0.2,
         vaccine_duration_years=10.0,
-        vaccine_action_type="take",
-        targeting="vaccinate_without_hiv_testing",
+        vaccine_action_type="Take",
+        targeting="Vaccinate without HIV testing",
         behavior_change_reversal_vaccinated=0.0,
         behavior_change_reversal_all_adults=0.0,
     )
 
-    with pytest.raises(NotImplementedError, match="Vaccine parameters"):
-        apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim)
 
-    # Coverage was written before the error
-    assert lp["rn_vac_coverage"][RN_AllRisk, _TARGET_YEAR_IDX] == pytest.approx(0.50)
+    assert lp["rn_vac_coverage_rg"][RN_AllRisk, _TARGET_YEAR_IDX] == pytest.approx(0.50)
+    assert lp["rn_vac_params"][RN_Efficacy] == pytest.approx(0.6)
+    assert lp["rn_vac_params"][RN_Infectiousness] == pytest.approx(0.4)
+    assert lp["rn_vac_params"][RN_Progression] == pytest.approx(0.2)
+    assert lp["rn_vac_params"][RN_Duration] == pytest.approx(10.0)
+    assert lp["rn_vac_params"][RN_Type] == RN_TakeAction - RN_TakeAction  # 0
+    assert lp["rn_vac_targetting"] == 0
 
 
-def test_vaccine_per_population_coverage_writes_female_map_and_raises():
+def test_vaccine_per_population_coverage_writes_female_map():
     lp = _vaccine_params(single=False)
     target = PopulationTarget(population="High risk heterosexual", sex="Female")
     ivs = _iv("vaccine", "Vaccine", [target])
@@ -206,44 +222,87 @@ def test_vaccine_per_population_coverage_writes_female_map_and_raises():
         reduction_in_infectiousness=0.4,
         increase_in_progression_time_to_aids=0.2,
         vaccine_duration_years=10.0,
-        vaccine_action_type="take",
-        targeting="vaccinate_without_hiv_testing",
+        vaccine_action_type="Degree",
+        targeting="Vaccinate only HIV-negative individuals",
         behavior_change_reversal_vaccinated=0.0,
         behavior_change_reversal_all_adults=0.0,
     )
 
-    with pytest.raises(NotImplementedError, match="Vaccine parameters"):
+    apply_simulation(lp, ivs, sim)
+
+    assert lp["rn_vac_coverage_rg"][RN_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.40)
+    assert lp["rn_vac_params"][RN_Type] == RN_DegreeAction - RN_TakeAction  # 1
+    assert lp["rn_vac_targetting"] == 1
+
+
+def test_vaccine_invalid_action_type_raises():
+    lp = _vaccine_params(single=True)
+    ivs = _iv("vaccine", "Vaccine", [_msm()])
+    sim = _sim(
+        "vaccine",
+        target_coverage=0.50,
+        reduction_in_susceptibility=0.6,
+        reduction_in_infectiousness=0.4,
+        increase_in_progression_time_to_aids=0.2,
+        vaccine_duration_years=10.0,
+        vaccine_action_type="Invalid",
+        targeting="Vaccinate without HIV testing",
+        behavior_change_reversal_vaccinated=0.0,
+        behavior_change_reversal_all_adults=0.0,
+    )
+
+    with pytest.raises(ValueError, match="vaccine_action_type"):
         apply_simulation(lp, ivs, sim)
 
-    assert lp["rn_vac_coverage"][RN_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.40)
+
+def test_vaccine_invalid_targeting_raises():
+    lp = _vaccine_params(single=True)
+    ivs = _iv("vaccine", "Vaccine", [_msm()])
+    sim = _sim(
+        "vaccine",
+        target_coverage=0.50,
+        reduction_in_susceptibility=0.6,
+        reduction_in_infectiousness=0.4,
+        increase_in_progression_time_to_aids=0.2,
+        vaccine_duration_years=10.0,
+        vaccine_action_type="Take",
+        targeting="Invalid",
+        behavior_change_reversal_vaccinated=0.0,
+        behavior_change_reversal_all_adults=0.0,
+    )
+
+    with pytest.raises(ValueError, match="targeting"):
+        apply_simulation(lp, ivs, sim)
 
 
 # ---------------------------------------------------------------------------
-# Cure — not yet fully implemented; partial coverage write is expected
+# Cure
 # ---------------------------------------------------------------------------
 
 
-def test_cure_single_coverage_writes_all_risk_and_raises():
+def test_cure_single_coverage_writes_all_risk():
     lp = _cure_params(single=True)
     ivs = _iv("cure", "Cure", [_hrh_f()])
     sim = _sim("cure", target_coverage=0.30, efficacy=0.80, duration_of_cure=5.0)
 
-    with pytest.raises(NotImplementedError, match="duration_of_cure"):
-        apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim)
 
-    assert lp["rn_cure_coverage"][RN_AllRisk, _TARGET_YEAR_IDX] == pytest.approx(0.30)
+    assert lp["rn_cure_coverage_rg"][RN_AllRisk, _TARGET_YEAR_IDX] == pytest.approx(0.30)
+    assert lp["rn_cure_effect"][RN_Efficacy] == pytest.approx(0.80)
+    assert lp["rn_cure_effect"][RN_Duration] == pytest.approx(5.0)
 
 
-def test_cure_per_population_coverage_writes_female_map_and_raises():
+def test_cure_per_population_coverage_writes_female_map():
     lp = _cure_params(single=False)
     target = PopulationTarget(population="High risk heterosexual", sex="Female")
     ivs = _iv("cure", "Cure", [target])
     sim = _sim("cure", target_coverage=0.25, efficacy=0.75, duration_of_cure=3.0)
 
-    with pytest.raises(NotImplementedError, match="duration_of_cure"):
-        apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim)
 
-    assert lp["rn_cure_coverage"][RN_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.25)
+    assert lp["rn_cure_coverage_rg"][RN_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.25)
+    assert lp["rn_cure_effect"][RN_Efficacy] == pytest.approx(0.75)
+    assert lp["rn_cure_effect"][RN_Duration] == pytest.approx(3.0)
 
 
 # ---------------------------------------------------------------------------
@@ -251,15 +310,15 @@ def test_cure_per_population_coverage_writes_female_map_and_raises():
 # ---------------------------------------------------------------------------
 
 
-def test_ahd_treatment_writes_coverage_and_raises():
+def test_ahd_treatment_writes_coverage_and_mortality_reduction():
     lp = _ahd_params()
     ivs = _iv("ahd_treatment", "AHD treatment", [])
     sim = _sim("ahd_treatment", target_coverage=0.80, reduction_in_mortality=0.60)
 
-    with pytest.raises(NotImplementedError, match="reduction_in_mortality"):
-        apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim)
 
-    assert lp["rn_ahd_treatment_coverage"][_TARGET_YEAR_IDX] == pytest.approx(0.80)
+    assert lp["rn_ahd_treat_cov"][_TARGET_YEAR_IDX] == pytest.approx(0.80)
+    assert lp["rn_ahd_treat_reduc_mort"] == pytest.approx(0.60)
 
 
 # ---------------------------------------------------------------------------
@@ -267,26 +326,26 @@ def test_ahd_treatment_writes_coverage_and_raises():
 # ---------------------------------------------------------------------------
 
 
-def test_poc_viral_load_writes_coverage_and_raises():
+def test_poc_viral_load_writes_coverage_and_effect():
     lp = _poc_params()
     ivs = _iv("point_of_care_viral_load_test", "Point of care viral load test", [])
     sim = _sim("point_of_care_viral_load_test", target_coverage=0.70, effect=0.12)
 
-    with pytest.raises(NotImplementedError, match="effect"):
-        apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim)
 
-    assert lp["rn_poc_coverage"][RN_POC_VL, _TARGET_YEAR_IDX] == pytest.approx(0.70)
+    assert lp["rn_poc_cov"][RN_POC_VL, _TARGET_YEAR_IDX] == pytest.approx(0.70)
+    assert lp["rn_poc_effect"][RN_POC_VL] == pytest.approx(0.12)
 
 
-def test_poc_cd4_writes_coverage_and_raises():
+def test_poc_cd4_writes_coverage_and_effect():
     lp = _poc_params()
     ivs = _iv("point_of_care_cd4_test", "Point of care CD4 test", [])
     sim = _sim("point_of_care_cd4_test", target_coverage=0.65, effect=0.25)
 
-    with pytest.raises(NotImplementedError, match="effect"):
-        apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim)
 
-    assert lp["rn_poc_coverage"][RN_POC_CD4, _TARGET_YEAR_IDX] == pytest.approx(0.65)
+    assert lp["rn_poc_cov"][RN_POC_CD4, _TARGET_YEAR_IDX] == pytest.approx(0.65)
+    assert lp["rn_poc_effect"][RN_POC_CD4] == pytest.approx(0.25)
 
 
 # ---------------------------------------------------------------------------

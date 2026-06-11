@@ -20,9 +20,11 @@ from SpectrumCommon.Const.RN import (
     RN_AHDTreatment,
     RN_AllRisk,
     RN_CureAdultsChildren,
+    RN_DegreeAction,
     RN_Duration,
     RN_Effectiveness,
     RN_Efficacy,
+    RN_Infectiousness,
     RN_POC_CD4_Int,
     RN_POC_VL_Int,
     RN_PrEPbNABs,
@@ -34,7 +36,10 @@ from SpectrumCommon.Const.RN import (
     RN_PrEPOralMonthly,
     RN_PrEPOralPlusCon,
     RN_PrEPRing,
+    RN_Progression,
     RN_Single,
+    RN_TakeAction,
+    RN_Type,
     RN_Vaccines,
 )
 
@@ -171,6 +176,8 @@ def _apply_prep(lp: LeapfrogParams, iv_id: str, targets: list[PopulationTarget],
     prep_offset = _interv_map[iv_id] - RN_PrEPOralDaily
     lp["prep_effectiveness"][prep_offset, RN_Effectiveness] = draw["efficacy"]
     lp["prep_effectiveness"][prep_offset, RN_Adherence] = draw["adherence"]
+    ## TODO: Do we need to set all other coverages to 0?
+    ## TODO: Set method mix coverage, not overall coverage? And set others to 0?
     for target in targets:
         lp["prep_cov"][_sex_idx(target.sex), _pop_idx(target.population), year_idx] = draw["target_coverage"]
 
@@ -184,7 +191,35 @@ def _apply_vaccine(lp: LeapfrogParams, targets: list[PopulationTarget], draw: _V
             lp["rn_vac_coverage_rg"][_pop_idx(target.population, female=(target.sex == "Female")), year_idx] = draw[
                 "target_coverage"
             ]
-    raise NotImplementedError("Vaccine parameters beyond target_coverage are not yet implemented in leapfrog.")
+    lp["rn_vac_params"][RN_Efficacy] = draw["reduction_in_susceptibility"]
+    lp["rn_vac_params"][RN_Infectiousness] = draw["reduction_in_infectiousness"]
+    lp["rn_vac_params"][RN_Progression] = draw["increase_in_progression_time_to_aids"]
+    lp["rn_vac_params"][RN_Duration] = draw["vaccine_duration_years"]
+
+    if draw["vaccine_action_type"] == "Take":
+        lp["rn_vac_params"][RN_Type] = RN_TakeAction - RN_TakeAction  # start count at 0 in lf
+    elif draw["vaccine_action_type"] == "Degree":
+        lp["rn_vac_params"][RN_Type] = RN_DegreeAction - RN_TakeAction
+    else:
+        msg = (
+            'Invalid value for vaccine intervention "vaccine_action_type" '
+            f"received {draw['vaccine_action_type']} must be either "
+            '"Take" or "Degree".'
+        )
+        raise ValueError(msg)
+
+    if draw["targeting"] == "Vaccinate without HIV testing":
+        lp["rn_vac_targetting"] = 0  # targeting turned off
+    elif draw["targeting"] == "Vaccinate only HIV-negative individuals":
+        lp["rn_vac_targetting"] = 1  # targeting turned on
+    else:
+        msg = (
+            'Invalid value for vaccine intervention "targeting" '
+            f"received {draw['targeting']} must be either "
+            '"Vaccinate without HIV testing" or '
+            '"Vaccinate only HIV-negative individuals".'
+        )
+        raise ValueError(msg)
 
 
 def _apply_cure(lp: LeapfrogParams, targets: list[PopulationTarget], draw: _CureDraw) -> None:
