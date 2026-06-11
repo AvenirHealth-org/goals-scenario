@@ -20,7 +20,9 @@ from SpectrumCommon.Const.RN import (
     RN_AHDTreatment,
     RN_AllRisk,
     RN_CureAdultsChildren,
+    RN_Duration,
     RN_Effectiveness,
+    RN_Efficacy,
     RN_POC_CD4_Int,
     RN_POC_VL_Int,
     RN_PrEPbNABs,
@@ -194,13 +196,14 @@ def _apply_cure(lp: LeapfrogParams, targets: list[PopulationTarget], draw: _Cure
             lp["rn_cure_coverage_rg"][_pop_idx(target.population, female=(target.sex == "Female")), year_idx] = draw[
                 "target_coverage"
             ]
-    raise NotImplementedError("Cure parameters 'efficacy' and 'duration_of_cure' are not yet implemented in leapfrog.")
+    lp["rn_cure_effect"][RN_Efficacy] = draw["efficacy"]
+    lp["rn_cure_effect"][RN_Duration] = draw["duration_of_cure"]
 
 
 def _apply_ahd(lp: LeapfrogParams, draw: _AHDTreatmentDraw) -> None:
     year_idx = _target_year_idx(lp, draw)
     lp["rn_ahd_treat_cov"][year_idx] = draw["target_coverage"]
-    raise NotImplementedError("AHD treatment parameter 'reduction_in_mortality' is not yet implemented in leapfrog.")
+    lp["rn_ahd_treat_reduc_mort"] = draw["reduction_in_mortality"]
 
 
 def _apply_poc(lp: LeapfrogParams, poc_type: int, draw: _POCTestDraw) -> None:
@@ -208,7 +211,7 @@ def _apply_poc(lp: LeapfrogParams, poc_type: int, draw: _POCTestDraw) -> None:
     year_idx = _target_year_idx(lp, draw)
     rn_poc = RN_POC_CD4 if poc_type == RN_POC_CD4_Int else RN_POC_VL
     lp["rn_poc_cov"][rn_poc, year_idx] = draw["target_coverage"]
-    raise NotImplementedError("POC test parameter 'effect' is not yet implemented in leapfrog.")
+    lp["rn_poc_effect"][rn_poc] = draw["effect"]
 
 
 def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict[str, float | int | str]) -> None:
