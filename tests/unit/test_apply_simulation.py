@@ -196,8 +196,6 @@ def test_vaccine_single_coverage_writes_all_risk():
         vaccine_duration_years=10.0,
         vaccine_action_type="Take",
         targeting="Vaccinate without HIV testing",
-        behavior_change_reversal_vaccinated=0.0,
-        behavior_change_reversal_all_adults=0.0,
     )
 
     apply_simulation(lp, ivs, sim)
@@ -224,8 +222,6 @@ def test_vaccine_per_population_coverage_writes_female_map():
         vaccine_duration_years=10.0,
         vaccine_action_type="Degree",
         targeting="Vaccinate only HIV-negative individuals",
-        behavior_change_reversal_vaccinated=0.0,
-        behavior_change_reversal_all_adults=0.0,
     )
 
     apply_simulation(lp, ivs, sim)
@@ -247,8 +243,6 @@ def test_vaccine_invalid_action_type_raises():
         vaccine_duration_years=10.0,
         vaccine_action_type="Invalid",
         targeting="Vaccinate without HIV testing",
-        behavior_change_reversal_vaccinated=0.0,
-        behavior_change_reversal_all_adults=0.0,
     )
 
     with pytest.raises(ValueError, match="vaccine_action_type"):
@@ -267,8 +261,6 @@ def test_vaccine_invalid_targeting_raises():
         vaccine_duration_years=10.0,
         vaccine_action_type="Take",
         targeting="Invalid",
-        behavior_change_reversal_vaccinated=0.0,
-        behavior_change_reversal_all_adults=0.0,
     )
 
     with pytest.raises(ValueError, match="targeting"):

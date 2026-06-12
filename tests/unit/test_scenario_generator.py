@@ -438,8 +438,6 @@ def test_categorical_params_passed_through_unchanged():
                             "vaccine_duration_years": {"mean": 5, "sd": 1},
                             "vaccine_action_type": "Take",
                             "targeting": "Vaccinate only HIV-negative individuals",
-                            "behavior_change_reversal_vaccinated": {"mean": 0.1, "sd": 0.01},
-                            "behavior_change_reversal_all_adults": {"mean": 0.05, "sd": 0.005},
                         },
                     }
                 ],

@@ -122,8 +122,6 @@ class VaccineParameters(BaseModel):
     vaccine_duration_years: NormalDistParameters
     vaccine_action_type: Literal["Take", "Degree"]
     targeting: Literal["Vaccinate without HIV testing", "Vaccinate only HIV-negative individuals"]
-    behavior_change_reversal_vaccinated: NormalDistParameters
-    behavior_change_reversal_all_adults: NormalDistParameters
 
     @model_validator(mode="after")
     def _apply_constraints(self) -> Self:
@@ -134,8 +132,6 @@ class VaccineParameters(BaseModel):
         self.increase_in_progression_time_to_aids = _apply_proportion_defaults(
             self.increase_in_progression_time_to_aids
         )
-        self.behavior_change_reversal_vaccinated = _apply_proportion_defaults(self.behavior_change_reversal_vaccinated)
-        self.behavior_change_reversal_all_adults = _apply_proportion_defaults(self.behavior_change_reversal_all_adults)
         return self
 
 

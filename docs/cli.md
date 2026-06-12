@@ -226,8 +226,6 @@ Each distribution is `{"mean": <float>, "sd": <float>}` with optional `min_value
 | `vaccine_duration_years` | Distribution | Vaccine duration in years |
 | `vaccine_action_type` | `"Take"` or `"Degree"` | Type of vaccine action on susceptibility |
 | `targeting` | `"Vaccinate without HIV testing"` or `"Vaccinate only HIV-negative individuals"` | Vaccination targeting strategy |
-| `behavior_change_reversal_vaccinated` | Distribution | Behaviour change reversal among vaccinated individuals (0–1) |
-| `behavior_change_reversal_all_adults` | Distribution | Behaviour change reversal among all adults (0–1) |
 
 ```json
 {
@@ -243,9 +241,7 @@ Each distribution is `{"mean": <float>, "sd": <float>}` with optional `min_value
     "increase_in_progression_time_to_aids":  {"mean": 0.20, "sd": 0.02},
     "vaccine_duration_years":                {"mean": 5,    "sd": 1},
     "vaccine_action_type":                   "Take",
-    "targeting":                             "Vaccinate only HIV-negative individuals",
-    "behavior_change_reversal_vaccinated":   {"mean": 0.10, "sd": 0.01},
-    "behavior_change_reversal_all_adults":   {"mean": 0.05, "sd": 0.005}
+    "targeting":                             "Vaccinate only HIV-negative individuals"
   }
 }
 ```

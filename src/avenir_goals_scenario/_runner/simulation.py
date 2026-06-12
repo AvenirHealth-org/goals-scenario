@@ -135,8 +135,6 @@ class _VaccineDraw(TypedDict):
     vaccine_duration_years: float
     vaccine_action_type: str
     targeting: str
-    behavior_change_reversal_vaccinated: float
-    behavior_change_reversal_all_adults: float
 
 
 class _CureDraw(TypedDict):
