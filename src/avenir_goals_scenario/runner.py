@@ -161,6 +161,7 @@ def _run_scenario_analysis(
     simulations: ScenarioSimulations,
     callbacks: RunCallbacks,
     log_queue: Queue | None = None,
+    pjnz_files: list[Path] | None = None,
 ) -> Path:
     """Internal run_scenario_analysis function.
 
@@ -181,7 +182,8 @@ def _run_scenario_analysis(
 
     config.output_dir.mkdir(exist_ok=True)
     _warn_if_output_exists(config.output_dir)
-    pjnz_files = _select_pjnz_files(config.pjnz_dir, simulations)
+    if pjnz_files is None:
+        pjnz_files = _select_pjnz_files(config.pjnz_dir, simulations)
     logger.info("Loading {} PJNZ file(s) from {}", len(pjnz_files), config.pjnz_dir)
 
     with tempfile.TemporaryDirectory() as tmp_dir:

@@ -1,7 +1,7 @@
-from typing import Annotated, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 
 class NormalDistParameters(BaseModel):
@@ -282,26 +282,46 @@ AnyInterventionDef = Annotated[
 
 
 class SingleScenarioDef(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     id: str
-    pjnz_names: list[str] | None = None
-    interventions: list[AnyInterventionDef] = Field(min_length=1)
+    pjnz_names: list[str] | None = Field(default=None, validation_alias=AliasChoices("pjnz_names", "pjnz"))
+    interventions: list[AnyInterventionDef] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_combines(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "combines" in data:
+            msg = "SingleScenarioDef does not accept 'combines'"
+            raise ValueError(msg)
+        return data
 
     @model_validator(mode="after")
     def _validate_unique_products(self) -> Self:
-        products = [iv.product for iv in self.interventions]
-        if len(products) != len(set(products)):
-            msg = "Interventions within a scenario must have unique product names."
-            raise ValueError(msg)
+        seen: set[tuple] = set()
+        for iv in self.interventions:
+            if isinstance(
+                iv, (PrepInterventionDef, VaccineInterventionDef, CureInterventionDef, LongActingTreatmentDef)
+            ):
+                keys: list[tuple] = [(iv.product, t.population, t.sex) for t in iv.targets]
+            else:
+                keys = [(iv.product,)]
+            for key in keys:
+                if key in seen:
+                    if len(key) == 1:
+                        msg = f"Interventions within a scenario contain duplicate product {key[0]!r}."
+                    else:
+                        msg = f"Interventions within a scenario contain duplicate (product, population, sex): {key[0]!r} / {key[1]!r} / {key[2]!r}."
+                    raise ValueError(msg)
+                seen.add(key)
         return self
 
 
 class CombinedScenarioDef(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     id: str
-    pjnz_names: list[str] | None = None
+    pjnz_names: list[str] | None = Field(default=None, validation_alias=AliasChoices("pjnz_names", "pjnz"))
     combines: list[str] = Field(min_length=2)
 
 
@@ -317,6 +337,31 @@ class ScenarioInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     scenarios: list[CombinedScenarioDef | SingleScenarioDef]
+
+    @staticmethod
+    def _intervention_keys(iv: AnyInterventionDef) -> list[tuple]:
+        if isinstance(iv, (PrepInterventionDef, VaccineInterventionDef, CureInterventionDef, LongActingTreatmentDef)):
+            return [(iv.product, t.population, t.sex) for t in iv.targets]
+        return [(iv.product,)]
+
+    @staticmethod
+    def _check_no_duplicate_keys(scenario_id: str, interventions: list[AnyInterventionDef]) -> None:
+        seen: set[tuple] = set()
+        for iv in interventions:
+            for key in ScenarioInput._intervention_keys(iv):
+                if key in seen:
+                    if len(key) == 1:
+                        msg = (
+                            f"Scenario {scenario_id} combines scenarios that share product {key[0]!r}. "
+                            "Products must be unique within a combined scenario."
+                        )
+                    else:
+                        msg = (
+                            f"Scenario {scenario_id} combines scenarios with duplicate "
+                            f"(product, population, sex) {key[0]!r} / {key[1]!r} / {key[2]!r}."
+                        )
+                    raise ValueError(msg)
+                seen.add(key)
 
     @model_validator(mode="after")
     def _validate_combines(self) -> Self:
@@ -342,16 +387,8 @@ class ScenarioInput(BaseModel):
                 if ref_id not in single:
                     msg = f"Scenario {s.id} references unknown scenario id {ref_id} in 'combines'."
                     raise ValueError(msg)
-            products = [iv.product for ref_id in s.combines for iv in single[ref_id].interventions]
-            seen: set[str] = set()
-            for product in products:
-                if product in seen:
-                    msg = (
-                        f"Scenario {s.id} combines scenarios that share product {product!r}. "
-                        "Products must be unique within a combined scenario."
-                    )
-                    raise ValueError(msg)
-                seen.add(product)
+            combined_ivs = [iv for ref_id in s.combines for iv in single[ref_id].interventions]
+            self._check_no_duplicate_keys(s.id, combined_ivs)
 
         return self
 

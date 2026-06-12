@@ -7,10 +7,9 @@ from rich.console import Console
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TaskID, TextColumn, TimeRemainingColumn
 from rich.traceback import Traceback
 
-from avenir_goals_scenario._runner.pjnz import find_pjnz_files
 from avenir_goals_scenario._runner.utils import RunCallbacks, get_effective_workers
 from avenir_goals_scenario.models import ScenarioSimulations
-from avenir_goals_scenario.runner import _run_scenario_analysis
+from avenir_goals_scenario.runner import _run_scenario_analysis, _select_pjnz_files
 
 console = Console()
 
@@ -122,9 +121,8 @@ def run_with_progress(config, simulations: ScenarioSimulations) -> None:
         config: Validated run configuration.
         simulations: Scenario simulations to run.
     """
-    pjnz_files = find_pjnz_files(config.pjnz_dir)
+    pjnz_files = _select_pjnz_files(config.pjnz_dir, simulations)
     n_pjnz = len(pjnz_files)
-    n_scenarios = len(simulations.scenarios)
 
     effective_workers = get_effective_workers(config)
     use_subprocess = effective_workers != 1
@@ -157,7 +155,10 @@ def run_with_progress(config, simulations: ScenarioSimulations) -> None:
         def on_imports_complete() -> None:
             import_progress.stop()
             for pjnz_path in pjnz_files:
-                scenario_tasks[pjnz_path.stem] = run_progress.add_task(pjnz_path.stem, total=n_scenarios)
+                stem = pjnz_path.stem
+                n_applicable = sum(1 for s in simulations.scenarios if s.pjnz_names is None or stem in s.pjnz_names)
+                if n_applicable > 0:
+                    scenario_tasks[stem] = run_progress.add_task(stem, total=n_applicable)
             run_progress.start()
 
         def on_scenario_complete(stem: str) -> None:
@@ -173,7 +174,7 @@ def run_with_progress(config, simulations: ScenarioSimulations) -> None:
             on_run_complete=on_run_complete,
         )
         import_progress.start()
-        _run_scenario_analysis(config, simulations, callbacks, log_queue=log_queue)
+        _run_scenario_analysis(config, simulations, callbacks, log_queue=log_queue, pjnz_files=pjnz_files)
     finally:
         # Make sure we call stop on these, in the case that a user
         # hits ctrl+c before we call it in the callbacks above

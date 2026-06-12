@@ -20,7 +20,6 @@ from SpectrumCommon.Const.RN import (
     RN_AHDTreatment,
     RN_AllRisk,
     RN_CureAdultsChildren,
-    RN_DegreeAction,
     RN_Duration,
     RN_Effectiveness,
     RN_Efficacy,
@@ -38,8 +37,6 @@ from SpectrumCommon.Const.RN import (
     RN_PrEPRing,
     RN_Progression,
     RN_Single,
-    RN_TakeAction,
-    RN_Type,
     RN_Vaccines,
 )
 
@@ -195,9 +192,12 @@ def _apply_vaccine(lp: LeapfrogParams, targets: list[PopulationTarget], draw: _V
     lp["rn_vac_params"][RN_Duration] = draw["vaccine_duration_years"]
 
     if draw["vaccine_action_type"] == "Take":
-        lp["rn_vac_params"][RN_Type] = RN_TakeAction - RN_TakeAction  # start count at 0 in lf
+        ## TODO: Implement these in model see issue https://trello.com/c/Qqzniap4
+        pass
+        # lp["rn_vac_params"][RN_Type] = RN_TakeAction - RN_TakeAction  # start count at 0 in lf
     elif draw["vaccine_action_type"] == "Degree":
-        lp["rn_vac_params"][RN_Type] = RN_DegreeAction - RN_TakeAction
+        pass
+        # lp["rn_vac_params"][RN_Type] = RN_DegreeAction - RN_TakeAction
     else:
         msg = (
             'Invalid value for vaccine intervention "vaccine_action_type" '
@@ -235,8 +235,9 @@ def _apply_cure(lp: LeapfrogParams, targets: list[PopulationTarget], draw: _Cure
 
 def _apply_ahd(lp: LeapfrogParams, draw: _AHDTreatmentDraw) -> None:
     year_idx = _target_year_idx(lp, draw)
-    lp["rn_ahd_treat_cov"][year_idx] = draw["target_coverage"]
-    lp["rn_ahd_treat_reduc_mort"] = draw["reduction_in_mortality"]
+    # TODO: fix typo in adh see https://trello.com/c/fEiv46rE
+    lp["rn_adh_treat_cov"][year_idx] = draw["target_coverage"]
+    lp["rn_adh_treat_reduc_mort"] = draw["reduction_in_mortality"]
 
 
 def _apply_poc(lp: LeapfrogParams, poc_type: int, draw: _POCTestDraw) -> None:

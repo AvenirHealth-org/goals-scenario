@@ -80,7 +80,9 @@ def _mock_pjnz_path(stem: str) -> MagicMock:
 
 def _make_mock_simulations(n: int = 2) -> MagicMock:
     mock = MagicMock()
-    mock.scenarios = [MagicMock() for _ in range(n)]
+    scenario = MagicMock()
+    scenario.pjnz_names = None  # applies to all countries
+    mock.scenarios = [scenario for _ in range(n)]
     return mock
 
 
@@ -90,7 +92,7 @@ def test_run_with_progress_calls_run_scenario_analysis():
     mock_scenarios = _make_mock_simulations(2)
 
     with (
-        patch("avenir_goals_scenario._cli.cli_utils.find_pjnz_files", return_value=mock_paths),
+        patch("avenir_goals_scenario._cli.cli_utils._select_pjnz_files", return_value=mock_paths),
         patch("avenir_goals_scenario._cli.cli_utils.get_effective_workers", return_value=1),
         patch("avenir_goals_scenario._cli.cli_utils._run_scenario_analysis") as mock_run,
     ):
@@ -104,14 +106,14 @@ def test_run_with_progress_exercises_all_callbacks():
     mock_paths = [_mock_pjnz_path("country")]
     mock_scenarios = _make_mock_simulations(1)
 
-    def fake_run(cfg, simulations, callbacks, log_queue=None):
+    def fake_run(cfg, simulations, callbacks, log_queue=None, pjnz_files=None):
         callbacks.on_pjnz_imported()
         callbacks.on_imports_complete()
         callbacks.on_scenario_complete("country")
         callbacks.on_run_complete()
 
     with (
-        patch("avenir_goals_scenario._cli.cli_utils.find_pjnz_files", return_value=mock_paths),
+        patch("avenir_goals_scenario._cli.cli_utils._select_pjnz_files", return_value=mock_paths),
         patch("avenir_goals_scenario._cli.cli_utils.get_effective_workers", return_value=1),
         patch("avenir_goals_scenario._cli.cli_utils._run_scenario_analysis", side_effect=fake_run),
     ):
@@ -124,7 +126,7 @@ def test_run_with_progress_stops_progress_on_exception():
     mock_scenarios = _make_mock_simulations(1)
 
     with (
-        patch("avenir_goals_scenario._cli.cli_utils.find_pjnz_files", return_value=mock_paths),
+        patch("avenir_goals_scenario._cli.cli_utils._select_pjnz_files", return_value=mock_paths),
         patch("avenir_goals_scenario._cli.cli_utils.get_effective_workers", return_value=1),
         patch("avenir_goals_scenario._cli.cli_utils._run_scenario_analysis", side_effect=RuntimeError("boom")),
         pytest.raises(RuntimeError, match="boom"),
@@ -143,7 +145,7 @@ def test_run_with_progress_with_multiple_workers_cleans_up():
     mock_listener = MagicMock()
 
     with (
-        patch("avenir_goals_scenario._cli.cli_utils.find_pjnz_files", return_value=mock_paths),
+        patch("avenir_goals_scenario._cli.cli_utils._select_pjnz_files", return_value=mock_paths),
         patch("avenir_goals_scenario._cli.cli_utils.get_effective_workers", return_value=2),
         patch("avenir_goals_scenario._cli.cli_utils.Manager", return_value=mock_manager),
         patch("avenir_goals_scenario._cli.cli_utils._make_log_queue_listener", return_value=mock_listener),

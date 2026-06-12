@@ -241,14 +241,28 @@ def test_combines_requires_at_least_two():
         ScenarioInput.model_validate(data)
 
 
-def test_duplicate_products_within_single_scenario_raises():
+def test_duplicate_product_population_within_single_scenario_raises():
     data = {
         "scenarios": [
             {"id": "1", "interventions": [PREP_PILL_INTERVENTION, PREP_PILL_INTERVENTION]},
         ]
     }
-    with pytest.raises(ValidationError, match="unique product names"):
+    with pytest.raises(ValidationError, match="duplicate"):
         ScenarioInput.model_validate(data)
+
+
+def test_same_product_different_populations_within_single_scenario_ok():
+    split_high_risk = {**PREP_PILL_INTERVENTION, "targets": [{"population": "High risk heterosexual", "sex": "Female"}]}
+    split_medium_risk = {
+        **PREP_PILL_INTERVENTION,
+        "targets": [{"population": "Medium risk heterosexual", "sex": "Female"}],
+    }
+    data = {
+        "scenarios": [
+            {"id": "1", "interventions": [split_high_risk, split_medium_risk]},
+        ]
+    }
+    ScenarioInput.model_validate(data)
 
 
 def test_duplicate_products_across_combined_scenarios_raises():
@@ -259,7 +273,7 @@ def test_duplicate_products_across_combined_scenarios_raises():
             {"id": "3", "combines": ["1", "2"]},
         ]
     }
-    with pytest.raises(ValidationError, match="share product"):
+    with pytest.raises(ValidationError, match="duplicate"):
         ScenarioInput.model_validate(data)
 
 
@@ -482,6 +496,22 @@ def test_load_json_with_pjnz_names(tmp_path):
     )
     definition = load_scenario_definition(path)
     assert definition.scenarios[0].pjnz_names == ["Zimbabwe", "Botswana"]
+
+
+def test_pjnz_alias_accepted_and_preserved_through_draw(tmp_path):
+    path = tmp_path / "scenarios.json"
+    path.write_text(
+        json.dumps({
+            "scenarios": [
+                {"id": "0", "pjnz": ["Zimbabwe", "Botswana"], "interventions": []},
+            ]
+        })
+    )
+    definition = load_scenario_definition(path)
+    assert definition.scenarios[0].pjnz_names == ["Zimbabwe", "Botswana"]
+
+    simulations = gen_simulations(definition, n_simulations=1)
+    assert simulations.scenarios[0].pjnz_names == ["Zimbabwe", "Botswana"]
 
 
 def test_load_json_combined_scenario(tmp_path):

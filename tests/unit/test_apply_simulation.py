@@ -10,15 +10,12 @@ from SpectrumCommon.Const.RN import (
     RN_POC_VL,
     RN_Adherence,
     RN_AllRisk,
-    RN_DegreeAction,
     RN_Duration,
     RN_Effectiveness,
     RN_Efficacy,
     RN_Infectiousness,
     RN_Progression,
     RN_Single,
-    RN_TakeAction,
-    RN_Type,
 )
 
 from avenir_goals_scenario._runner.simulation import apply_simulation
@@ -81,8 +78,8 @@ def _cure_params(*, single: bool = True) -> dict:
 def _ahd_params() -> dict:
     return {
         "projection_start_year": _START_YEAR,
-        "rn_ahd_treat_cov": np.zeros(_N_YEARS),
-        "rn_ahd_treat_reduc_mort": 0.0,
+        "rn_adh_treat_cov": np.zeros(_N_YEARS),
+        "rn_adh_treat_reduc_mort": 0.0,
     }
 
 
@@ -205,7 +202,7 @@ def test_vaccine_single_coverage_writes_all_risk():
     assert lp["rn_vac_params"][RN_Infectiousness] == pytest.approx(0.4)
     assert lp["rn_vac_params"][RN_Progression] == pytest.approx(0.2)
     assert lp["rn_vac_params"][RN_Duration] == pytest.approx(10.0)
-    assert lp["rn_vac_params"][RN_Type] == RN_TakeAction - RN_TakeAction  # 0
+    # assert lp["rn_vac_params"][RN_Type] == RN_TakeAction - RN_TakeAction  # 0
     assert lp["rn_vac_targetting"] == 0
 
 
@@ -227,7 +224,7 @@ def test_vaccine_per_population_coverage_writes_female_map():
     apply_simulation(lp, ivs, sim)
 
     assert lp["rn_vac_coverage_rg"][RN_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.40)
-    assert lp["rn_vac_params"][RN_Type] == RN_DegreeAction - RN_TakeAction  # 1
+    # assert lp["rn_vac_params"][RN_Type] == RN_DegreeAction - RN_TakeAction  # 1
     assert lp["rn_vac_targetting"] == 1
 
 
@@ -309,8 +306,8 @@ def test_ahd_treatment_writes_coverage_and_mortality_reduction():
 
     apply_simulation(lp, ivs, sim)
 
-    assert lp["rn_ahd_treat_cov"][_TARGET_YEAR_IDX] == pytest.approx(0.80)
-    assert lp["rn_ahd_treat_reduc_mort"] == pytest.approx(0.60)
+    assert lp["rn_adh_treat_cov"][_TARGET_YEAR_IDX] == pytest.approx(0.80)
+    assert lp["rn_adh_treat_reduc_mort"] == pytest.approx(0.60)
 
 
 # ---------------------------------------------------------------------------
