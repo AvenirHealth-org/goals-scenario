@@ -110,7 +110,7 @@ create_dummy_products <- function(path) {
   #            "Point of care CD4 test", "Point of care viral load test",
   #            "Long-acting treatment"
   #
-  # PopulationTarget populations (PrEP / Vaccine / Cure):
+  # Risk group populations (PrEP / Vaccine / Cure):
   #   "Low risk heterosexual", "Medium risk heterosexual", "High risk heterosexual",
   #   "People who inject drugs", "Men who have sex with men"
   #   sex: "Male", "Female", "Both"
@@ -277,7 +277,7 @@ create_dummy_countries <- function(path) {
 }
 
 create_dummy_archetypes <- function(path) {
-  # Canonical population names must match Python PopulationTarget Literal values.
+  # Canonical population names must match Python RiskGroup Literal values.
   readr::write_csv(tibble::tribble(
     ~Archetype,             ~`Target Population`,        ~coverage_multiplier,
     "Generalized - high",   "Medium risk heterosexual",  1.00,

@@ -25,8 +25,8 @@ from avenir_goals_scenario.models import (
 PREP_PILL_INTERVENTION = {
     "product": "One month pill for PrEP",
     "targets": [
-        {"population": "High risk heterosexual", "sex": "Female"},
-        {"population": "Men who have sex with men", "sex": "Male"},
+        {"risk_group": "High risk heterosexual", "sex": "Female"},
+        {"risk_group": "Men who have sex with men", "sex": "Male"},
     ],
     "parameters": {
         "efficacy": {"mean": 0.95, "sd": 0.03},
@@ -38,7 +38,7 @@ PREP_PILL_INTERVENTION = {
 
 DAILY_PREP_INTERVENTION = {
     "product": "Daily PrEP",
-    "targets": [{"population": "High risk heterosexual", "sex": "Female"}],
+    "targets": [{"risk_group": "High risk heterosexual", "sex": "Female"}],
     "parameters": {
         "efficacy": {"mean": 0.95, "sd": 0.03},
         "adherence": {"mean": 0.80, "sd": 0.20},
@@ -252,10 +252,10 @@ def test_duplicate_product_population_within_single_scenario_raises():
 
 
 def test_same_product_different_populations_within_single_scenario_ok():
-    split_high_risk = {**PREP_PILL_INTERVENTION, "targets": [{"population": "High risk heterosexual", "sex": "Female"}]}
+    split_high_risk = {**PREP_PILL_INTERVENTION, "targets": [{"risk_group": "High risk heterosexual", "sex": "Female"}]}
     split_medium_risk = {
         **PREP_PILL_INTERVENTION,
-        "targets": [{"population": "Medium risk heterosexual", "sex": "Female"}],
+        "targets": [{"risk_group": "Medium risk heterosexual", "sex": "Female"}],
     }
     data = {
         "scenarios": [
@@ -346,9 +346,9 @@ def test_intervention_out_has_targets():
     output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
     targets = output.scenarios[0].interventions[0].targets
     assert len(targets) == 2
-    assert targets[0].population == "High risk heterosexual"
+    assert targets[0].risk_group == "High risk heterosexual"
     assert targets[0].sex == "Female"
-    assert targets[1].population == "Men who have sex with men"
+    assert targets[1].risk_group == "Men who have sex with men"
     assert targets[1].sex == "Male"
 
 
@@ -442,7 +442,7 @@ def test_categorical_params_passed_through_unchanged():
                 "interventions": [
                     {
                         "product": "Vaccine",
-                        "targets": [{"population": "High risk heterosexual", "sex": "Female"}],
+                        "targets": [{"risk_group": "High risk heterosexual", "sex": "Female"}],
                         "parameters": {
                             "target_year": {"mean": 2030, "sd": 2},
                             "target_coverage": {"mean": 0.5, "sd": 0.1},

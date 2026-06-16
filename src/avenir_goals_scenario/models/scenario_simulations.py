@@ -1,8 +1,8 @@
 from pydantic import BaseModel, ConfigDict, RootModel
 
-from avenir_goals_scenario.models.scenario_definition import LongActingTreatmentTarget, PopulationTarget
+from avenir_goals_scenario.models.scenario_definition import LongActingTreatmentTarget, PrepTarget, VaccineCureTarget
 
-AnyTarget = PopulationTarget | LongActingTreatmentTarget
+AnyTarget = PrepTarget | VaccineCureTarget | LongActingTreatmentTarget
 
 
 class InterventionOut(BaseModel):

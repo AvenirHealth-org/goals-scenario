@@ -7,7 +7,7 @@
           "product": "One month pill for PrEP",
           "targets": [
             {
-              "population": "High risk heterosexual",
+              "risk_group": "High risk heterosexual",
               "sex": "Female"
             }
           ],
@@ -39,7 +39,7 @@
           "product": "Daily PrEP",
           "targets": [
             {
-              "population": "High risk heterosexual",
+              "risk_group": "High risk heterosexual",
               "sex": "Female"
             }
           ],
@@ -71,19 +71,19 @@
           "product": "One month pill for PrEP",
           "targets": [
             {
-              "population": "High risk heterosexual",
+              "risk_group": "High risk heterosexual",
               "sex": "Female"
             },
             {
-              "population": "Men who have sex with men",
+              "risk_group": "Men who have sex with men",
               "sex": "Male"
             },
             {
-              "population": "Medium risk heterosexual",
+              "risk_group": "Medium risk heterosexual",
               "sex": "Female"
             },
             {
-              "population": "Medium risk heterosexual",
+              "risk_group": "Medium risk heterosexual",
               "sex": "Male"
             }
           ],

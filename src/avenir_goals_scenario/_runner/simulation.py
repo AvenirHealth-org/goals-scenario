@@ -20,6 +20,7 @@ from SpectrumCommon.Const.RN import (
     RN_AHDTreatment,
     RN_AllRisk,
     RN_CureAdultsChildren,
+    RN_Diff,
     RN_Duration,
     RN_Effectiveness,
     RN_Efficacy,
@@ -43,8 +44,13 @@ from SpectrumCommon.Const.RN import (
 
 from avenir_goals_scenario._runner.indicator_dims import CALCULATED_INDICATORS
 from avenir_goals_scenario._scenario_generator.scenario_generator import _product_to_id
-from avenir_goals_scenario.models import PopulationTarget
-from avenir_goals_scenario.models.scenario_definition import PopulationName, PrepProduct, SexName
+from avenir_goals_scenario.models.scenario_definition import (
+    PrepProduct,
+    PrepTarget,
+    RiskGroupNames,
+    SexName,
+    VaccineCureTarget,
+)
 from avenir_goals_scenario.models.scenario_simulations import InterventionOut, InterventionSimulation
 
 # Opaque dict produced by import_pjnz() and modified in-place before running Goals.
@@ -74,14 +80,14 @@ _interv_map: dict[str, int] = {
 _PREP_IDS = frozenset(_product_to_id(p) for p in get_args(PrepProduct))
 
 
-def _pop_idx(pop: PopulationName, *, female: bool = False) -> int:
-    """Return the leapfrog population index for *pop*.
+def _risk_group_idx(risk_group: RiskGroupNames, *, female: bool = False) -> int:
+    """Return the leapfrog risk group index for *risk_group*.
 
     Pass ``female=True`` for vaccine/cure coverage arrays, where male and
     female populations have distinct indices. For PrEP, the sex dimension is
     a separate axis, so always use the default ``female=False``.
     """
-    match pop:
+    match risk_group:
         case "Low risk heterosexual":
             return RN_LRH_F if female else RN_LRH
         case "Medium risk heterosexual":
@@ -170,7 +176,7 @@ def _target_year_idx(lp: LeapfrogParams, draw: _Draw) -> int:
 # ---------------------------------------------------------------------------
 
 
-def _apply_prep(lp: LeapfrogParams, iv_id: str, targets: list[PopulationTarget], draw: _PrepDraw) -> None:
+def _apply_prep(lp: LeapfrogParams, iv_id: str, targets: list[PrepTarget], draw: _PrepDraw) -> None:
     year_idx = _target_year_idx(lp, draw)
     prep_offset = _interv_map[iv_id] - RN_PrEPOralDaily
     lp["prep_effectiveness"][prep_offset, RN_Effectiveness] = draw["efficacy"]
@@ -178,18 +184,28 @@ def _apply_prep(lp: LeapfrogParams, iv_id: str, targets: list[PopulationTarget],
     ## TODO: Do we need to set all other coverages to 0?
     ## TODO: Set method mix coverage, not overall coverage? And set others to 0?
     for target in targets:
-        lp["prep_cov"][_sex_idx(target.sex), _pop_idx(target.population), year_idx] = draw["target_coverage"]
+        lp["prep_cov"][_sex_idx(target.sex), _risk_group_idx(target.risk_group), year_idx] = draw["target_coverage"]
 
 
-def _apply_vaccine(lp: LeapfrogParams, targets: list[PopulationTarget], draw: _VaccineDraw) -> None:
+def _apply_vaccine(lp: LeapfrogParams, targets: list[VaccineCureTarget], draw: _VaccineDraw) -> None:
     year_idx = _target_year_idx(lp, draw)
     for target in targets:
-        if lp["rn_vac_cov_type"] == RN_Single:
+        if target.risk_group == "PLHIV":
+            lp["rn_vac_cov_type"] = RN_Single
             lp["rn_vac_coverage_rg"][RN_AllRisk, year_idx] = draw["target_coverage"]
-        else:
-            lp["rn_vac_coverage_rg"][_pop_idx(target.population, female=(target.sex == "Female")), year_idx] = draw[
+        elif target.sex == "Both" or target.sex is None:
+            lp["rn_vac_cov_type"] = RN_Diff
+            lp["rn_vac_coverage_rg"][_risk_group_idx(target.risk_group, female=False), year_idx] = draw[
                 "target_coverage"
             ]
+            lp["rn_vac_coverage_rg"][_risk_group_idx(target.risk_group, female=True), year_idx] = draw[
+                "target_coverage"
+            ]
+        else:
+            lp["rn_vac_cov_type"] = RN_Diff
+            lp["rn_vac_coverage_rg"][_risk_group_idx(target.risk_group, female=(target.sex == "Female")), year_idx] = (
+                draw["target_coverage"]
+            )
     lp["rn_vac_params"][RN_Efficacy] = draw["reduction_in_susceptibility"]
     lp["rn_vac_params"][RN_Infectiousness] = draw["reduction_in_infectiousness"]
     lp["rn_vac_params"][RN_Progression] = draw["increase_in_progression_time_to_aids"]
@@ -224,15 +240,25 @@ def _apply_vaccine(lp: LeapfrogParams, targets: list[PopulationTarget], draw: _V
         raise ValueError(msg)
 
 
-def _apply_cure(lp: LeapfrogParams, targets: list[PopulationTarget], draw: _CureDraw) -> None:
+def _apply_cure(lp: LeapfrogParams, targets: list[VaccineCureTarget], draw: _CureDraw) -> None:
     year_idx = _target_year_idx(lp, draw)
     for target in targets:
-        if lp["rn_cure_coverage_type"] == RN_Single:
+        if target.risk_group == "PLHIV":
+            lp["rn_cure_coverage_type"] = RN_Single
             lp["rn_cure_coverage_rg"][RN_AllRisk, year_idx] = draw["target_coverage"]
-        else:
-            lp["rn_cure_coverage_rg"][_pop_idx(target.population, female=(target.sex == "Female")), year_idx] = draw[
+        elif target.sex == "Both" or target.sex is None:
+            lp["rn_cure_coverage_type"] = RN_Diff
+            lp["rn_cure_coverage_rg"][_risk_group_idx(target.risk_group, female=False), year_idx] = draw[
                 "target_coverage"
             ]
+            lp["rn_cure_coverage_rg"][_risk_group_idx(target.risk_group, female=True), year_idx] = draw[
+                "target_coverage"
+            ]
+        else:
+            lp["rn_cure_coverage_type"] = RN_Diff
+            lp["rn_cure_coverage_rg"][_risk_group_idx(target.risk_group, female=(target.sex == "Female")), year_idx] = (
+                draw["target_coverage"]
+            )
     lp["rn_cure_effect"][RN_Efficacy] = draw["efficacy"]
     lp["rn_cure_effect"][RN_Duration] = draw["duration_of_cure"]
 
@@ -255,11 +281,11 @@ def _apply_poc(lp: LeapfrogParams, poc_type: int, draw: _POCTestDraw) -> None:
 def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict[str, float | int | str]) -> None:
     match iv.id:
         case prep_id if prep_id in _PREP_IDS:
-            _apply_prep(lp, prep_id, cast(list[PopulationTarget], iv.targets), cast(_PrepDraw, draw))
+            _apply_prep(lp, prep_id, cast(list[PrepTarget], iv.targets), cast(_PrepDraw, draw))
         case "vaccine":
-            _apply_vaccine(lp, cast(list[PopulationTarget], iv.targets), cast(_VaccineDraw, draw))
+            _apply_vaccine(lp, cast(list[VaccineCureTarget], iv.targets), cast(_VaccineDraw, draw))
         case "cure":
-            _apply_cure(lp, cast(list[PopulationTarget], iv.targets), cast(_CureDraw, draw))
+            _apply_cure(lp, cast(list[VaccineCureTarget], iv.targets), cast(_CureDraw, draw))
         case "ahd_treatment":
             _apply_ahd(lp, cast(_AHDTreatmentDraw, draw))
         case "point_of_care_viral_load_test":

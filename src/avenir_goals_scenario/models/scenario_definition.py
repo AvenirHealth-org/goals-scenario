@@ -52,35 +52,61 @@ def _apply_proportion_defaults(dist: NormalDistParameters) -> NormalDistParamete
 # Target types
 # ---------------------------------------------------------------------------
 
-PopulationName = Literal[
+RiskGroupNames = Literal[
     "Low risk heterosexual",
     "Medium risk heterosexual",
     "High risk heterosexual",
     "People who inject drugs",
     "Men who have sex with men",
 ]
+RiskGroupAndPlhivNames = Literal[RiskGroupNames, "PLHIV"]
 
 SexName = Literal["Male", "Female", "Both"]
 
 
-class PopulationTarget(BaseModel):
+class PrepTarget(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    population: PopulationName
+    risk_group: RiskGroupNames
     sex: SexName
 
     @model_validator(mode="after")
     def _validate_msm_sex(self) -> Self:
-        if self.population == "Men who have sex with men" and self.sex == "Female":
-            msg = "Population 'Men who have sex with men' cannot have sex='Female'."
+        if self.risk_group == "Men who have sex with men" and self.sex == "Female":
+            msg = "Risk group 'Men who have sex with men' cannot have sex='Female'."
             raise ValueError(msg)
+        return self
+
+
+class VaccineCureTarget(BaseModel):
+    """Target population for vaccine or cure interventions.
+
+    Either targets all PLHIV (risk_group="PLHIV", sex="Both" or None) or a
+    specific risk group with the standard MSM sex restriction.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    risk_group: RiskGroupAndPlhivNames
+    sex: SexName | None = None
+
+    @model_validator(mode="after")
+    def _validate(self) -> Self:
+        if self.risk_group == "PLHIV":
+            if self.sex not in (None, "Both"):
+                msg = "PLHIV target must have sex='Both' or sex=None (not 'Male' or 'Female')."
+                raise ValueError(msg)
+        else:
+            if self.risk_group == "Men who have sex with men" and self.sex == "Female":
+                msg = "Risk group 'Men who have sex with men' cannot have sex='Female'."
+                raise ValueError(msg)
         return self
 
 
 class LongActingTreatmentTarget(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    population: Literal[
+    risk_group: Literal[
         "Key populations",
         "General population",
         "Medium risk populations",
@@ -216,7 +242,7 @@ class PrepInterventionDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     product: PrepProduct
-    targets: list[PopulationTarget] = Field(min_length=1)
+    targets: list[PrepTarget] = Field(min_length=1)
     parameters: PrepParameters
 
 
@@ -224,7 +250,7 @@ class VaccineInterventionDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     product: Literal["Vaccine"]
-    targets: list[PopulationTarget] = Field(min_length=1)
+    targets: list[VaccineCureTarget] = Field(min_length=1)
     parameters: VaccineParameters
 
 
@@ -232,7 +258,7 @@ class CureInterventionDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     product: Literal["Cure"]
-    targets: list[PopulationTarget] = Field(min_length=1)
+    targets: list[VaccineCureTarget] = Field(min_length=1)
     parameters: CureParameters
 
 
@@ -304,7 +330,7 @@ class SingleScenarioDef(BaseModel):
             if isinstance(
                 iv, (PrepInterventionDef, VaccineInterventionDef, CureInterventionDef, LongActingTreatmentDef)
             ):
-                keys: list[tuple] = [(iv.product, t.population, t.sex) for t in iv.targets]
+                keys: list[tuple] = [(iv.product, t.risk_group, t.sex) for t in iv.targets]
             else:
                 keys = [(iv.product,)]
             for key in keys:
@@ -312,7 +338,7 @@ class SingleScenarioDef(BaseModel):
                     if len(key) == 1:
                         msg = f"Interventions within a scenario contain duplicate product {key[0]!r}."
                     else:
-                        msg = f"Interventions within a scenario contain duplicate (product, population, sex): {key[0]!r} / {key[1]!r} / {key[2]!r}."
+                        msg = f"Interventions within a scenario contain duplicate (product, risk_group, sex): {key[0]!r} / {key[1]!r} / {key[2]!r}."
                     raise ValueError(msg)
                 seen.add(key)
         return self
@@ -342,7 +368,7 @@ class ScenarioInput(BaseModel):
     @staticmethod
     def _intervention_keys(iv: AnyInterventionDef) -> list[tuple]:
         if isinstance(iv, (PrepInterventionDef, VaccineInterventionDef, CureInterventionDef, LongActingTreatmentDef)):
-            return [(iv.product, t.population, t.sex) for t in iv.targets]
+            return [(iv.product, t.risk_group, t.sex) for t in iv.targets]
         return [(iv.product,)]
 
     @staticmethod
