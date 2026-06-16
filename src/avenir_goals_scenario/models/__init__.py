@@ -1,5 +1,8 @@
 from avenir_goals_scenario.models.run_config import RunConfig
 from avenir_goals_scenario.models.scenario_definition import (
+    AdultARTInterventionDef,
+    AdultARTParameters,
+    AdultARTTarget,
     AHDTreatmentDef,
     AHDTreatmentParameters,
     AnyInterventionDef,
@@ -37,6 +40,9 @@ from avenir_goals_scenario.models.scenario_simulations import (
 __all__ = [
     "AHDTreatmentDef",
     "AHDTreatmentParameters",
+    "AdultARTInterventionDef",
+    "AdultARTParameters",
+    "AdultARTTarget",
     "AnyInterventionDef",
     "AnyTarget",
     "CombinedScenarioDef",

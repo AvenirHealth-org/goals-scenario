@@ -367,6 +367,41 @@ Same structure as Point of care viral load test.
 
 ---
 
+##### Adult ART
+
+`product`: `"Adult ART"`
+
+`targets`: one or more entries, each specifying a sex.
+
+| Field | Values |
+|---|---|
+| `sex` | `"Male"`, `"Female"`, `"Both"` |
+
+`parameters`:
+
+| Parameter | Description |
+|---|---|
+| `target_coverage` | Target ART coverage as a proportion (0–1) |
+| `target_year` | Target implementation year (integer ≥ 1970) |
+
+Coverage values are interpreted as proportions (ratio between 0 and 1). `adults_on_art_is_percent` is automatically set to 1 for the targeted sex and year.
+
+```json
+{
+  "product": "Adult ART",
+  "targets": [
+    {"sex": "Female"},
+    {"sex": "Male"}
+  ],
+  "parameters": {
+    "target_coverage": {"mean": 0.85, "sd": 0.05},
+    "target_year":     {"mean": 2028, "sd": 2}
+  }
+}
+```
+
+---
+
 ##### Long-acting treatment
 
 `product`: `"Long-acting treatment"`
