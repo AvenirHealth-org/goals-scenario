@@ -164,6 +164,17 @@ def test_run_simulation_calls_run_goals_and_extracts_indicators():
     assert list(result.keys()) == ["PLHIV"]
 
 
+def test_run_simulation_calculates_indicators_if_needed():
+    goals_output = {"p_totpop": np.ones((81, 2, 61)), "p_hivpop": np.ones((81, 2, 61))}
+    lp = {"hc_nosocomial_infections_by_age": np.array([[1, 2, 3, 4], [5, 6, 7, 8]])}
+    with patch("avenir_goals_scenario._runner.simulation.run_goals", return_value=goals_output) as _mock_goals:
+        result = run_simulation(lp, [], {}, ["p_prevalence", "p_incidence"], range(2020, 2025))
+
+    assert list(result.keys()) == ["p_prevalence", "p_incidence"]
+    assert result["p_prevalence"].shape == (81, 2, 61)
+    assert result["p_incidence"].shape == (81, 2, 61)
+
+
 # ---------------------------------------------------------------------------
 # _extract_indicators
 # ---------------------------------------------------------------------------
