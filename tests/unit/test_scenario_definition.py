@@ -12,6 +12,8 @@ from avenir_goals_scenario.models.scenario_definition import (
     POCTestParameters,
     PrepParameters,
     PrepTarget,
+    ScenarioInput,
+    SingleScenarioDef,
     VaccineCureTarget,
 )
 
@@ -191,3 +193,62 @@ def test_adult_art_parameters_preserves_custom_coverage_min():
     )
     assert params.target_coverage.min_value == 0.3
     assert params.target_coverage.max_value == 1.0
+
+
+# ---------------------------------------------------------------------------
+# SingleScenarioDef duplicate-product validation
+# ---------------------------------------------------------------------------
+
+_AHD_PARAMS = {
+    "target_year": {"mean": 2026, "sd": 1},
+    "target_coverage": {"mean": 0.7, "sd": 0.05},
+    "reduction_in_mortality": {"mean": 0.4, "sd": 0.05},
+}
+
+_ADULT_ART_PARAMS = {
+    "target_coverage": {"mean": 0.8, "sd": 0.05},
+    "target_year": {"mean": 2028, "sd": 2},
+}
+
+
+def test_single_scenario_duplicate_no_target_product_raises():
+    with pytest.raises(ValidationError, match="duplicate product 'AHD treatment'"):
+        SingleScenarioDef.model_validate({
+            "id": "s1",
+            "interventions": [
+                {"product": "AHD treatment", "parameters": _AHD_PARAMS},
+                {"product": "AHD treatment", "parameters": _AHD_PARAMS},
+            ],
+        })
+
+
+def test_single_scenario_duplicate_adult_art_sex_raises():
+    with pytest.raises(ValidationError, match=r"duplicate \(product, sex\).*Adult ART.*Female"):
+        SingleScenarioDef.model_validate({
+            "id": "s1",
+            "interventions": [
+                {"product": "Adult ART", "targets": [{"sex": "Female"}], "parameters": _ADULT_ART_PARAMS},
+                {"product": "Adult ART", "targets": [{"sex": "Female"}], "parameters": _ADULT_ART_PARAMS},
+            ],
+        })
+
+
+def test_combined_scenario_duplicate_adult_art_sex_raises():
+    with pytest.raises(ValidationError, match=r"duplicate \(product, sex\).*Adult ART.*Male"):
+        ScenarioInput.model_validate({
+            "scenarios": [
+                {
+                    "id": "a",
+                    "interventions": [
+                        {"product": "Adult ART", "targets": [{"sex": "Male"}], "parameters": _ADULT_ART_PARAMS},
+                    ],
+                },
+                {
+                    "id": "b",
+                    "interventions": [
+                        {"product": "Adult ART", "targets": [{"sex": "Male"}], "parameters": _ADULT_ART_PARAMS},
+                    ],
+                },
+                {"id": "c", "combines": ["a", "b"]},
+            ]
+        })

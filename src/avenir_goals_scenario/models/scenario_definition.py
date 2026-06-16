@@ -336,6 +336,15 @@ AnyInterventionDef = Annotated[
 # ---------------------------------------------------------------------------
 
 
+def _intervention_keys(iv: "AnyInterventionDef") -> list[tuple]:
+    """Return the uniqueness keys for *iv* used to detect duplicate interventions."""
+    if isinstance(iv, (PrepInterventionDef, VaccineInterventionDef, CureInterventionDef, LongActingTreatmentDef)):
+        return [(iv.product, t.risk_group, t.sex) for t in iv.targets]
+    if isinstance(iv, AdultARTInterventionDef):
+        return [(iv.product, t.sex) for t in iv.targets]
+    return [(iv.product,)]
+
+
 class SingleScenarioDef(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
@@ -355,15 +364,7 @@ class SingleScenarioDef(BaseModel):
     def _validate_unique_products(self) -> Self:
         seen: set[tuple] = set()
         for iv in self.interventions:
-            if isinstance(
-                iv, (PrepInterventionDef, VaccineInterventionDef, CureInterventionDef, LongActingTreatmentDef)
-            ):
-                keys: list[tuple] = [(iv.product, t.risk_group, t.sex) for t in iv.targets]
-            elif isinstance(iv, AdultARTInterventionDef):
-                keys = [(iv.product, t.sex) for t in iv.targets]
-            else:
-                keys = [(iv.product,)]
-            for key in keys:
+            for key in _intervention_keys(iv):
                 if key in seen:
                     if len(key) == 1:
                         msg = f"Interventions within a scenario contain duplicate product {key[0]!r}."
@@ -398,18 +399,10 @@ class ScenarioInput(BaseModel):
     scenarios: list[CombinedScenarioDef | SingleScenarioDef]
 
     @staticmethod
-    def _intervention_keys(iv: AnyInterventionDef) -> list[tuple]:
-        if isinstance(iv, (PrepInterventionDef, VaccineInterventionDef, CureInterventionDef, LongActingTreatmentDef)):
-            return [(iv.product, t.risk_group, t.sex) for t in iv.targets]
-        if isinstance(iv, AdultARTInterventionDef):
-            return [(iv.product, t.sex) for t in iv.targets]
-        return [(iv.product,)]
-
-    @staticmethod
     def _check_no_duplicate_keys(scenario_id: str, interventions: list[AnyInterventionDef]) -> None:
         seen: set[tuple] = set()
         for iv in interventions:
-            for key in ScenarioInput._intervention_keys(iv):
+            for key in _intervention_keys(iv):
                 if key in seen:
                     if len(key) == 1:
                         msg = (
