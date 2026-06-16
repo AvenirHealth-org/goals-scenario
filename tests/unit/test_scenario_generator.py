@@ -17,6 +17,7 @@ from avenir_goals_scenario.models import (
     ScenarioSimulations,
     SingleScenarioDef,
 )
+from avenir_goals_scenario.models.scenario_definition import PrepTarget
 
 # ---------------------------------------------------------------------------
 # Shared test data
@@ -346,8 +347,10 @@ def test_intervention_out_has_targets():
     output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
     targets = output.scenarios[0].interventions[0].targets
     assert len(targets) == 2
+    assert isinstance(targets[0], PrepTarget)
     assert targets[0].risk_group == "High risk heterosexual"
     assert targets[0].sex == "Female"
+    assert isinstance(targets[1], PrepTarget)
     assert targets[1].risk_group == "Men who have sex with men"
     assert targets[1].sex == "Male"
 

@@ -21,7 +21,7 @@ from SpectrumCommon.Const.RN import (
 
 from avenir_goals_scenario._runner.simulation import apply_simulation
 from avenir_goals_scenario.models import InterventionOut, InterventionSimulation, PrepTarget, VaccineCureTarget
-from avenir_goals_scenario.models.scenario_definition import LongActingTreatmentTarget
+from avenir_goals_scenario.models.scenario_definition import AdultARTTarget, LongActingTreatmentTarget
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -355,6 +355,78 @@ def test_poc_cd4_writes_coverage_and_effect():
 
     assert lp["rn_poc_cov"][RN_POC_CD4, _TARGET_YEAR_IDX] == pytest.approx(0.65)
     assert lp["rn_poc_effect"][RN_POC_CD4] == pytest.approx(0.25)
+
+
+# ---------------------------------------------------------------------------
+# Adult ART
+# ---------------------------------------------------------------------------
+
+_N_SEXES_ART = 2
+_N_YEARS_ART = 20
+
+
+def _adult_art_params() -> dict:
+    return {
+        "projection_start_year": _START_YEAR,
+        "adults_on_art": np.zeros((_N_SEXES_ART, _N_YEARS_ART)),
+        "adults_on_art_is_percent": np.zeros((_N_SEXES_ART, _N_YEARS_ART)),
+    }
+
+
+def test_adult_art_male_writes_male_index():
+    lp = _adult_art_params()
+    target = AdultARTTarget(sex="Male")
+    ivs = _iv("adult_art", "Adult ART", [target])
+    sim = _sim("adult_art", target_coverage=0.75)
+
+    apply_simulation(lp, ivs, sim)
+
+    assert lp["adults_on_art"][0, _TARGET_YEAR_IDX] == pytest.approx(0.75)
+    assert lp["adults_on_art"][1, _TARGET_YEAR_IDX] == 0.0
+    assert lp["adults_on_art_is_percent"][0, _TARGET_YEAR_IDX] == 1
+    assert lp["adults_on_art_is_percent"][1, _TARGET_YEAR_IDX] == 0
+
+
+def test_adult_art_female_writes_female_index():
+    lp = _adult_art_params()
+    target = AdultARTTarget(sex="Female")
+    ivs = _iv("adult_art", "Adult ART", [target])
+    sim = _sim("adult_art", target_coverage=0.60)
+
+    apply_simulation(lp, ivs, sim)
+
+    assert lp["adults_on_art"][0, _TARGET_YEAR_IDX] == 0.0
+    assert lp["adults_on_art"][1, _TARGET_YEAR_IDX] == pytest.approx(0.60)
+    assert lp["adults_on_art_is_percent"][0, _TARGET_YEAR_IDX] == 0
+    assert lp["adults_on_art_is_percent"][1, _TARGET_YEAR_IDX] == 1
+
+
+def test_adult_art_both_writes_male_and_female():
+    lp = _adult_art_params()
+    target = AdultARTTarget(sex="Both")
+    ivs = _iv("adult_art", "Adult ART", [target])
+    sim = _sim("adult_art", target_coverage=0.80)
+
+    apply_simulation(lp, ivs, sim)
+
+    assert lp["adults_on_art"][0, _TARGET_YEAR_IDX] == pytest.approx(0.80)
+    assert lp["adults_on_art"][1, _TARGET_YEAR_IDX] == pytest.approx(0.80)
+    assert lp["adults_on_art_is_percent"][0, _TARGET_YEAR_IDX] == 1
+    assert lp["adults_on_art_is_percent"][1, _TARGET_YEAR_IDX] == 1
+
+
+def test_adult_art_multiple_targets_writes_each():
+    lp = _adult_art_params()
+    targets = [AdultARTTarget(sex="Male"), AdultARTTarget(sex="Female")]
+    ivs = _iv("adult_art", "Adult ART", targets)
+    sim = _sim("adult_art", target_coverage=0.55)
+
+    apply_simulation(lp, ivs, sim)
+
+    assert lp["adults_on_art"][0, _TARGET_YEAR_IDX] == pytest.approx(0.55)
+    assert lp["adults_on_art"][1, _TARGET_YEAR_IDX] == pytest.approx(0.55)
+    assert lp["adults_on_art_is_percent"][0, _TARGET_YEAR_IDX] == 1
+    assert lp["adults_on_art_is_percent"][1, _TARGET_YEAR_IDX] == 1
 
 
 # ---------------------------------------------------------------------------

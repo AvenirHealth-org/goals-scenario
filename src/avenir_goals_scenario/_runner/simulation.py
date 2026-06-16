@@ -45,6 +45,7 @@ from SpectrumCommon.Const.RN import (
 from avenir_goals_scenario._runner.indicator_dims import CALCULATED_INDICATORS
 from avenir_goals_scenario._scenario_generator.scenario_generator import _product_to_id
 from avenir_goals_scenario.models.scenario_definition import (
+    AdultARTTarget,
     PrepProduct,
     PrepTarget,
     RiskGroupNames,
@@ -163,7 +164,12 @@ class _POCTestDraw(TypedDict):
     effect: float
 
 
-_Draw: TypeAlias = _PrepDraw | _VaccineDraw | _CureDraw | _AHDTreatmentDraw | _POCTestDraw
+class _AdultARTDraw(TypedDict):
+    target_year: int
+    target_coverage: float
+
+
+_Draw: TypeAlias = _PrepDraw | _VaccineDraw | _CureDraw | _AHDTreatmentDraw | _POCTestDraw | _AdultARTDraw
 
 
 def _target_year_idx(lp: LeapfrogParams, draw: _Draw) -> int:
@@ -270,6 +276,20 @@ def _apply_ahd(lp: LeapfrogParams, draw: _AHDTreatmentDraw) -> None:
     lp["rn_adh_treat_reduc_mort"] = draw["reduction_in_mortality"]
 
 
+def _apply_adult_art(lp: LeapfrogParams, targets: list[AdultARTTarget], draw: _AdultARTDraw) -> None:
+    year_idx = _target_year_idx(lp, draw)
+    for target in targets:
+        if target.sex == "Both":
+            sex_indices = [0, 1]
+        elif target.sex == "Male":
+            sex_indices = [0]
+        else:
+            sex_indices = [1]
+        for sex_idx in sex_indices:
+            lp["adults_on_art"][sex_idx, year_idx] = draw["target_coverage"]
+            lp["adults_on_art_is_percent"][sex_idx, year_idx] = 1
+
+
 def _apply_poc(lp: LeapfrogParams, poc_type: int, draw: _POCTestDraw) -> None:
     """Apply point-of-care test coverage. *poc_type* is ``RN_POC_CD4_Int`` or ``RN_POC_VL_Int``."""
     year_idx = _target_year_idx(lp, draw)
@@ -294,6 +314,8 @@ def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict[str, float | i
             _apply_poc(lp, RN_POC_CD4_Int, cast(_POCTestDraw, draw))
         case "long_acting_treatment":
             raise NotImplementedError("Long-acting treatment application is not yet implemented.")
+        case "adult_art":
+            _apply_adult_art(lp, cast(list[AdultARTTarget], iv.targets), cast(_AdultARTDraw, draw))
         case _:
             msg = f"Unknown intervention: {iv.id!r}"
             raise ValueError(msg)

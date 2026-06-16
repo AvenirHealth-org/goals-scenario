@@ -4,6 +4,8 @@ import pytest
 from pydantic import ValidationError
 
 from avenir_goals_scenario.models.scenario_definition import (
+    AdultARTParameters,
+    AdultARTTarget,
     CureParameters,
     LongActingTreatmentParameters,
     NormalDistParameters,
@@ -144,3 +146,48 @@ def test_lat_parameters_applies_proportion_defaults():
     assert params.interruption_rate_reduction.max_value == 1.0
     assert params.viral_load_suppression_ratio.min_value == 0.0
     assert params.viral_load_suppression_ratio.max_value == 1.0
+
+
+# ---------------------------------------------------------------------------
+# AdultARTTarget
+# ---------------------------------------------------------------------------
+
+
+def test_adult_art_target_male_is_valid():
+    t = AdultARTTarget(sex="Male")
+    assert t.sex == "Male"
+
+
+def test_adult_art_target_female_is_valid():
+    t = AdultARTTarget(sex="Female")
+    assert t.sex == "Female"
+
+
+def test_adult_art_target_both_is_valid():
+    t = AdultARTTarget(sex="Both")
+    assert t.sex == "Both"
+
+
+# ---------------------------------------------------------------------------
+# AdultARTParameters constraints
+# ---------------------------------------------------------------------------
+
+
+def test_adult_art_parameters_applies_constraints():
+    params = AdultARTParameters(
+        target_coverage=NormalDistParameters(mean=0.7, sd=0.05),
+        target_year=NormalDistParameters(mean=2030, sd=2),
+    )
+    assert params.target_coverage.min_value == 0.0
+    assert params.target_coverage.max_value == 1.0
+    assert params.target_year.integer is True
+    assert params.target_year.min_value == 1970
+
+
+def test_adult_art_parameters_preserves_custom_coverage_min():
+    params = AdultARTParameters(
+        target_coverage=NormalDistParameters(mean=0.7, sd=0.05, min_value=0.3),
+        target_year=NormalDistParameters(mean=2030, sd=2),
+    )
+    assert params.target_coverage.min_value == 0.3
+    assert params.target_coverage.max_value == 1.0

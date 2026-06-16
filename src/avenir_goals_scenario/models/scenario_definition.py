@@ -115,6 +115,12 @@ class LongActingTreatmentTarget(BaseModel):
     sex: SexName | None = None
 
 
+class AdultARTTarget(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sex: SexName
+
+
 # ---------------------------------------------------------------------------
 # Parameter models
 # ---------------------------------------------------------------------------
@@ -220,6 +226,19 @@ class LongActingTreatmentParameters(BaseModel):
         return self
 
 
+class AdultARTParameters(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_coverage: NormalDistParameters
+    target_year: NormalDistParameters
+
+    @model_validator(mode="after")
+    def _apply_constraints(self) -> Self:
+        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
+        self.target_year = _apply_year_constraint(self.target_year)
+        return self
+
+
 # ---------------------------------------------------------------------------
 # Intervention definition models (discriminated on product)
 # ---------------------------------------------------------------------------
@@ -291,6 +310,14 @@ class LongActingTreatmentDef(BaseModel):
     parameters: LongActingTreatmentParameters
 
 
+class AdultARTInterventionDef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product: Literal["Adult ART"]
+    targets: list[AdultARTTarget] = Field(min_length=1)
+    parameters: AdultARTParameters
+
+
 AnyInterventionDef = Annotated[
     PrepInterventionDef
     | VaccineInterventionDef
@@ -298,7 +325,8 @@ AnyInterventionDef = Annotated[
     | AHDTreatmentDef
     | POCViralLoadTestDef
     | POCCD4TestDef
-    | LongActingTreatmentDef,
+    | LongActingTreatmentDef
+    | AdultARTInterventionDef,
     Field(discriminator="product"),
 ]
 
@@ -331,12 +359,16 @@ class SingleScenarioDef(BaseModel):
                 iv, (PrepInterventionDef, VaccineInterventionDef, CureInterventionDef, LongActingTreatmentDef)
             ):
                 keys: list[tuple] = [(iv.product, t.risk_group, t.sex) for t in iv.targets]
+            elif isinstance(iv, AdultARTInterventionDef):
+                keys = [(iv.product, t.sex) for t in iv.targets]
             else:
                 keys = [(iv.product,)]
             for key in keys:
                 if key in seen:
                     if len(key) == 1:
                         msg = f"Interventions within a scenario contain duplicate product {key[0]!r}."
+                    elif len(key) == 2:
+                        msg = f"Interventions within a scenario contain duplicate (product, sex): {key[0]!r} / {key[1]!r}."
                     else:
                         msg = f"Interventions within a scenario contain duplicate (product, risk_group, sex): {key[0]!r} / {key[1]!r} / {key[2]!r}."
                     raise ValueError(msg)
@@ -369,6 +401,8 @@ class ScenarioInput(BaseModel):
     def _intervention_keys(iv: AnyInterventionDef) -> list[tuple]:
         if isinstance(iv, (PrepInterventionDef, VaccineInterventionDef, CureInterventionDef, LongActingTreatmentDef)):
             return [(iv.product, t.risk_group, t.sex) for t in iv.targets]
+        if isinstance(iv, AdultARTInterventionDef):
+            return [(iv.product, t.sex) for t in iv.targets]
         return [(iv.product,)]
 
     @staticmethod
@@ -381,6 +415,11 @@ class ScenarioInput(BaseModel):
                         msg = (
                             f"Scenario {scenario_id} combines scenarios that share product {key[0]!r}. "
                             "Products must be unique within a combined scenario."
+                        )
+                    elif len(key) == 2:
+                        msg = (
+                            f"Scenario {scenario_id} combines scenarios with duplicate "
+                            f"(product, sex) {key[0]!r} / {key[1]!r}."
                         )
                     else:
                         msg = (
