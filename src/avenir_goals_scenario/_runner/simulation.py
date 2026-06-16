@@ -26,6 +26,7 @@ from SpectrumCommon.Const.RN import (
     RN_Infectiousness,
     RN_POC_CD4_Int,
     RN_POC_VL_Int,
+    RN_PrEP_PEP,
     RN_PrEPbNABs,
     RN_PrEPImplant,
     RN_PrEPInject1Mo,
@@ -58,6 +59,7 @@ _interv_map: dict[str, int] = {
     "ring_prep": RN_PrEPRing,
     "implantable_prep": RN_PrEPImplant,
     "bnabs": RN_PrEPbNABs,
+    "pep": RN_PrEP_PEP,
     "vaccine": RN_Vaccines,
     "cure": RN_CureAdultsChildren,
     "ahd_treatment": RN_AHDTreatment,
@@ -65,6 +67,7 @@ _interv_map: dict[str, int] = {
     "point_of_care_viral_load_test": RN_POC_VL_Int,
     # "long_acting_treatment": RN_LongActingTreatment,
 }
+
 
 # Derived from PrepProduct so the two stay in sync automatically.
 _PREP_IDS = frozenset(_product_to_id(p) for p in get_args(PrepProduct))
@@ -312,6 +315,7 @@ def run_simulation(
         ValueError: If any indicator in *output_indicators* is absent from Goals output.
     """
     apply_simulation(leapfrog_params, interventions, simulation)
+    leapfrog_params["hc_nosocomial"] = leapfrog_params["hc_nosocomial_infections_by_age"][0, :]
     goals_output = run_goals(leapfrog_params, output_years)
     return _extract_indicators(goals_output, output_indicators)
 

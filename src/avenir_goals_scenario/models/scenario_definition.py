@@ -208,6 +208,7 @@ PrepProduct = Literal[
     "Ring PrEP",
     "Implantable PrEP",
     "bNABs",
+    "PEP",
 ]
 
 

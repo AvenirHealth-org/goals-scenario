@@ -16,21 +16,16 @@ check: ## Run code quality tools.
 .PHONY: audit
 audit: ## Run pip-audit.
 	@echo "🚀 Vulnerability check: Running pip-audit"
-## CVE-2026-4539: safe to ignore, pygments author says not a problem and
-## is a flase positive. Will be fixed come pygments 2.20 though.
 ## CVE-2024-23342: safe to ignore for now, we should switch to python-jose[cryptography]
 ## to avoid vulnerable ecdsa package for serialization but that still depends on
 ## ecdsa so won't resolve this
-## CVE-2026-3219: safe to ignore for now, vulnerability in pip which is pulled in
-## by pip-audit itself. Has been fixed in pip, we need pip-audit to update to use
-## the fixed version of pip.
-## CVE-2026-6357: vulnerability in pip pulled in by pip-audit. Need pip-audit
-## to update to use new version of pip
 ## CVE-2026-44432 and CVE-2026-44431: vulnerabilities in urllib, pulled in by
 ## avenir-common via azure-storage-blob. We should be able to remove the
 ## dependency on avenir-storage-blob in the future or at least update it to
 ## a newer version once one has been released.
-	@uv run pip-audit --desc -s osv --ignore-vuln CVE-2026-4539 --ignore-vuln CVE-2024-23342 --ignore-vuln CVE-2026-3219 --ignore-vuln CVE-2026-6357 --ignore-vuln CVE-2026-44432 --ignore-vuln CVE-2026-44431
+## GHSA-537c-gmf6-5ccf: vulnerabilities in cartography package pulled in
+## by azure-storage-blob fixed in 48.0.1
+	@uv run pip-audit --desc -s osv --ignore-vuln CVE-2024-23342 --ignore-vuln CVE-2026-44432 --ignore-vuln CVE-2026-44431 --ignore-vuln GHSA-537c-gmf6-5ccf
 
 .PHONY: test
 test: ## Test the code with pytest

@@ -56,7 +56,7 @@ wheels = [
 
 [[package]]
 name = "avenir-goals-scenario"
-version = "0.0.12"
+version = "0.0.13"
 source = { editable = "." }
 dependencies = [
     { name = "avenir-spectrum-common" },
@@ -88,7 +88,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "avenir-spectrum-common", specifier = ">=0.1.7" },
+    { name = "avenir-spectrum-common", specifier = ">=0.1.9" },
     { name = "avenir-spectrum-import-pjnz", specifier = ">=0.1.6" },
     { name = "leapfrog-goals", specifier = ">=0.0.5" },
     { name = "loguru", specifier = ">=0.7.3" },
@@ -105,7 +105,7 @@ dev = [
     { name = "mkdocs", specifier = ">=1.6.1" },
     { name = "mkdocs-material", specifier = ">=9.7.5" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.3" },
-    { name = "pip-audit", specifier = ">=2.10.0" },
+    { name = "pip-audit", specifier = ">=2.10.1" },
     { name = "pre-commit", specifier = ">=4.5.1" },
     { name = "pyinstaller", specifier = ">=6.20.0" },
     { name = "pytest", specifier = ">=9.0.2" },
@@ -117,7 +117,7 @@ dev = [
 
 [[package]]
 name = "avenir-spectrum-common"
-version = "0.1.7"
+version = "0.1.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "avenir-common" },
@@ -129,9 +129,9 @@ dependencies = [
     { name = "requests" },
     { name = "ujson" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cb/e6/871ceb30e6d8665e766ba65704a0b4e32073e797b5c0181d4cc6e3c1fbd7/avenir_spectrum_common-0.1.7.tar.gz", hash = "sha256:81deaffd780cda5926d44e1855bfb1b059d3f4c465e83bde964acf3bd142e1b6", size = 642933, upload-time = "2026-06-11T10:50:16.419Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/0e/f9cde67161754bedffec2563a041ccd52fb3732c32ad59417573e6411385/avenir_spectrum_common-0.1.9.tar.gz", hash = "sha256:b92de27a3b3259ad33a0971da85f4c44a2cc92e35b4b7e65f5412ce563ddb1c7", size = 642991, upload-time = "2026-06-15T08:53:25.346Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cc/50/201ec18b831b3374391881aa66b14e42a2c1b3fc0679198c5a28063a9f0a/avenir_spectrum_common-0.1.7-py3-none-any.whl", hash = "sha256:7c93ecd64b54a9efc5db9b20b709431ae2616bf0de71b45501c57fe25a0f235d", size = 722529, upload-time = "2026-06-11T10:50:18.271Z" },
+    { url = "https://files.pythonhosted.org/packages/af/ed/64c8861b2586c8fd5503163d73a639e7eeabb48332688305a30c361d6a2d/avenir_spectrum_common-0.1.9-py3-none-any.whl", hash = "sha256:dd0e7aa965d77f12352f85201f20ec2a44aa21765a946f69956956fd5ed7b842", size = 722548, upload-time = "2026-06-15T08:53:23.449Z" },
 ]
 
 [[package]]
@@ -1426,7 +1426,7 @@ wheels = [
 
 [[package]]
 name = "pip-audit"
-version = "2.10.0"
+version = "2.10.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cachecontrol", extra = ["filecache"] },
@@ -1440,9 +1440,9 @@ dependencies = [
     { name = "tomli" },
     { name = "tomli-w" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bd/89/0e999b413facab81c33d118f3ac3739fd02c0622ccf7c4e82e37cebd8447/pip_audit-2.10.0.tar.gz", hash = "sha256:427ea5bf61d1d06b98b1ae29b7feacc00288a2eced52c9c58ceed5253ef6c2a4", size = 53776, upload-time = "2025-12-01T23:42:40.612Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/66/a4/f21d5f0a0edabcbce31560b73c7c5a6f72ae87af4236fd1069c8f59a353d/pip_audit-2.10.1.tar.gz", hash = "sha256:1eb4565d19ebe5d48996f4b770b4d2b32887e12cb12cfa637f1a064011b55ffc", size = 54275, upload-time = "2026-06-10T22:17:01.744Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/be/f3/4888f895c02afa085630a3a3329d1b18b998874642ad4c530e9a4d7851fe/pip_audit-2.10.0-py3-none-any.whl", hash = "sha256:16e02093872fac97580303f0848fa3ad64f7ecf600736ea7835a2b24de49613f", size = 61518, upload-time = "2025-12-01T23:42:39.193Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/a7/b0c504148114047bd1bc9d97447453c6850ca176bb2f3c0038835994e8b7/pip_audit-2.10.1-py3-none-any.whl", hash = "sha256:99ef3f600a317c1945f1e89e227ef26e1c2d618429b8bd3fa6f4f7c440c4611a", size = 62023, upload-time = "2026-06-10T22:17:00.309Z" },
 ]
 
 [[package]]
