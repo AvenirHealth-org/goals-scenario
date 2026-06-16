@@ -179,7 +179,7 @@ def test_partition_path(tmp_path):
         "p_hivpop": (DimSpec("age"), DimSpec("sex", labels=["male", "female"])),
     }
     write_scenario_results(
-        scenario_id=7,
+        scenario_id="7",
         pjnz_name="Zimbabwe",
         sim_output=sim_output,
         output_dir=tmp_path,
@@ -205,7 +205,7 @@ def test_unknown_indicator_error(tmp_path):
     sim_output = [{"p_hivpop": np.asfortranarray(np.ones((3, 2)))}]
     with pytest.raises(UnknownIndicatorError):
         write_scenario_results(
-            scenario_id=1,
+            scenario_id="1",
             pjnz_name="Zimbabwe",
             sim_output=sim_output,
             output_dir=tmp_path,
@@ -225,7 +225,7 @@ def test_write_multiple_indicators(tmp_path):
         "p_infections": (DimSpec("age"), DimSpec("sex", labels=["male", "female"])),
     }
     write_scenario_results(
-        scenario_id=1,
+        scenario_id="1",
         pjnz_name="Kenya",
         sim_output=sim_output,
         output_dir=tmp_path,
@@ -244,7 +244,7 @@ def test_write_roundtrip(tmp_path):
         "p_hivpop": (DimSpec("age"), DimSpec("sex", labels=["male", "female"])),
     }
     write_scenario_results(
-        scenario_id=1,
+        scenario_id="1",
         pjnz_name="Zambia",
         sim_output=sim_output,
         output_dir=tmp_path,
@@ -271,7 +271,7 @@ def _write_indicator(tmp_path, shape):
     sim_output = [{"p_hivpop": np.asfortranarray(np.ones(shape))}]
     indicator_dims = {"p_hivpop": tuple(DimSpec(f"d{i}") for i in range(len(shape)))}
     write_scenario_results(
-        scenario_id=1,
+        scenario_id="1",
         pjnz_name="Kenya",
         sim_output=sim_output,
         output_dir=tmp_path,

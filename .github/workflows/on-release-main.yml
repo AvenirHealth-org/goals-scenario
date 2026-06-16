@@ -96,7 +96,7 @@ jobs:
 
           $runConfig = @{
             pjnz_dir          = "C:/test_data/pjnz/goals"
-            definition_path   = "C:/test_data/scenario_descriptions.csv"
+            definition_path   = "C:/test_data/scenario_definitions.json"
             scenario_path     = "C:/output/draws.json"
             output_dir        = "C:/output"
             base_year         = 2010

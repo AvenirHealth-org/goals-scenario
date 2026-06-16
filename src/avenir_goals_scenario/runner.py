@@ -38,19 +38,19 @@ def _run_pjnz_scenario(
 
     start = datetime.datetime.now()
     simulations_out = [
-        run_simulation(params, simulation, config.output_indicators, output_years, scenario.interventions)
+        run_simulation(params, scenario.interventions, simulation, config.output_indicators, output_years)
         for simulation in scenario.simulations
     ]
     elapsed_ms = (datetime.datetime.now() - start).total_seconds() * 1000
     logger.debug(
         "Scenario run finished {} ({} simulation(s)) for {} in {}ms",
-        scenario.scenario_id,
+        scenario.id,
         len(scenario.simulations),
         pjnz_stem,
         elapsed_ms,
     )
     write_scenario_results(
-        scenario.scenario_id,
+        scenario.id,
         pjnz_stem,
         simulations_out,
         config.output_dir,
@@ -109,11 +109,59 @@ def run_scenario_analysis(config: RunConfig, simulations: ScenarioSimulations) -
     return _run_scenario_analysis(config, simulations, RunCallbacks())
 
 
+def _scenario_applies(scenario, pjnz_stem: str) -> bool:
+    """Return True if this scenario should run against the given PJNZ file."""
+    if scenario.pjnz_names is None:
+        return True
+    return pjnz_stem in scenario.pjnz_names
+
+
+def _select_pjnz_files(pjnz_dir: Path, simulations: ScenarioSimulations) -> list[Path]:
+    """Return the PJNZ files that need to be loaded for this run.
+
+    If any scenario has ``pjnz_names=None`` (applies to all PJNZ files), every
+    file in ``pjnz_dir`` is returned. Otherwise only the files whose stem appears
+    in at least one scenario's ``pjnz_names`` are returned.
+
+    Warns for each named PJNZ that is not present on disk. Raises
+    ``FileNotFoundError`` if no matching files are found at all (e.g. every
+    specified name is missing), so the caller gets a clear reason instead of
+    silently producing no output.
+    """
+    all_files = find_pjnz_files(pjnz_dir)
+
+    if any(s.pjnz_names is None for s in simulations.scenarios):
+        return all_files
+
+    needed = {name for s in simulations.scenarios for name in (s.pjnz_names or [])}
+    by_stem = {f.stem: f for f in all_files}
+
+    missing = needed - set(by_stem)
+    for name in sorted(missing):
+        logger.warning(
+            "PJNZ '{}' is listed in scenario pjnz_names but not found in {} — scenarios targeting it will be skipped.",
+            name,
+            pjnz_dir,
+        )
+
+    found = [by_stem[stem] for stem in sorted(needed) if stem in by_stem]
+    if not found:
+        msg = (
+            f"No PJNZ files matched any scenario's pjnz_names. "
+            f"Needed: {sorted(needed)}. "
+            f"Available in {pjnz_dir}: {sorted(by_stem)}."
+        )
+        raise FileNotFoundError(msg)
+
+    return found
+
+
 def _run_scenario_analysis(
     config: RunConfig,
     simulations: ScenarioSimulations,
     callbacks: RunCallbacks,
     log_queue: Queue | None = None,
+    pjnz_files: list[Path] | None = None,
 ) -> Path:
     """Internal run_scenario_analysis function.
 
@@ -134,8 +182,9 @@ def _run_scenario_analysis(
 
     config.output_dir.mkdir(exist_ok=True)
     _warn_if_output_exists(config.output_dir)
-    pjnz_files = find_pjnz_files(config.pjnz_dir)
-    logger.info("Found {} PJNZ file(s) in {}", len(pjnz_files), config.pjnz_dir)
+    if pjnz_files is None:
+        pjnz_files = _select_pjnz_files(config.pjnz_dir, simulations)
+    logger.info("Loading {} PJNZ file(s) from {}", len(pjnz_files), config.pjnz_dir)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         params_paths, end_years = _dump_pjnz_files(pjnz_files, tmp_dir, callbacks)
@@ -147,9 +196,14 @@ def _run_scenario_analysis(
             os.cpu_count(),
             config.n_workers,
         )
-        work_units = [(params_paths[p], p.stem, s, end_years[p]) for p in pjnz_files for s in simulations.scenarios]
+        work_units = [
+            (params_paths[p], p.stem, s, end_years[p])
+            for p in pjnz_files
+            for s in simulations.scenarios
+            if _scenario_applies(s, p.stem)
+        ]
         logger.info(
-            "Running {} work unit(s) ({} PJNZ x {} scenario(s)) with n_workers={}",
+            "Running {} work unit(s) ({} PJNZ file(s), {} scenario(s), n_workers={})",
             len(work_units),
             len(pjnz_files),
             len(simulations.scenarios),

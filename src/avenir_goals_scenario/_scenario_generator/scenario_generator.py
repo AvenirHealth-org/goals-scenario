@@ -1,12 +1,10 @@
-import csv
 import re
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 from pydantic import ValidationError
 
-from avenir_goals_scenario.models.scenario_definition import ScenarioInput
+from avenir_goals_scenario.models.scenario_definition import NormalDistParameters, ScenarioInput
 from avenir_goals_scenario.models.scenario_simulations import (
     InterventionOut,
     InterventionSimulation,
@@ -25,13 +23,30 @@ def _product_to_id(product: str) -> str:
 _TARGET_YEAR_PARAM = "target_year"
 
 
-def _sample_param(name: str, dist, rng: np.random.Generator, base_year: int | None) -> float | int:
+def _sample_param(
+    name: str, dist: NormalDistParameters, rng: np.random.Generator, base_year: int | None
+) -> float | int:
     """Sample one parameter, applying base_year floor to target_year draws."""
     if name == _TARGET_YEAR_PARAM and base_year is not None:
         current_min = dist.min_value
         effective_min = max(current_min, base_year) if current_min is not None else base_year
         dist = dist.model_copy(update={"min_value": effective_min})
     return dist.sample(rng)
+
+
+def _sample_parameters(params_model, rng: np.random.Generator, base_year: int | None) -> dict:
+    """Sample all parameters from a typed parameters model.
+
+    NormalDistParameters fields are sampled; other fields (e.g. str categoricals) are
+    passed through unchanged.
+    """
+    result = {}
+    for field_name, field_value in params_model:
+        if isinstance(field_value, NormalDistParameters):
+            result[field_name] = _sample_param(field_name, field_value, rng, base_year)
+        else:
+            result[field_name] = field_value
+    return result
 
 
 def gen_simulations(
@@ -60,16 +75,21 @@ def gen_simulations(
     return ScenarioSimulations(
         scenarios=[
             ScenarioSimulation(
-                scenario_id=scenario.id,
+                id=scenario.id,
+                pjnz_names=scenario.pjnz_names,
                 interventions=[
-                    InterventionOut(id=_product_to_id(iv.product), product=iv.product, targets=iv.targets)
+                    InterventionOut(
+                        id=_product_to_id(iv.product),
+                        product=iv.product,
+                        targets=getattr(iv, "targets", []),
+                    )
                     for iv in scenario.interventions
                 ],
                 simulations=[
                     {
-                        _product_to_id(iv.product): InterventionSimulation({
-                            name: _sample_param(name, dist, rng, base_year) for name, dist in iv.parameters.items()
-                        })
+                        _product_to_id(iv.product): InterventionSimulation(
+                            _sample_parameters(iv.parameters, rng, base_year)
+                        )
                         for iv in scenario.interventions
                     }
                     for _ in range(n_simulations)
@@ -80,165 +100,30 @@ def gen_simulations(
     )
 
 
-_COMBINED_PATTERN = re.compile(r"^\d+(\+\d+)+$")
-
-_EXPECTED_COLUMNS = frozenset({
-    "number",
-    "product",
-    "efficacy mean",
-    "efficacy std",
-    "adherence mean",
-    "adherence std",
-    "target coverage mean",
-    "target coverage std",
-    "target year mean",
-    "target year std",
-    "target population",
-    "sex",
-})
-
-
-def _validate_csv_columns(fieldnames: list[str]) -> None:
-    actual = frozenset(fieldnames)
-    unknown = actual - _EXPECTED_COLUMNS
-    missing = _EXPECTED_COLUMNS - actual
-    errors: list[str] = []
-    if unknown:
-        errors.append(f"Unknown column(s): {sorted(unknown)}. Expected columns: {sorted(_EXPECTED_COLUMNS)}")
-    if missing:
-        errors.append(f"Missing column(s): {sorted(missing)}")
-    if errors:
-        raise ValueError("\n".join(errors))
-
-
-_PARAM_COLUMNS = (
-    "efficacy mean",
-    "efficacy std",
-    "adherence mean",
-    "adherence std",
-    "target coverage mean",
-    "target coverage std",
-    "target year mean",
-    "target year std",
-)
-
-
-def _validate_product_group(scenario_id: int, product: str, rows: list[dict[str, str]]) -> None:
-    """Within a product group: parameters must be identical; (population, sex) must be unique."""
-    ref = {col: rows[0][col] for col in _PARAM_COLUMNS}
-    seen_targets: set[tuple[str, str]] = set()
-    for i, row in enumerate(rows[1:], start=2):
-        for col in _PARAM_COLUMNS:
-            if row[col] != ref[col]:
-                msg = (
-                    f"Scenario {scenario_id}, product {product!r}: row {i} has {col!r}={row[col]!r} "
-                    f"but row 1 has {ref[col]!r}. All rows for the same product must share identical parameters."
-                )
-                raise ValueError(msg)
-    for row in rows:
-        target = (row["target population"], row["sex"])
-        if target in seen_targets:
-            pop, sex = target
-            msg = f"Scenario {scenario_id}, product {product!r}: duplicate target population={pop!r}, sex={sex!r}."
-            raise ValueError(msg)
-        seen_targets.add(target)
-
-
-def _build_scenario_def(scenario_id: int, rows: list[dict[str, str]]) -> dict[str, Any]:
-    first = rows[0]
-    if _COMBINED_PATTERN.match(first["product"]):
-        return {"id": scenario_id, "combines": [int(x) for x in first["product"].split("+")]}
-
-    by_product: dict[str, list[dict[str, str]]] = {}
-    for row in rows:
-        by_product.setdefault(row["product"], []).append(row)
-
-    interventions = []
-    for product, product_rows in by_product.items():
-        _validate_product_group(scenario_id, product, product_rows)
-        first_row = product_rows[0]
-        interventions.append({
-            "product": product,
-            "targets": [{"population": r["target population"], "sex": r["sex"]} for r in product_rows],
-            "parameters": {
-                "efficacy": {
-                    "mean": float(first_row["efficacy mean"]),
-                    "sd": float(first_row["efficacy std"]),
-                    "min_value": 0.0,
-                    "max_value": 1.0,
-                },
-                "adherence": {
-                    "mean": float(first_row["adherence mean"]),
-                    "sd": float(first_row["adherence std"]),
-                    "min_value": 0.0,
-                    "max_value": 1.0,
-                },
-                "target_coverage": {
-                    "mean": float(first_row["target coverage mean"]),
-                    "sd": float(first_row["target coverage std"]),
-                    "min_value": 0.0,
-                    "max_value": 1.0,
-                },
-                "target_year": {
-                    "mean": float(first_row["target year mean"]),
-                    "sd": float(first_row["target year std"]),
-                },
-            },
-        })
-    return {"id": scenario_id, "interventions": interventions}
-
-
-def _read_csv_groups(path: Path) -> dict[int, list[dict]]:
-    """Open a scenario CSV and return rows grouped by scenario ID."""
-    groups: dict[int, list[dict]] = {}
-    with path.open(mode="r", newline="") as f:
-        reader = csv.DictReader(f)
-        fieldnames = [field.strip().lower() for field in (reader.fieldnames or [])]
-        reader.fieldnames = fieldnames
-        _validate_csv_columns(fieldnames)
-        for raw_row in reader:
-            row = {k: v.strip() for k, v in raw_row.items()}
-            try:
-                scenario_id = int(row["number"])
-            except ValueError as e:
-                msg = f"Row {reader.line_num}: 'Number' must be an integer, got {row['number']!r}"
-                raise ValueError(msg) from e
-            if scenario_id not in groups:
-                groups[scenario_id] = []
-            groups[scenario_id].append(row)
-    return groups
-
-
-def _parse_scenario_csv(path: Path) -> ScenarioInput:
+def _parse_scenario_json(path: Path) -> ScenarioInput:
     try:
-        groups = _read_csv_groups(path)
-        scenario_defs = [_build_scenario_def(scenario_id, rows) for scenario_id, rows in groups.items()]
-    except (ValueError, IndexError) as e:
-        msg = f"Invalid scenario definition: {e}"
-        raise ValueError(msg) from e
-
-    try:
-        return ScenarioInput.model_validate({"scenario_definitions": scenario_defs})
+        return ScenarioInput.model_validate_json(path.read_text())
     except ValidationError as e:
         msg = f"Invalid scenario definition:\n{e}"
         raise ValueError(msg) from e
 
 
 def load_scenario_definition(path: Path) -> ScenarioInput:
-    """Load and validate a scenario definition CSV file.
+    """Load and validate a scenario definition JSON file.
 
     Args:
-        path: Path to the CSV file.
+        path: Path to a ``.json`` scenario definition file.
 
     Raises:
         FileNotFoundError: If the file does not exist.
-        ValueError: If the file is not ``.csv`` or its contents fail schema validation.
+        ValueError: If the file extension is not ``.json`` or the contents fail validation.
     """
-    if path.suffix.lower() != ".csv":
-        msg = f"Input file must be a CSV file (.csv), got: {path.suffix or '(no extension)'}"
-        raise ValueError(msg)
     if not path.exists():
         msg = f"Input file not found: {path}"
         raise FileNotFoundError(msg)
 
-    return _parse_scenario_csv(path)
+    if path.suffix.lower() != ".json":
+        msg = f"Input file must be a .json file, got: {path.suffix or '(no extension)'}"
+        raise ValueError(msg)
+
+    return _parse_scenario_json(path)

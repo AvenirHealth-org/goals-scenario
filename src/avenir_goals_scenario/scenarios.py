@@ -18,7 +18,7 @@ def draw_simulations(
     """Draw scenario simulations in memory from a scenario definitions file.
 
     Args:
-        definition_path: Path to the input CSV scenario definitions file.
+        definition_path: Path to the scenario definitions file (``.json``).
         n_simulations: Number of simulations drawn per scenario.
         seed: Optional integer seed for reproducible draws.
         base_year: If provided, used as the minimum value for ``target_year``
@@ -30,7 +30,7 @@ def draw_simulations(
 
     Raises:
         FileNotFoundError: If ``definition_path`` does not exist.
-        ValueError: If ``definition_path`` is not a valid ``.csv`` file or its
+        ValueError: If ``definition_path`` is not a supported file type or its
             contents fail schema validation.
     """
     definition_path = Path(definition_path).expanduser().resolve()

@@ -38,7 +38,7 @@ def check_indicator_dims(
 
 
 def write_scenario_results(
-    scenario_id: int,
+    scenario_id: str,
     pjnz_name: str,
     sim_output: list[dict[str, np.ndarray]],
     output_dir: Path,
@@ -51,13 +51,13 @@ def write_scenario_results(
         {output_dir}/{indicator}/pjnz_name={pjnz_name}/scenario_id={scenario_id}/part-0.parquet
 
     Each file is in long format with columns ``<dim columns…>, simulation, value``.
-    Dimension column names and encodings are taken from ``indicator_dims``.
+    Dimension column names and encodings are Taken from ``indicator_dims``.
     Every indicator present in ``sim_output`` must have an entry in
     ``indicator_dims``; a missing entry raises :class:`UnknownIndicatorError`.
     Different indicators may have entirely different schemas.
 
     This function is safe to call from multiple processes concurrently provided
-    each call uses a distinct (indicator, pjnz_name, scenario_id) combination.
+    each call uses a distinct (indicator, pjnz_name, scenario_number) combination.
     It deliberately does **not** write ``_metadata`` or ``_common_metadata``.
     Call :func:`consolidate_metadata` once from a single process after all
     workers have finished.

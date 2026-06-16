@@ -1,0 +1,119 @@
+{
+  "scenarios": [
+    {
+      "id": "1",
+      "interventions": [
+        {
+          "product": "One month pill for PrEP",
+          "targets": [
+            {
+              "population": "High risk heterosexual",
+              "sex": "Female"
+            }
+          ],
+          "parameters": {
+            "efficacy": {
+              "mean": 0.95,
+              "sd": 0.03
+            },
+            "adherence": {
+              "mean": 0.95,
+              "sd": 0.03
+            },
+            "target_coverage": {
+              "mean": 0.2,
+              "sd": 0.05
+            },
+            "target_year": {
+              "mean": 2028,
+              "sd": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "interventions": [
+        {
+          "product": "Daily PrEP",
+          "targets": [
+            {
+              "population": "High risk heterosexual",
+              "sex": "Female"
+            }
+          ],
+          "parameters": {
+            "efficacy": {
+              "mean": 0.95,
+              "sd": 0.03
+            },
+            "adherence": {
+              "mean": 0.8,
+              "sd": 0.2
+            },
+            "target_coverage": {
+              "mean": 0.1,
+              "sd": 0.05
+            },
+            "target_year": {
+              "mean": 2027,
+              "sd": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "interventions": [
+        {
+          "product": "One month pill for PrEP",
+          "targets": [
+            {
+              "population": "High risk heterosexual",
+              "sex": "Female"
+            },
+            {
+              "population": "Men who have sex with men",
+              "sex": "Male"
+            },
+            {
+              "population": "Medium risk heterosexual",
+              "sex": "Female"
+            },
+            {
+              "population": "Medium risk heterosexual",
+              "sex": "Male"
+            }
+          ],
+          "parameters": {
+            "efficacy": {
+              "mean": 0.95,
+              "sd": 0.03
+            },
+            "adherence": {
+              "mean": 0.95,
+              "sd": 0.03
+            },
+            "target_coverage": {
+              "mean": 0.2,
+              "sd": 0.05
+            },
+            "target_year": {
+              "mean": 2028,
+              "sd": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "combines": [
+        "1",
+        "2"
+      ]
+    }
+  ]
+}

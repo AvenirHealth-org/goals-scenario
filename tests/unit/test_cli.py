@@ -32,7 +32,7 @@ def _make_scenario_file(tmp_path) -> Path:
 
 
 def _make_definition_file(tmp_path) -> Path:
-    f = tmp_path / "scenarios.csv"
+    f = tmp_path / "scenarios.json"
     f.touch()
     return f
 
@@ -55,7 +55,7 @@ def _valid_config_scenario(tmp_path) -> dict:
 
 
 def _valid_config_definition(tmp_path) -> dict:
-    """Config with definition_path (existing csv)."""
+    """Config with definition_path (existing json)."""
     config = _base_config(tmp_path)
     config["definition_path"] = str(_make_definition_file(tmp_path))
     return config
@@ -204,7 +204,7 @@ def test_load_config_definition_path_null_explicit(tmp_path):
 
 def test_load_config_raises_when_definition_path_missing(tmp_path):
     config = _valid_config_scenario(tmp_path)
-    config["definition_path"] = str(tmp_path / "nonexistent.csv")
+    config["definition_path"] = str(tmp_path / "nonexistent.json")
     config_file = tmp_path / "config.json"
     config_file.write_bytes(orjson.dumps(config))
 
@@ -224,7 +224,7 @@ def test_load_config_raises_when_definition_path_is_a_dir(tmp_path):
         _load_config(config_file)
 
 
-def test_load_config_raises_when_definition_path_not_csv(tmp_path):
+def test_load_config_raises_when_definition_path_not_json(tmp_path):
     config = _valid_config_scenario(tmp_path)
     f = tmp_path / "def.txt"
     f.touch()
@@ -232,7 +232,7 @@ def test_load_config_raises_when_definition_path_not_csv(tmp_path):
     config_file = tmp_path / "config.json"
     config_file.write_bytes(orjson.dumps(config))
 
-    with pytest.raises(ValidationError, match="\\.csv"):
+    with pytest.raises(ValidationError, match="\\.json"):
         _load_config(config_file)
 
 

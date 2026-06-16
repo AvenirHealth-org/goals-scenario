@@ -1,6 +1,8 @@
 from pydantic import BaseModel, ConfigDict, RootModel
 
-from avenir_goals_scenario.models.scenario_definition import PopulationTarget
+from avenir_goals_scenario.models.scenario_definition import LongActingTreatmentTarget, PopulationTarget
+
+AnyTarget = PopulationTarget | LongActingTreatmentTarget
 
 
 class InterventionOut(BaseModel):
@@ -8,17 +10,18 @@ class InterventionOut(BaseModel):
 
     id: str
     product: str
-    targets: list[PopulationTarget]
+    targets: list[AnyTarget] = []
 
 
-class InterventionSimulation(RootModel[dict[str, float | int]]):
+class InterventionSimulation(RootModel[dict[str, float | int | str]]):
     """Sampled parameter values for one intervention in one simulation."""
 
 
 class ScenarioSimulation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    scenario_id: int
+    id: str
+    pjnz_names: list[str] | None = None
     interventions: list[InterventionOut]
     simulations: list[dict[str, InterventionSimulation]]
 
