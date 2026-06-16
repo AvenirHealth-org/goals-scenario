@@ -8,8 +8,9 @@ from avenir_goals_scenario.models.scenario_definition import (
     LongActingTreatmentParameters,
     NormalDistParameters,
     POCTestParameters,
-    PopulationTarget,
     PrepParameters,
+    PrepTarget,
+    VaccineCureTarget,
 )
 
 _PREP_BASE = {
@@ -45,13 +46,49 @@ def test_proportion_defaults_no_op_when_both_already_set():
 
 
 # ---------------------------------------------------------------------------
-# PopulationTarget MSM + Female validation
+# PrepTarget MSM + Female validation
 # ---------------------------------------------------------------------------
 
 
-def test_population_target_msm_female_raises():
+def test_risk_group_target_msm_female_raises():
     with pytest.raises(ValidationError, match="cannot have sex='Female'"):
-        PopulationTarget(population="Men who have sex with men", sex="Female")
+        PrepTarget(risk_group="Men who have sex with men", sex="Female")
+
+
+# ---------------------------------------------------------------------------
+# VaccineCureTarget validation
+# ---------------------------------------------------------------------------
+
+
+def test_vaccine_cure_target_plhiv_both_is_valid():
+    t = VaccineCureTarget(risk_group="PLHIV", sex="Both")
+    assert t.risk_group == "PLHIV"
+    assert t.sex == "Both"
+
+
+def test_vaccine_cure_target_plhiv_none_is_valid():
+    t = VaccineCureTarget(risk_group="PLHIV")
+    assert t.sex is None
+
+
+def test_vaccine_cure_target_plhiv_male_raises():
+    with pytest.raises(ValidationError, match="PLHIV target must have sex='Both' or sex=None"):
+        VaccineCureTarget(risk_group="PLHIV", sex="Male")
+
+
+def test_vaccine_cure_target_plhiv_female_raises():
+    with pytest.raises(ValidationError, match="PLHIV target must have sex='Both' or sex=None"):
+        VaccineCureTarget(risk_group="PLHIV", sex="Female")
+
+
+def test_vaccine_cure_target_risk_group_msm_female_raises():
+    with pytest.raises(ValidationError, match="cannot have sex='Female'"):
+        VaccineCureTarget(risk_group="Men who have sex with men", sex="Female")
+
+
+def test_vaccine_cure_target_risk_group_both_is_valid():
+    t = VaccineCureTarget(risk_group="High risk heterosexual", sex="Both")
+    assert t.sex == "Both"
 
 
 # ---------------------------------------------------------------------------

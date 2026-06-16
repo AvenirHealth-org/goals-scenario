@@ -34,11 +34,11 @@ def _make_simulations(scenario_id: int = 1, n_simulations: int = 2) -> ScenarioS
     from avenir_goals_scenario.models import (
         InterventionOut,
         InterventionSimulation,
-        PopulationTarget,
+        PrepTarget,
         ScenarioSimulation,
     )
 
-    target = PopulationTarget(population="High risk heterosexual", sex="Female")
+    target = PrepTarget(risk_group="High risk heterosexual", sex="Female")
     intervention = InterventionOut(id="daily_prep", product="Daily PrEP", targets=[target])
     sim_params = InterventionSimulation({"efficacy": 0.9, "adherence": 0.8})
     simulation = {"daily_prep": sim_params}

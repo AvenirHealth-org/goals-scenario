@@ -174,10 +174,14 @@ Valid `product` values: `"Daily PrEP"`, `"One month pill for PrEP"`,
 `"Six month injectable PrEP"`, `"Oral PrEP plus contraceptive"`,
 `"Ring PrEP"`, `"Implantable PrEP"`, `"bNABs"`, `"PEP"`
 
-`targets`: one or more population/sex combinations. Valid populations:
-`"Low risk heterosexual"`, `"Medium risk heterosexual"`, `"High risk heterosexual"`,
-`"People who inject drugs"`, `"Men who have sex with men"`.
-Valid sex values: `"Male"`, `"Female"`, `"All"`.
+`targets`: one or more risk group/sex combinations.
+
+| Field | Values |
+|---|---|
+| `risk_group` | `"Low risk heterosexual"`, `"Medium risk heterosexual"`, `"High risk heterosexual"`, `"People who inject drugs"`, `"Men who have sex with men"` |
+| `sex` | `"Male"`, `"Female"`, `"Both"` |
+
+`"Men who have sex with men"` cannot have `sex: "Female"`.
 
 `parameters`:
 
@@ -194,8 +198,8 @@ Each distribution is `{"mean": <float>, "sd": <float>}` with optional `min_value
 {
   "product": "Daily PrEP",
   "targets": [
-    {"population": "High risk heterosexual", "sex": "Female"},
-    {"population": "Men who have sex with men", "sex": "Male"}
+    {"risk_group": "High risk heterosexual", "sex": "Female"},
+    {"risk_group": "Men who have sex with men", "sex": "Male"}
   ],
   "parameters": {
     "efficacy":        {"mean": 0.95, "sd": 0.03},
@@ -212,7 +216,12 @@ Each distribution is `{"mean": <float>, "sd": <float>}` with optional `min_value
 
 `product`: `"Vaccine"`
 
-`targets`: same populations and sex values as PrEP (one or more required).
+`targets`: one or more entries (one or more required). Two targeting modes:
+
+- **PLHIV** — applies coverage across all PLHIV regardless of risk group. Use `risk_group: "PLHIV"` with `sex: "Both"` or omit `sex`.
+- **Risk group** — targets a specific risk group. Use the same `risk_group` and `sex` values as PrEP. `"Both"` applies coverage to both male and female indices for that group.
+
+`"Men who have sex with men"` cannot have `sex: "Female"`. `"PLHIV"` cannot have `sex: "Male"` or `"Female"`.
 
 `parameters`:
 
@@ -231,7 +240,7 @@ Each distribution is `{"mean": <float>, "sd": <float>}` with optional `min_value
 {
   "product": "Vaccine",
   "targets": [
-    {"population": "Medium risk heterosexual", "sex": "Female"}
+    {"risk_group": "PLHIV"}
   ],
   "parameters": {
     "target_year":                           {"mean": 2035, "sd": 3},
@@ -252,7 +261,12 @@ Each distribution is `{"mean": <float>, "sd": <float>}` with optional `min_value
 
 `product`: `"Cure"`
 
-`targets`: same populations and sex values as PrEP (one or more required).
+`targets`: one or more entries (one or more required). Same two targeting modes as Vaccine:
+
+- **PLHIV** — `risk_group: "PLHIV"` with `sex: "Both"` or omit `sex`.
+- **Risk group** — same `risk_group` and `sex` values as PrEP. `"Both"` applies coverage to both male and female indices.
+
+`"Men who have sex with men"` cannot have `sex: "Female"`. `"PLHIV"` cannot have `sex: "Male"` or `"Female"`.
 
 `parameters`:
 
@@ -267,7 +281,7 @@ Each distribution is `{"mean": <float>, "sd": <float>}` with optional `min_value
 {
   "product": "Cure",
   "targets": [
-    {"population": "High risk heterosexual", "sex": "Female"}
+    {"risk_group": "PLHIV"}
   ],
   "parameters": {
     "target_year":     {"mean": 2035, "sd": 3},
@@ -403,8 +417,8 @@ The draws file produced by `draw` (or saved automatically by `run`) has this str
           "id": "daily_prep",
           "product": "Daily PrEP",
           "targets": [
-            { "population": "High risk heterosexual", "sex": "Female" },
-            { "population": "Men who have sex with men", "sex": "Male" }
+            { "risk_group": "High risk heterosexual", "sex": "Female" },
+            { "risk_group": "Men who have sex with men", "sex": "Male" }
           ]
         }
       ],

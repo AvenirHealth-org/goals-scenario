@@ -7,8 +7,8 @@ from avenir_goals_scenario.scenarios import draw_simulations, read_simulations, 
 _PREP_PILL = {
     "product": "One month pill for PrEP",
     "targets": [
-        {"population": "High risk heterosexual", "sex": "Female"},
-        {"population": "Men who have sex with men", "sex": "Male"},
+        {"risk_group": "High risk heterosexual", "sex": "Female"},
+        {"risk_group": "Men who have sex with men", "sex": "Male"},
     ],
     "parameters": {
         "efficacy": {"mean": 0.95, "sd": 0.03},
@@ -20,7 +20,7 @@ _PREP_PILL = {
 
 _DAILY_PREP = {
     "product": "Daily PrEP",
-    "targets": [{"population": "High risk heterosexual", "sex": "Female"}],
+    "targets": [{"risk_group": "High risk heterosexual", "sex": "Female"}],
     "parameters": {
         "efficacy": {"mean": 0.95, "sd": 0.03},
         "adherence": {"mean": 0.80, "sd": 0.20},
