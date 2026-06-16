@@ -41,6 +41,7 @@ from SpectrumCommon.Const.RN import (
     RN_Vaccines,
 )
 
+from avenir_goals_scenario._runner.indicator_dims import CALCULATED_INDICATORS
 from avenir_goals_scenario._scenario_generator.scenario_generator import _product_to_id
 from avenir_goals_scenario.models import PopulationTarget
 from avenir_goals_scenario.models.scenario_definition import PopulationName, PrepProduct, SexName
@@ -321,8 +322,20 @@ def run_simulation(
 
 
 def _extract_indicators(goals_output: dict, output_indicators: list[str]) -> dict[str, np.ndarray]:
-    missing = [k for k in output_indicators if k not in goals_output]
+    missing = [k for k in output_indicators if k not in goals_output and k not in CALCULATED_INDICATORS]
     if missing:
         msg = f"Output indicators not found in Goals output: {missing}"
         raise ValueError(msg)
-    return {k: goals_output[k] for k in output_indicators}
+
+    def get_indicator(k: str):
+        if k == "p_prevalence":
+            denom = np.where(goals_output["p_totpop"] == 0, np.nan, goals_output["p_totpop"])
+            return goals_output["p_hivpop"] / denom
+        elif k == "p_incidence":
+            hiv_neg = goals_output["p_totpop"] - goals_output["p_hivpop"]
+            denom = np.where(hiv_neg == 0, np.nan, hiv_neg)
+            return goals_output["p_totpop"] / denom
+        else:
+            return goals_output[k]
+
+    return {k: get_indicator(k) for k in output_indicators}

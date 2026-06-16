@@ -358,7 +358,12 @@ _INDICATOR_SPECS: dict[str, IndicatorSpec] = {
         "PMTCT coverage at delivery by ARV regimen.",
         dims=(_pmtct_regimen,),
     ),
+    # -- Calculated indicators --
+    "p_prevalence": IndicatorSpec("Prevalence by single year age and sex.", dims=(_age, _sex)),
+    "p_incidence": IndicatorSpec("Incidence by single year age and sex.", dims=(_age, _sex)),
 }
+
+CALCULATED_INDICATORS = ["p_prevalence", "p_incidence"]
 
 
 # ---------------------------------------------------------------------------
