@@ -172,7 +172,7 @@ required fields are listed below.
 Valid `product` values: `"Daily PrEP"`, `"One month pill for PrEP"`,
 `"One month injectable PrEP"`, `"Two month injectable PrEP"`,
 `"Six month injectable PrEP"`, `"Oral PrEP plus contraceptive"`,
-`"Ring PrEP"`, `"Implantable PrEP"`, `"bNABs"`
+`"Ring PrEP"`, `"Implantable PrEP"`, `"bNABs"`, `"PEP"`
 
 `targets`: one or more population/sex combinations. Valid populations:
 `"Low risk heterosexual"`, `"Medium risk heterosexual"`, `"High risk heterosexual"`,

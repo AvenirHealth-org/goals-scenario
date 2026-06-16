@@ -30,9 +30,11 @@ _START_YEAR = 2020
 _TARGET_YEAR = 2025
 _TARGET_YEAR_IDX = _TARGET_YEAR - _START_YEAR  # 5
 
-# prep_effectiveness shape: (n_prep_products=9, n_params=2)
-_N_PREP = 9
-_N_PARAMS = 2
+# prep_effectiveness shape: (n_prep_products=10, n_effectiveness=4)
+# see SpectrumEngine n_effectiveness constants are
+# 0 - effectiveness, 1 - adherence, 2 - substitution, 3 - duration
+_N_PREP = 10
+_N_EFFECTIVENESS = 2
 
 # prep_cov shape: (n_sexes=2, max_pop_idx+1=7, n_years)
 _N_SEXES = 2
@@ -51,7 +53,7 @@ _N_VAC_POPS = 18
 def _prep_params() -> dict:
     return {
         "projection_start_year": _START_YEAR,
-        "prep_effectiveness": np.zeros((_N_PREP, _N_PARAMS)),
+        "prep_effectiveness": np.zeros((_N_PREP, _N_EFFECTIVENESS)),
         "prep_cov": np.zeros((_N_SEXES, _N_POPS, _N_YEARS)),
     }
 
@@ -127,6 +129,7 @@ _PREP_CASES = [
     ("ring_prep", "Ring PrEP", 6),
     ("bnabs", "bNABs", 7),
     ("implantable_prep", "Implantable PrEP", 8),
+    ("pep", "PEP", 9),
 ]
 
 
