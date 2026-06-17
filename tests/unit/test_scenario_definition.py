@@ -19,9 +19,10 @@ from avenir_goals_scenario.models.scenario_definition import (
 
 _PREP_BASE = {
     "adherence": NormalDistParameters(mean=0.85, sd=0.05),
-    "target_coverage": NormalDistParameters(mean=0.3, sd=0.05),
     "target_year": NormalDistParameters(mean=2028, sd=2),
 }
+
+_ANY_COV = NormalDistParameters(mean=0.3, sd=0.05)
 
 
 # ---------------------------------------------------------------------------
@@ -56,7 +57,7 @@ def test_proportion_defaults_no_op_when_both_already_set():
 
 def test_risk_group_target_msm_female_raises():
     with pytest.raises(ValidationError, match="cannot have sex='Female'"):
-        PrepTarget(risk_group="Men who have sex with men", sex="Female")
+        PrepTarget(risk_group="Men who have sex with men", sex="Female", target_coverage=_ANY_COV)
 
 
 # ---------------------------------------------------------------------------
@@ -65,34 +66,40 @@ def test_risk_group_target_msm_female_raises():
 
 
 def test_vaccine_cure_target_plhiv_both_is_valid():
-    t = VaccineCureTarget(risk_group="PLHIV", sex="Both")
+    t = VaccineCureTarget(risk_group="PLHIV", sex="Both", target_coverage=_ANY_COV)
     assert t.risk_group == "PLHIV"
     assert t.sex == "Both"
 
 
 def test_vaccine_cure_target_plhiv_none_is_valid():
-    t = VaccineCureTarget(risk_group="PLHIV")
+    t = VaccineCureTarget(risk_group="PLHIV", target_coverage=_ANY_COV)
     assert t.sex is None
 
 
 def test_vaccine_cure_target_plhiv_male_raises():
     with pytest.raises(ValidationError, match="PLHIV target must have sex='Both' or sex=None"):
-        VaccineCureTarget(risk_group="PLHIV", sex="Male")
+        VaccineCureTarget(risk_group="PLHIV", sex="Male", target_coverage=_ANY_COV)
 
 
 def test_vaccine_cure_target_plhiv_female_raises():
     with pytest.raises(ValidationError, match="PLHIV target must have sex='Both' or sex=None"):
-        VaccineCureTarget(risk_group="PLHIV", sex="Female")
+        VaccineCureTarget(risk_group="PLHIV", sex="Female", target_coverage=_ANY_COV)
 
 
 def test_vaccine_cure_target_risk_group_msm_female_raises():
     with pytest.raises(ValidationError, match="cannot have sex='Female'"):
-        VaccineCureTarget(risk_group="Men who have sex with men", sex="Female")
+        VaccineCureTarget(risk_group="Men who have sex with men", sex="Female", target_coverage=_ANY_COV)
 
 
 def test_vaccine_cure_target_risk_group_both_is_valid():
-    t = VaccineCureTarget(risk_group="High risk heterosexual", sex="Both")
+    t = VaccineCureTarget(risk_group="High risk heterosexual", sex="Both", target_coverage=_ANY_COV)
     assert t.sex == "Both"
+
+
+def test_vaccine_cure_target_coverage_gets_proportion_bounds():
+    t = VaccineCureTarget(risk_group="PLHIV", sex="Both", target_coverage=NormalDistParameters(mean=0.5, sd=0.1))
+    assert t.target_coverage.min_value == 0.0
+    assert t.target_coverage.max_value == 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -103,14 +110,11 @@ def test_vaccine_cure_target_risk_group_both_is_valid():
 def test_cure_parameters_applies_constraints():
     params = CureParameters(
         target_year=NormalDistParameters(mean=2032, sd=3),
-        target_coverage=NormalDistParameters(mean=0.5, sd=0.1),
         efficacy=NormalDistParameters(mean=0.8, sd=0.1),
         duration_of_cure=NormalDistParameters(mean=5.0, sd=1.0),
     )
     assert params.target_year.integer is True
     assert params.target_year.min_value == 1970
-    assert params.target_coverage.min_value == 0.0
-    assert params.target_coverage.max_value == 1.0
     assert params.efficacy.min_value == 0.0
     assert params.efficacy.max_value == 1.0
 
@@ -156,18 +160,30 @@ def test_lat_parameters_applies_proportion_defaults():
 
 
 def test_adult_art_target_male_is_valid():
-    t = AdultARTTarget(sex="Male")
+    t = AdultARTTarget(sex="Male", target_coverage=_ANY_COV)
     assert t.sex == "Male"
 
 
 def test_adult_art_target_female_is_valid():
-    t = AdultARTTarget(sex="Female")
+    t = AdultARTTarget(sex="Female", target_coverage=_ANY_COV)
     assert t.sex == "Female"
 
 
 def test_adult_art_target_both_is_valid():
-    t = AdultARTTarget(sex="Both")
+    t = AdultARTTarget(sex="Both", target_coverage=_ANY_COV)
     assert t.sex == "Both"
+
+
+def test_adult_art_target_coverage_gets_proportion_bounds():
+    t = AdultARTTarget(sex="Male", target_coverage=NormalDistParameters(mean=0.7, sd=0.05))
+    assert t.target_coverage.min_value == 0.0
+    assert t.target_coverage.max_value == 1.0
+
+
+def test_adult_art_target_coverage_preserves_custom_min():
+    t = AdultARTTarget(sex="Male", target_coverage=NormalDistParameters(mean=0.7, sd=0.05, min_value=0.3))
+    assert t.target_coverage.min_value == 0.3
+    assert t.target_coverage.max_value == 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -177,22 +193,10 @@ def test_adult_art_target_both_is_valid():
 
 def test_adult_art_parameters_applies_constraints():
     params = AdultARTParameters(
-        target_coverage=NormalDistParameters(mean=0.7, sd=0.05),
         target_year=NormalDistParameters(mean=2030, sd=2),
     )
-    assert params.target_coverage.min_value == 0.0
-    assert params.target_coverage.max_value == 1.0
     assert params.target_year.integer is True
     assert params.target_year.min_value == 1970
-
-
-def test_adult_art_parameters_preserves_custom_coverage_min():
-    params = AdultARTParameters(
-        target_coverage=NormalDistParameters(mean=0.7, sd=0.05, min_value=0.3),
-        target_year=NormalDistParameters(mean=2030, sd=2),
-    )
-    assert params.target_coverage.min_value == 0.3
-    assert params.target_coverage.max_value == 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -206,9 +210,11 @@ _AHD_PARAMS = {
 }
 
 _ADULT_ART_PARAMS = {
-    "target_coverage": {"mean": 0.8, "sd": 0.05},
     "target_year": {"mean": 2028, "sd": 2},
 }
+
+_ADULT_ART_TARGET = {"sex": "Female", "target_coverage": _ANY_COV}
+_ADULT_ART_TARGET_M = {"sex": "Male", "target_coverage": _ANY_COV}
 
 
 def test_single_scenario_duplicate_no_target_product_raises():
@@ -227,8 +233,8 @@ def test_single_scenario_duplicate_adult_art_sex_raises():
         SingleScenarioDef.model_validate({
             "id": "s1",
             "interventions": [
-                {"product": "Adult ART", "targets": [{"sex": "Female"}], "parameters": _ADULT_ART_PARAMS},
-                {"product": "Adult ART", "targets": [{"sex": "Female"}], "parameters": _ADULT_ART_PARAMS},
+                {"product": "Adult ART", "targets": [_ADULT_ART_TARGET], "parameters": _ADULT_ART_PARAMS},
+                {"product": "Adult ART", "targets": [_ADULT_ART_TARGET], "parameters": _ADULT_ART_PARAMS},
             ],
         })
 
@@ -240,13 +246,13 @@ def test_combined_scenario_duplicate_adult_art_sex_raises():
                 {
                     "id": "a",
                     "interventions": [
-                        {"product": "Adult ART", "targets": [{"sex": "Male"}], "parameters": _ADULT_ART_PARAMS},
+                        {"product": "Adult ART", "targets": [_ADULT_ART_TARGET_M], "parameters": _ADULT_ART_PARAMS},
                     ],
                 },
                 {
                     "id": "b",
                     "interventions": [
-                        {"product": "Adult ART", "targets": [{"sex": "Male"}], "parameters": _ADULT_ART_PARAMS},
+                        {"product": "Adult ART", "targets": [_ADULT_ART_TARGET_M], "parameters": _ADULT_ART_PARAMS},
                     ],
                 },
                 {"id": "c", "combines": ["a", "b"]},

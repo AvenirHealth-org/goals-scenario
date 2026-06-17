@@ -45,14 +45,11 @@ from SpectrumCommon.Const.RN import (
 from avenir_goals_scenario._runner.indicator_dims import CALCULATED_INDICATORS
 from avenir_goals_scenario._scenario_generator.scenario_generator import _product_to_id
 from avenir_goals_scenario.models.scenario_definition import (
-    AdultARTTarget,
     PrepProduct,
-    PrepTarget,
     RiskGroupNames,
     SexName,
-    VaccineCureTarget,
 )
-from avenir_goals_scenario.models.scenario_simulations import InterventionOut, InterventionSimulation
+from avenir_goals_scenario.models.scenario_simulations import InterventionOut, InterventionSimulation, TargetCoverage
 
 # Opaque dict produced by import_pjnz() and modified in-place before running Goals.
 LeapfrogParams = dict
@@ -130,13 +127,13 @@ def _sex_idx(sex: SexName) -> int:
 class _PrepDraw(TypedDict):
     efficacy: float
     adherence: float
-    target_coverage: float
     target_year: int
+    target_coverages: list[TargetCoverage]
 
 
 class _VaccineDraw(TypedDict):
     target_year: int
-    target_coverage: float
+    target_coverages: list[TargetCoverage]
     reduction_in_susceptibility: float
     reduction_in_infectiousness: float
     increase_in_progression_time_to_aids: float
@@ -147,7 +144,7 @@ class _VaccineDraw(TypedDict):
 
 class _CureDraw(TypedDict):
     target_year: int
-    target_coverage: float
+    target_coverages: list[TargetCoverage]
     efficacy: float
     duration_of_cure: float
 
@@ -166,7 +163,7 @@ class _POCTestDraw(TypedDict):
 
 class _AdultARTDraw(TypedDict):
     target_year: int
-    target_coverage: float
+    target_coverages: list[TargetCoverage]
 
 
 _Draw: TypeAlias = _PrepDraw | _VaccineDraw | _CureDraw | _AHDTreatmentDraw | _POCTestDraw | _AdultARTDraw
@@ -182,36 +179,67 @@ def _target_year_idx(lp: LeapfrogParams, draw: _Draw) -> int:
 # ---------------------------------------------------------------------------
 
 
-def _apply_prep(lp: LeapfrogParams, iv_id: str, targets: list[PrepTarget], draw: _PrepDraw) -> None:
-    year_idx = _target_year_idx(lp, draw)
-    prep_offset = _interv_map[iv_id] - RN_PrEPOralDaily
-    lp["prep_effectiveness"][prep_offset, RN_Effectiveness] = draw["efficacy"]
-    lp["prep_effectiveness"][prep_offset, RN_Adherence] = draw["adherence"]
-    ## TODO: Do we need to set all other coverages to 0?
-    ## TODO: Set method mix coverage, not overall coverage? And set others to 0?
-    for target in targets:
-        lp["prep_cov"][_sex_idx(target.sex), _risk_group_idx(target.risk_group), year_idx] = draw["target_coverage"]
+def _apply_all_prep(
+    lp: LeapfrogParams,
+    prep_draws: list[tuple[str, dict]],
+) -> None:
+    """Apply all PrEP products together, computing prep_cov and prep_method_mix.
+
+    Coverage for each (sex, risk_group, year) is the sum across all products targeting
+    that population. prep_method_mix holds each product's share of that total.
+    """
+    # (sex_idx, rg_idx, method_offset, year_idx) → coverage
+    coverage_by_method: dict[tuple[int, int, int, int], float] = {}
+
+    for iv_id, draw in prep_draws:
+        method_offset = _interv_map[iv_id] - RN_PrEPOralDaily
+        year_idx = int(draw["target_year"]) - lp["projection_start_year"]
+        lp["prep_effectiveness"][method_offset, RN_Effectiveness] = draw["efficacy"]
+        lp["prep_effectiveness"][method_offset, RN_Adherence] = draw["adherence"]
+        for tc in draw["target_coverages"]:
+            key = (
+                _sex_idx(cast(SexName, tc.sex)),
+                _risk_group_idx(cast(RiskGroupNames, tc.risk_group)),
+                method_offset,
+                year_idx,
+            )
+            coverage_by_method[key] = coverage_by_method.get(key, 0.0) + tc.coverage
+
+    # Sum per (sex, rg, year)
+    totals: dict[tuple[int, int, int], float] = {}
+    for (sex_idx, rg_idx, _, year_idx), cov in coverage_by_method.items():
+        k = (sex_idx, rg_idx, year_idx)
+        totals[k] = totals.get(k, 0.0) + cov
+
+    for (sex_idx, rg_idx, year_idx), total in totals.items():
+        lp["prep_cov"][sex_idx, rg_idx, year_idx] = min(total, 1.0)
+        lp["prep_method_mix"][sex_idx, rg_idx, :, year_idx] = 0.0
+
+    for (sex_idx, rg_idx, method_offset, year_idx), cov in coverage_by_method.items():
+        total = totals[(sex_idx, rg_idx, year_idx)]
+        if total > 0:
+            lp["prep_method_mix"][sex_idx, rg_idx, method_offset, year_idx] = cov / total
 
 
-def _apply_vaccine(lp: LeapfrogParams, targets: list[VaccineCureTarget], draw: _VaccineDraw) -> None:
+def _apply_vaccine(lp: LeapfrogParams, draw: _VaccineDraw) -> None:
     year_idx = _target_year_idx(lp, draw)
-    for target in targets:
-        if target.risk_group == "PLHIV":
+    for tc in draw["target_coverages"]:
+        if tc.risk_group == "PLHIV":
             lp["rn_vac_cov_type"] = RN_Single
-            lp["rn_vac_coverage_rg"][RN_AllRisk, year_idx] = draw["target_coverage"]
-        elif target.sex == "Both" or target.sex is None:
+            lp["rn_vac_coverage_rg"][RN_AllRisk, year_idx] = tc.coverage
+        elif tc.sex == "Both" or tc.sex is None:
             lp["rn_vac_cov_type"] = RN_Diff
-            lp["rn_vac_coverage_rg"][_risk_group_idx(target.risk_group, female=False), year_idx] = draw[
-                "target_coverage"
-            ]
-            lp["rn_vac_coverage_rg"][_risk_group_idx(target.risk_group, female=True), year_idx] = draw[
-                "target_coverage"
-            ]
+            lp["rn_vac_coverage_rg"][_risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=False), year_idx] = (
+                tc.coverage
+            )
+            lp["rn_vac_coverage_rg"][_risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=True), year_idx] = (
+                tc.coverage
+            )
         else:
             lp["rn_vac_cov_type"] = RN_Diff
-            lp["rn_vac_coverage_rg"][_risk_group_idx(target.risk_group, female=(target.sex == "Female")), year_idx] = (
-                draw["target_coverage"]
-            )
+            lp["rn_vac_coverage_rg"][
+                _risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=(tc.sex == "Female")), year_idx
+            ] = tc.coverage
     lp["rn_vac_params"][RN_Efficacy] = draw["reduction_in_susceptibility"]
     lp["rn_vac_params"][RN_Infectiousness] = draw["reduction_in_infectiousness"]
     lp["rn_vac_params"][RN_Progression] = draw["increase_in_progression_time_to_aids"]
@@ -246,25 +274,25 @@ def _apply_vaccine(lp: LeapfrogParams, targets: list[VaccineCureTarget], draw: _
         raise ValueError(msg)
 
 
-def _apply_cure(lp: LeapfrogParams, targets: list[VaccineCureTarget], draw: _CureDraw) -> None:
+def _apply_cure(lp: LeapfrogParams, draw: _CureDraw) -> None:
     year_idx = _target_year_idx(lp, draw)
-    for target in targets:
-        if target.risk_group == "PLHIV":
+    for tc in draw["target_coverages"]:
+        if tc.risk_group == "PLHIV":
             lp["rn_cure_coverage_type"] = RN_Single
-            lp["rn_cure_coverage_rg"][RN_AllRisk, year_idx] = draw["target_coverage"]
-        elif target.sex == "Both" or target.sex is None:
+            lp["rn_cure_coverage_rg"][RN_AllRisk, year_idx] = tc.coverage
+        elif tc.sex == "Both" or tc.sex is None:
             lp["rn_cure_coverage_type"] = RN_Diff
-            lp["rn_cure_coverage_rg"][_risk_group_idx(target.risk_group, female=False), year_idx] = draw[
-                "target_coverage"
-            ]
-            lp["rn_cure_coverage_rg"][_risk_group_idx(target.risk_group, female=True), year_idx] = draw[
-                "target_coverage"
-            ]
+            lp["rn_cure_coverage_rg"][_risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=False), year_idx] = (
+                tc.coverage
+            )
+            lp["rn_cure_coverage_rg"][_risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=True), year_idx] = (
+                tc.coverage
+            )
         else:
             lp["rn_cure_coverage_type"] = RN_Diff
-            lp["rn_cure_coverage_rg"][_risk_group_idx(target.risk_group, female=(target.sex == "Female")), year_idx] = (
-                draw["target_coverage"]
-            )
+            lp["rn_cure_coverage_rg"][
+                _risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=(tc.sex == "Female")), year_idx
+            ] = tc.coverage
     lp["rn_cure_effect"][RN_Efficacy] = draw["efficacy"]
     lp["rn_cure_effect"][RN_Duration] = draw["duration_of_cure"]
 
@@ -276,17 +304,17 @@ def _apply_ahd(lp: LeapfrogParams, draw: _AHDTreatmentDraw) -> None:
     lp["rn_adh_treat_reduc_mort"] = draw["reduction_in_mortality"]
 
 
-def _apply_adult_art(lp: LeapfrogParams, targets: list[AdultARTTarget], draw: _AdultARTDraw) -> None:
+def _apply_adult_art(lp: LeapfrogParams, draw: _AdultARTDraw) -> None:
     year_idx = _target_year_idx(lp, draw)
-    for target in targets:
-        if target.sex == "Both":
+    for tc in draw["target_coverages"]:
+        if tc.sex == "Both":
             sex_indices = [0, 1]
-        elif target.sex == "Male":
+        elif tc.sex == "Male":
             sex_indices = [0]
         else:
             sex_indices = [1]
         for sex_idx in sex_indices:
-            lp["adults_on_art"][sex_idx, year_idx] = draw["target_coverage"]
+            lp["adults_on_art"][sex_idx, year_idx] = tc.coverage
             lp["adults_on_art_is_percent"][sex_idx, year_idx] = 1
 
 
@@ -298,14 +326,12 @@ def _apply_poc(lp: LeapfrogParams, poc_type: int, draw: _POCTestDraw) -> None:
     lp["rn_poc_effect"][rn_poc] = draw["effect"]
 
 
-def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict[str, float | int | str]) -> None:
+def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict) -> None:
     match iv.id:
-        case prep_id if prep_id in _PREP_IDS:
-            _apply_prep(lp, prep_id, cast(list[PrepTarget], iv.targets), cast(_PrepDraw, draw))
         case "vaccine":
-            _apply_vaccine(lp, cast(list[VaccineCureTarget], iv.targets), cast(_VaccineDraw, draw))
+            _apply_vaccine(lp, cast(_VaccineDraw, draw))
         case "cure":
-            _apply_cure(lp, cast(list[VaccineCureTarget], iv.targets), cast(_CureDraw, draw))
+            _apply_cure(lp, cast(_CureDraw, draw))
         case "ahd_treatment":
             _apply_ahd(lp, cast(_AHDTreatmentDraw, draw))
         case "point_of_care_viral_load_test":
@@ -315,7 +341,7 @@ def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict[str, float | i
         case "long_acting_treatment":
             raise NotImplementedError("Long-acting treatment application is not yet implemented.")
         case "adult_art":
-            _apply_adult_art(lp, cast(list[AdultARTTarget], iv.targets), cast(_AdultARTDraw, draw))
+            _apply_adult_art(lp, cast(_AdultARTDraw, draw))
         case _:
             msg = f"Unknown intervention: {iv.id!r}"
             raise ValueError(msg)
@@ -334,8 +360,15 @@ def apply_simulation(
         simulation: Mapping of intervention ID → sampled parameter values for one draw.
     """
     meta = {iv.id: iv for iv in interventions}
+    prep_draws: list[tuple[str, dict]] = []
     for intervention_id, sim in simulation.items():
-        _dispatch(leapfrog_params, meta[intervention_id], sim.root)
+        iv = meta[intervention_id]
+        if intervention_id in _PREP_IDS:
+            prep_draws.append((intervention_id, sim.root))
+        else:
+            _dispatch(leapfrog_params, iv, sim.root)
+    if prep_draws:
+        _apply_all_prep(leapfrog_params, prep_draws)
 
 
 def run_simulation(

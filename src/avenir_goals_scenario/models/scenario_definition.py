@@ -69,12 +69,14 @@ class PrepTarget(BaseModel):
 
     risk_group: RiskGroupNames
     sex: SexName
+    target_coverage: NormalDistParameters
 
     @model_validator(mode="after")
-    def _validate_msm_sex(self) -> Self:
+    def _validate(self) -> Self:
         if self.risk_group == "Men who have sex with men" and self.sex == "Female":
             msg = "Risk group 'Men who have sex with men' cannot have sex='Female'."
             raise ValueError(msg)
+        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
         return self
 
 
@@ -89,6 +91,7 @@ class VaccineCureTarget(BaseModel):
 
     risk_group: RiskGroupAndPlhivNames
     sex: SexName | None = None
+    target_coverage: NormalDistParameters
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
@@ -100,6 +103,7 @@ class VaccineCureTarget(BaseModel):
             if self.risk_group == "Men who have sex with men" and self.sex == "Female":
                 msg = "Risk group 'Men who have sex with men' cannot have sex='Female'."
                 raise ValueError(msg)
+        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
         return self
 
 
@@ -119,6 +123,12 @@ class AdultARTTarget(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     sex: SexName
+    target_coverage: NormalDistParameters
+
+    @model_validator(mode="after")
+    def _validate(self) -> Self:
+        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -131,14 +141,12 @@ class PrepParameters(BaseModel):
 
     efficacy: NormalDistParameters
     adherence: NormalDistParameters
-    target_coverage: NormalDistParameters
     target_year: NormalDistParameters
 
     @model_validator(mode="after")
     def _apply_constraints(self) -> Self:
         self.efficacy = _apply_proportion_defaults(self.efficacy)
         self.adherence = _apply_proportion_defaults(self.adherence)
-        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
         self.target_year = _apply_year_constraint(self.target_year)
         return self
 
@@ -147,7 +155,6 @@ class VaccineParameters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     target_year: NormalDistParameters
-    target_coverage: NormalDistParameters
     reduction_in_susceptibility: NormalDistParameters
     reduction_in_infectiousness: NormalDistParameters
     increase_in_progression_time_to_aids: NormalDistParameters
@@ -158,7 +165,6 @@ class VaccineParameters(BaseModel):
     @model_validator(mode="after")
     def _apply_constraints(self) -> Self:
         self.target_year = _apply_year_constraint(self.target_year)
-        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
         self.reduction_in_susceptibility = _apply_proportion_defaults(self.reduction_in_susceptibility)
         self.reduction_in_infectiousness = _apply_proportion_defaults(self.reduction_in_infectiousness)
         self.increase_in_progression_time_to_aids = _apply_proportion_defaults(
@@ -171,14 +177,12 @@ class CureParameters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     target_year: NormalDistParameters
-    target_coverage: NormalDistParameters
     efficacy: NormalDistParameters
     duration_of_cure: NormalDistParameters
 
     @model_validator(mode="after")
     def _apply_constraints(self) -> Self:
         self.target_year = _apply_year_constraint(self.target_year)
-        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
         self.efficacy = _apply_proportion_defaults(self.efficacy)
         return self
 
@@ -229,12 +233,10 @@ class LongActingTreatmentParameters(BaseModel):
 class AdultARTParameters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    target_coverage: NormalDistParameters
     target_year: NormalDistParameters
 
     @model_validator(mode="after")
     def _apply_constraints(self) -> Self:
-        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
         self.target_year = _apply_year_constraint(self.target_year)
         return self
 

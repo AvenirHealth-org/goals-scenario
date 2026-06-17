@@ -34,13 +34,17 @@ def _make_simulations(scenario_id: int = 1, n_simulations: int = 2) -> ScenarioS
     from avenir_goals_scenario.models import (
         InterventionOut,
         InterventionSimulation,
-        PrepTarget,
         ScenarioSimulation,
+        TargetCoverage,
     )
 
-    target = PrepTarget(risk_group="High risk heterosexual", sex="Female")
-    intervention = InterventionOut(id="daily_prep", product="Daily PrEP", targets=[target])
-    sim_params = InterventionSimulation({"efficacy": 0.9, "adherence": 0.8})
+    intervention = InterventionOut(id="daily_prep", product="Daily PrEP")
+    sim_params = InterventionSimulation({
+        "efficacy": 0.9,
+        "adherence": 0.8,
+        "target_year": 2025,
+        "target_coverages": [TargetCoverage(sex="Female", risk_group="High risk heterosexual", coverage=0.3)],
+    })
     simulation = {"daily_prep": sim_params}
 
     scenario = ScenarioSimulation(
@@ -465,7 +469,7 @@ def _make_simulations_with_names(*pjnz_names_per_scenario: list[str] | None) -> 
 
     scenarios = []
     for i, pjnz_names in enumerate(pjnz_names_per_scenario):
-        iv = InterventionOut(id="daily_prep", product="Daily PrEP", targets=[])
+        iv = InterventionOut(id="daily_prep", product="Daily PrEP")
         sim = {"daily_prep": InterventionSimulation({"target_year": 2025})}
         sc = ScenarioSimulation(id=str(i), interventions=[iv], simulations=[sim])
         sc.pjnz_names = pjnz_names

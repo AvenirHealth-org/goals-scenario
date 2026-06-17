@@ -49,6 +49,20 @@ def _sample_parameters(params_model, rng: np.random.Generator, base_year: int | 
     return result
 
 
+def _sample_target_coverages(iv, rng: np.random.Generator) -> dict:
+    """Sample per-target coverages, returning {"target_coverages": [...]}."""
+    coverages = [
+        {
+            "sex": target.sex,
+            "risk_group": getattr(target, "risk_group", None),
+            "coverage": target.target_coverage.sample(rng),
+        }
+        for target in getattr(iv, "targets", [])
+        if hasattr(target, "target_coverage")
+    ]
+    return {"target_coverages": coverages} if coverages else {}
+
+
 def gen_simulations(
     definition: ScenarioInput,
     n_simulations: int = 100,
@@ -81,14 +95,13 @@ def gen_simulations(
                     InterventionOut(
                         id=_product_to_id(iv.product),
                         product=iv.product,
-                        targets=getattr(iv, "targets", []),
                     )
                     for iv in scenario.interventions
                 ],
                 simulations=[
                     {
                         _product_to_id(iv.product): InterventionSimulation(
-                            _sample_parameters(iv.parameters, rng, base_year)
+                            _sample_parameters(iv.parameters, rng, base_year) | _sample_target_coverages(iv, rng)
                         )
                         for iv in scenario.interventions
                     }
@@ -100,11 +113,19 @@ def gen_simulations(
     )
 
 
+_MAX_VALIDATION_ERRORS = 5
+
+
 def _parse_scenario_json(path: Path) -> ScenarioInput:
     try:
         return ScenarioInput.model_validate_json(path.read_text())
     except ValidationError as e:
-        msg = f"Invalid scenario definition:\n{e}"
+        errors = e.errors(include_url=False)
+        shown = errors[:_MAX_VALIDATION_ERRORS]
+        lines = [f"  {' -> '.join(str(loc) for loc in err['loc'])}: {err['msg']}" for err in shown]
+        if len(errors) > _MAX_VALIDATION_ERRORS:
+            lines.append(f"  ... and {len(errors) - _MAX_VALIDATION_ERRORS} more errors")
+        msg = f"Invalid scenario definition ({len(errors)} errors):\n" + "\n".join(lines)
         raise ValueError(msg) from e
 
 

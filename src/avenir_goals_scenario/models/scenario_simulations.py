@@ -1,13 +1,10 @@
 from pydantic import BaseModel, ConfigDict, RootModel
 
-from avenir_goals_scenario.models.scenario_definition import (
-    AdultARTTarget,
-    LongActingTreatmentTarget,
-    PrepTarget,
-    VaccineCureTarget,
-)
 
-AnyTarget = PrepTarget | VaccineCureTarget | LongActingTreatmentTarget | AdultARTTarget
+class TargetCoverage(BaseModel):
+    sex: str | None
+    risk_group: str | None
+    coverage: float
 
 
 class InterventionOut(BaseModel):
@@ -15,10 +12,9 @@ class InterventionOut(BaseModel):
 
     id: str
     product: str
-    targets: list[AnyTarget] = []
 
 
-class InterventionSimulation(RootModel[dict[str, float | int | str]]):
+class InterventionSimulation(RootModel[dict[str, float | int | str | list[TargetCoverage]]]):
     """Sampled parameter values for one intervention in one simulation."""
 
 
