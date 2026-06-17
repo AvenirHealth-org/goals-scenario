@@ -30,11 +30,11 @@ from avenir_goals_scenario.models.scenario_definition import (
     VaccineParameters,
 )
 from avenir_goals_scenario.models.scenario_simulations import (
-    AnyTarget,
     InterventionOut,
     InterventionSimulation,
     ScenarioSimulation,
     ScenarioSimulations,
+    TargetCoverage,
 )
 
 __all__ = [
@@ -44,7 +44,6 @@ __all__ = [
     "AdultARTParameters",
     "AdultARTTarget",
     "AnyInterventionDef",
-    "AnyTarget",
     "CombinedScenarioDef",
     "CureInterventionDef",
     "CureParameters",
@@ -69,6 +68,7 @@ __all__ = [
     "ScenarioSimulations",
     "SexName",
     "SingleScenarioDef",
+    "TargetCoverage",
     "VaccineCureTarget",
     "VaccineInterventionDef",
     "VaccineParameters",

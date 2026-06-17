@@ -8,7 +8,11 @@
           "targets": [
             {
               "risk_group": "High risk heterosexual",
-              "sex": "Female"
+              "sex": "Female",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.05
+              }
             }
           ],
           "parameters": {
@@ -19,10 +23,6 @@
             "adherence": {
               "mean": 0.95,
               "sd": 0.03
-            },
-            "target_coverage": {
-              "mean": 0.2,
-              "sd": 0.05
             },
             "target_year": {
               "mean": 2028,
@@ -40,7 +40,11 @@
           "targets": [
             {
               "risk_group": "High risk heterosexual",
-              "sex": "Female"
+              "sex": "Female",
+              "target_coverage": {
+                "mean": 0.1,
+                "sd": 0.05
+              }
             }
           ],
           "parameters": {
@@ -51,10 +55,6 @@
             "adherence": {
               "mean": 0.8,
               "sd": 0.2
-            },
-            "target_coverage": {
-              "mean": 0.1,
-              "sd": 0.05
             },
             "target_year": {
               "mean": 2027,
@@ -72,19 +72,35 @@
           "targets": [
             {
               "risk_group": "High risk heterosexual",
-              "sex": "Female"
+              "sex": "Female",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.05
+              }
             },
             {
               "risk_group": "Men who have sex with men",
-              "sex": "Male"
+              "sex": "Male",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.05
+              }
             },
             {
               "risk_group": "Medium risk heterosexual",
-              "sex": "Female"
+              "sex": "Female",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.05
+              }
             },
             {
               "risk_group": "Medium risk heterosexual",
-              "sex": "Male"
+              "sex": "Male",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.05
+              }
             }
           ],
           "parameters": {
@@ -95,10 +111,6 @@
             "adherence": {
               "mean": 0.95,
               "sd": 0.03
-            },
-            "target_coverage": {
-              "mean": 0.2,
-              "sd": 0.05
             },
             "target_year": {
               "mean": 2028,

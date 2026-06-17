@@ -1,4 +1,5 @@
 import json
+from typing import cast
 
 import numpy as np
 import pytest
@@ -16,8 +17,8 @@ from avenir_goals_scenario.models import (
     ScenarioInput,
     ScenarioSimulations,
     SingleScenarioDef,
+    TargetCoverage,
 )
-from avenir_goals_scenario.models.scenario_definition import PrepTarget
 
 # ---------------------------------------------------------------------------
 # Shared test data
@@ -26,24 +27,24 @@ from avenir_goals_scenario.models.scenario_definition import PrepTarget
 PREP_PILL_INTERVENTION = {
     "product": "One month pill for PrEP",
     "targets": [
-        {"risk_group": "High risk heterosexual", "sex": "Female"},
-        {"risk_group": "Men who have sex with men", "sex": "Male"},
+        {"risk_group": "High risk heterosexual", "sex": "Female", "target_coverage": {"mean": 0.20, "sd": 0.05}},
+        {"risk_group": "Men who have sex with men", "sex": "Male", "target_coverage": {"mean": 0.15, "sd": 0.03}},
     ],
     "parameters": {
         "efficacy": {"mean": 0.95, "sd": 0.03},
         "adherence": {"mean": 0.95, "sd": 0.03},
-        "target_coverage": {"mean": 0.20, "sd": 0.05},
         "target_year": {"mean": 2028, "sd": 2},
     },
 }
 
 DAILY_PREP_INTERVENTION = {
     "product": "Daily PrEP",
-    "targets": [{"risk_group": "High risk heterosexual", "sex": "Female"}],
+    "targets": [
+        {"risk_group": "High risk heterosexual", "sex": "Female", "target_coverage": {"mean": 0.10, "sd": 0.05}}
+    ],
     "parameters": {
         "efficacy": {"mean": 0.95, "sd": 0.03},
         "adherence": {"mean": 0.80, "sd": 0.20},
-        "target_coverage": {"mean": 0.10, "sd": 0.05},
         "target_year": {"mean": 2027, "sd": 2},
     },
 }
@@ -144,6 +145,13 @@ def test_proportion_params_get_bounds():
     iv = PrepInterventionDef.model_validate(PREP_PILL_INTERVENTION)
     assert iv.parameters.efficacy.min_value == 0.0
     assert iv.parameters.efficacy.max_value == 1.0
+
+
+def test_target_coverage_in_target_gets_bounds():
+    iv = PrepInterventionDef.model_validate(PREP_PILL_INTERVENTION)
+    for target in iv.targets:
+        assert target.target_coverage.min_value == 0.0
+        assert target.target_coverage.max_value == 1.0
 
 
 def test_extra_fields_rejected_on_parameter_dist():
@@ -253,10 +261,17 @@ def test_duplicate_product_population_within_single_scenario_raises():
 
 
 def test_same_product_different_populations_within_single_scenario_ok():
-    split_high_risk = {**PREP_PILL_INTERVENTION, "targets": [{"risk_group": "High risk heterosexual", "sex": "Female"}]}
+    split_high_risk = {
+        **PREP_PILL_INTERVENTION,
+        "targets": [
+            {"risk_group": "High risk heterosexual", "sex": "Female", "target_coverage": {"mean": 0.20, "sd": 0.05}}
+        ],
+    }
     split_medium_risk = {
         **PREP_PILL_INTERVENTION,
-        "targets": [{"risk_group": "Medium risk heterosexual", "sex": "Female"}],
+        "targets": [
+            {"risk_group": "Medium risk heterosexual", "sex": "Female", "target_coverage": {"mean": 0.10, "sd": 0.03}}
+        ],
     }
     data = {
         "scenarios": [
@@ -289,7 +304,6 @@ def test_sd_must_be_non_negative():
                         "parameters": {
                             "efficacy": {"mean": 0.9, "sd": -0.1},
                             "adherence": {"mean": 0.8, "sd": 0.1},
-                            "target_coverage": {"mean": 0.1, "sd": 0.01},
                             "target_year": {"mean": 2028, "sd": 2},
                         },
                     }
@@ -342,17 +356,12 @@ def test_single_scenario_intervention_id():
     assert output.scenarios[0].interventions[0].id == "one_month_pill_for_prep"
 
 
-def test_intervention_out_has_targets():
+def test_intervention_out_has_id_and_product():
     definition = ScenarioInput.model_validate(MINIMAL_INPUT)
     output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
-    targets = output.scenarios[0].interventions[0].targets
-    assert len(targets) == 2
-    assert isinstance(targets[0], PrepTarget)
-    assert targets[0].risk_group == "High risk heterosexual"
-    assert targets[0].sex == "Female"
-    assert isinstance(targets[1], PrepTarget)
-    assert targets[1].risk_group == "Men who have sex with men"
-    assert targets[1].sex == "Male"
+    iv = output.scenarios[0].interventions[0]
+    assert iv.id == "one_month_pill_for_prep"
+    assert iv.product == "One month pill for PrEP"
 
 
 def test_combined_scenario_merges_interventions():
@@ -375,7 +384,23 @@ def test_simulation_parameters_present():
     definition = ScenarioInput.model_validate(MINIMAL_INPUT)
     output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
     params = output.scenarios[0].simulations[0]["one_month_pill_for_prep"].root
-    assert set(params.keys()) == {"efficacy", "adherence", "target_coverage", "target_year"}
+    # 2 targets → target_coverage_0 and target_coverage_1
+    assert set(params.keys()) == {"efficacy", "adherence", "target_year", "target_coverages"}
+
+
+def test_per_target_coverages_are_sampled_independently():
+    definition = ScenarioInput.model_validate(MINIMAL_INPUT)
+    output = gen_simulations(definition, n_simulations=50, rng=np.random.default_rng(0))
+    cov_0s = [
+        cast(list[TargetCoverage], sim["one_month_pill_for_prep"].root["target_coverages"])[0].coverage
+        for sim in output.scenarios[0].simulations
+    ]
+    cov_1s = [
+        cast(list[TargetCoverage], sim["one_month_pill_for_prep"].root["target_coverages"])[1].coverage
+        for sim in output.scenarios[0].simulations
+    ]
+    # Different distributions (mean 0.20 vs 0.15) should produce different mean values
+    assert abs(float(np.mean(cov_0s)) - float(np.mean(cov_1s))) > 0.01
 
 
 def test_target_year_is_int_in_output():
@@ -412,8 +437,8 @@ def test_gen_simulations_without_rng_creates_default_rng():
     assert isinstance(output, ScenarioSimulations)
 
 
-def test_no_targets_intervention_has_empty_targets_in_output():
-    """AHD treatment has no targets in its def; InterventionOut.targets should be empty."""
+def test_ahd_treatment_has_no_target_coverages_in_draw():
+    """AHD treatment has no targets; its draw should have no target_coverages key."""
     data = {
         "scenarios": [
             {
@@ -433,7 +458,8 @@ def test_no_targets_intervention_has_empty_targets_in_output():
     }
     definition = ScenarioInput.model_validate(data)
     output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
-    assert output.scenarios[0].interventions[0].targets == []
+    draw = output.scenarios[0].simulations[0]["ahd_treatment"].root
+    assert "target_coverages" not in draw
 
 
 def test_categorical_params_passed_through_unchanged():
@@ -445,10 +471,15 @@ def test_categorical_params_passed_through_unchanged():
                 "interventions": [
                     {
                         "product": "Vaccine",
-                        "targets": [{"risk_group": "High risk heterosexual", "sex": "Female"}],
+                        "targets": [
+                            {
+                                "risk_group": "High risk heterosexual",
+                                "sex": "Female",
+                                "target_coverage": {"mean": 0.5, "sd": 0.1},
+                            }
+                        ],
                         "parameters": {
                             "target_year": {"mean": 2030, "sd": 2},
-                            "target_coverage": {"mean": 0.5, "sd": 0.1},
                             "reduction_in_susceptibility": {"mean": 0.6, "sd": 0.05},
                             "reduction_in_infectiousness": {"mean": 0.4, "sd": 0.05},
                             "increase_in_progression_time_to_aids": {"mean": 0.2, "sd": 0.02},
@@ -576,9 +607,12 @@ def test_load_proportion_params_have_0_1_bounds(tmp_path):
     path = tmp_path / "scenarios.json"
     path.write_text(json.dumps({"scenarios": [{"id": "1", "interventions": [PREP_PILL_INTERVENTION]}]}))
     definition = load_scenario_definition(path)
-    single = definition.scenarios[0]
-    iv = single.interventions[0]  # ty: ignore[unresolved-attribute]
-    for param_name in ("efficacy", "adherence", "target_coverage"):
+    single = cast(SingleScenarioDef, definition.scenarios[0])
+    iv = cast(PrepInterventionDef, single.interventions[0])
+    for param_name in ("efficacy", "adherence"):
         dist = getattr(iv.parameters, param_name)
         assert dist.min_value == 0.0, f"{param_name}.min_value"
         assert dist.max_value == 1.0, f"{param_name}.max_value"
+    for target in iv.targets:
+        assert target.target_coverage.min_value == 0.0
+        assert target.target_coverage.max_value == 1.0

@@ -7,24 +7,24 @@ from avenir_goals_scenario.scenarios import draw_simulations, read_simulations, 
 _PREP_PILL = {
     "product": "One month pill for PrEP",
     "targets": [
-        {"risk_group": "High risk heterosexual", "sex": "Female"},
-        {"risk_group": "Men who have sex with men", "sex": "Male"},
+        {"risk_group": "High risk heterosexual", "sex": "Female", "target_coverage": {"mean": 0.20, "sd": 0.05}},
+        {"risk_group": "Men who have sex with men", "sex": "Male", "target_coverage": {"mean": 0.15, "sd": 0.03}},
     ],
     "parameters": {
         "efficacy": {"mean": 0.95, "sd": 0.03},
         "adherence": {"mean": 0.95, "sd": 0.03},
-        "target_coverage": {"mean": 0.20, "sd": 0.05},
         "target_year": {"mean": 2028, "sd": 2},
     },
 }
 
 _DAILY_PREP = {
     "product": "Daily PrEP",
-    "targets": [{"risk_group": "High risk heterosexual", "sex": "Female"}],
+    "targets": [
+        {"risk_group": "High risk heterosexual", "sex": "Female", "target_coverage": {"mean": 0.10, "sd": 0.05}}
+    ],
     "parameters": {
         "efficacy": {"mean": 0.95, "sd": 0.03},
         "adherence": {"mean": 0.80, "sd": 0.20},
-        "target_coverage": {"mean": 0.10, "sd": 0.05},
         "target_year": {"mean": 2027, "sd": 2},
     },
 }
