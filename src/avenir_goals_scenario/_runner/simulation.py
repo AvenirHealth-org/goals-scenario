@@ -40,6 +40,7 @@ from SpectrumCommon.Const.RN import (
     RN_PrEPRing,
     RN_Progression,
     RN_Single,
+    RN_Substitution,
     RN_TakeAction,
     RN_Type,
     RN_Vaccines,
@@ -132,6 +133,8 @@ class _PrepDraw(TypedDict):
     adherence: float
     target_year: int
     target_coverages: list[TargetCoverage]
+    substitution: float | None
+    duration: float | None
 
 
 class _VaccineDraw(TypedDict):
@@ -199,6 +202,12 @@ def _apply_all_prep(
         year_idx = int(draw["target_year"]) - lp["projection_start_year"]
         lp["prep_effectiveness"][method_offset, RN_Effectiveness] = draw["efficacy"]
         lp["prep_effectiveness"][method_offset, RN_Adherence] = draw["adherence"]
+        # Product-specific parameters; validation guarantees these are only set
+        # for the correct product (substitution: oral+contraceptive, duration: implant).
+        if draw.get("substitution") is not None:
+            lp["prep_effectiveness"][method_offset, RN_Substitution] = draw["substitution"]
+        if draw.get("duration") is not None:
+            lp["prep_effectiveness"][method_offset, RN_Duration] = draw["duration"]
         for tc in draw["target_coverages"]:
             key = (
                 _sex_idx(cast(SexName, tc.sex)),

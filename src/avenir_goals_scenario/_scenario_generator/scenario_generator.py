@@ -38,13 +38,13 @@ def _sample_parameters(params_model, rng: np.random.Generator, base_year: int | 
     """Sample all parameters from a typed parameters model.
 
     NormalDistParameters fields are sampled; other fields (e.g. str categoricals) are
-    passed through unchanged.
+    passed through unchanged. Unset optional fields (None) are omitted.
     """
     result = {}
     for field_name, field_value in params_model:
         if isinstance(field_value, NormalDistParameters):
             result[field_name] = _sample_param(field_name, field_value, rng, base_year)
-        else:
+        elif field_value is not None:
             result[field_name] = field_value
     return result
 

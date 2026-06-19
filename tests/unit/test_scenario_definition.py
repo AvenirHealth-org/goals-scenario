@@ -10,6 +10,7 @@ from avenir_goals_scenario.models.scenario_definition import (
     LongActingTreatmentParameters,
     NormalDistParameters,
     POCTestParameters,
+    PrepInterventionDef,
     PrepParameters,
     PrepTarget,
     ScenarioInput,
@@ -48,6 +49,67 @@ def test_proportion_defaults_no_op_when_both_already_set():
     )
     assert params.efficacy.min_value == 0.2
     assert params.efficacy.max_value == 0.99
+
+
+# ---------------------------------------------------------------------------
+# Product-specific PrEP parameters: substitution and duration
+# ---------------------------------------------------------------------------
+
+_PREP_FULL = {"efficacy": NormalDistParameters(mean=0.9, sd=0.01), **_PREP_BASE}
+
+
+def _prep_target() -> PrepTarget:
+    return PrepTarget(risk_group="High risk heterosexual", sex="Female", target_coverage=_ANY_COV)
+
+
+def test_substitution_applies_proportion_defaults():
+    params = PrepParameters(substitution=NormalDistParameters(mean=0.4, sd=0.05), **_PREP_FULL)
+    assert params.substitution is not None
+    assert params.substitution.min_value == 0.0
+    assert params.substitution.max_value == 1.0
+
+
+def test_duration_applies_nonneg_default():
+    params = PrepParameters(duration=NormalDistParameters(mean=12.0, sd=2.0), **_PREP_FULL)
+    assert params.duration is not None
+    assert params.duration.min_value == 0.0
+    assert params.duration.max_value is None
+
+
+def test_substitution_valid_on_oral_contraceptive():
+    iv = PrepInterventionDef(
+        product="Oral PrEP plus contraceptive",
+        targets=[_prep_target()],
+        parameters=PrepParameters(substitution=NormalDistParameters(mean=0.4, sd=0.05), **_PREP_FULL),
+    )
+    assert iv.parameters.substitution is not None
+
+
+def test_duration_valid_on_implantable():
+    iv = PrepInterventionDef(
+        product="Implantable PrEP",
+        targets=[_prep_target()],
+        parameters=PrepParameters(duration=NormalDistParameters(mean=12.0, sd=2.0), **_PREP_FULL),
+    )
+    assert iv.parameters.duration is not None
+
+
+def test_substitution_on_other_product_raises():
+    with pytest.raises(ValidationError, match="'substitution' parameter is only valid"):
+        PrepInterventionDef(
+            product="Daily PrEP",
+            targets=[_prep_target()],
+            parameters=PrepParameters(substitution=NormalDistParameters(mean=0.4, sd=0.05), **_PREP_FULL),
+        )
+
+
+def test_duration_on_other_product_raises():
+    with pytest.raises(ValidationError, match="'duration' parameter is only valid"):
+        PrepInterventionDef(
+            product="Daily PrEP",
+            targets=[_prep_target()],
+            parameters=PrepParameters(duration=NormalDistParameters(mean=12.0, sd=2.0), **_PREP_FULL),
+        )
 
 
 # ---------------------------------------------------------------------------

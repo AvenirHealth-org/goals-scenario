@@ -17,6 +17,7 @@ from SpectrumCommon.Const.RN import (
     RN_Infectiousness,
     RN_Progression,
     RN_Single,
+    RN_Substitution,
     RN_Type,
 )
 
@@ -35,7 +36,7 @@ _TARGET_YEAR_IDX = _TARGET_YEAR - _START_YEAR  # 5
 # see SpectrumEngine n_effectiveness constants are
 # 0 - effectiveness, 1 - adherence, 2 - substitution, 3 - duration
 _N_PREP = 10
-_N_EFFECTIVENESS = 2
+_N_EFFECTIVENESS = 4
 
 # prep_cov shape: (n_sexes=2, max_pop_idx+1=7, n_years)
 _N_SEXES = 2
@@ -185,6 +186,56 @@ def test_prep_does_not_write_other_products():
         if i != daily_offset:
             assert lp["prep_effectiveness"][i, RN_Effectiveness] == 0.0
             assert lp["prep_effectiveness"][i, RN_Adherence] == 0.0
+
+
+def test_prep_substitution_maps_for_oral_contraceptive():
+    lp = _prep_params()
+    ivs = _iv("oral_prep_plus_contraceptive", "Oral PrEP plus contraceptive")
+    offset = 2
+    sim = _sim(
+        "oral_prep_plus_contraceptive",
+        efficacy=0.9,
+        adherence=0.8,
+        substitution=0.4,
+        target_coverages=[{"sex": "Female", "risk_group": "High risk heterosexual", "coverage": 0.20}],
+    )
+
+    apply_simulation(lp, ivs, sim)
+
+    assert lp["prep_effectiveness"][offset, RN_Substitution] == pytest.approx(0.4)
+
+
+def test_prep_duration_maps_for_implantable():
+    lp = _prep_params()
+    ivs = _iv("implantable_prep", "Implantable PrEP")
+    offset = 8
+    sim = _sim(
+        "implantable_prep",
+        efficacy=0.9,
+        adherence=0.8,
+        duration=12.0,
+        target_coverages=[{"sex": "Female", "risk_group": "High risk heterosexual", "coverage": 0.20}],
+    )
+
+    apply_simulation(lp, ivs, sim)
+
+    assert lp["prep_effectiveness"][offset, RN_Duration] == pytest.approx(12.0)
+
+
+def test_prep_leaves_substitution_and_duration_default_when_unset():
+    lp = _prep_params()
+    ivs = _iv("daily_prep", "Daily PrEP")
+    sim = _sim(
+        "daily_prep",
+        efficacy=0.9,
+        adherence=0.8,
+        target_coverages=[{"sex": "Female", "risk_group": "High risk heterosexual", "coverage": 0.20}],
+    )
+
+    apply_simulation(lp, ivs, sim)
+
+    assert lp["prep_effectiveness"][0, RN_Substitution] == 0.0
+    assert lp["prep_effectiveness"][0, RN_Duration] == 0.0
 
 
 def test_prep_multi_product_aggregates_cov_and_sets_method_mix():

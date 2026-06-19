@@ -48,6 +48,12 @@ def _apply_proportion_defaults(dist: NormalDistParameters) -> NormalDistParamete
     return dist.model_copy(update=changes) if changes else dist
 
 
+def _apply_nonneg_default(dist: NormalDistParameters) -> NormalDistParameters:
+    if dist.min_value is None:
+        return dist.model_copy(update={"min_value": 0.0})
+    return dist
+
+
 # ---------------------------------------------------------------------------
 # Target types
 # ---------------------------------------------------------------------------
@@ -142,12 +148,20 @@ class PrepParameters(BaseModel):
     efficacy: NormalDistParameters
     adherence: NormalDistParameters
     target_year: NormalDistParameters
+    # Product-specific: substitution applies only to "Oral PrEP plus contraceptive",
+    # duration only to "Implantable PrEP" (enforced on PrepInterventionDef).
+    substitution: NormalDistParameters | None = None
+    duration: NormalDistParameters | None = None
 
     @model_validator(mode="after")
     def _apply_constraints(self) -> Self:
         self.efficacy = _apply_proportion_defaults(self.efficacy)
         self.adherence = _apply_proportion_defaults(self.adherence)
         self.target_year = _apply_year_constraint(self.target_year)
+        if self.substitution is not None:
+            self.substitution = _apply_proportion_defaults(self.substitution)
+        if self.duration is not None:
+            self.duration = _apply_nonneg_default(self.duration)
         return self
 
 
@@ -265,6 +279,16 @@ class PrepInterventionDef(BaseModel):
     product: PrepProduct
     targets: list[PrepTarget] = Field(min_length=1)
     parameters: PrepParameters
+
+    @model_validator(mode="after")
+    def _validate_product_specific_parameters(self) -> Self:
+        if self.parameters.substitution is not None and self.product != "Oral PrEP plus contraceptive":
+            msg = f"'substitution' parameter is only valid for 'Oral PrEP plus contraceptive', not {self.product!r}."
+            raise ValueError(msg)
+        if self.parameters.duration is not None and self.product != "Implantable PrEP":
+            msg = f"'duration' parameter is only valid for 'Implantable PrEP', not {self.product!r}."
+            raise ValueError(msg)
+        return self
 
 
 class VaccineInterventionDef(BaseModel):
