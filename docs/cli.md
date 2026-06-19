@@ -191,8 +191,14 @@ Valid `product` values: `"Daily PrEP"`, `"One month pill for PrEP"`,
 | `adherence` | Distribution for adherence (proportion, 0–1) |
 | `target_coverage` | Distribution for target population coverage (proportion, 0–1) |
 | `target_year` | Distribution for target implementation year (integer ≥ 1970) |
+| `substitution` | Distribution for substitution (proportion, 0–1). **Only valid for `"Oral PrEP plus contraceptive"`.** |
+| `duration` | Distribution for implant duration in months (≥ 0). **Only valid for `"Implantable PrEP"`.** |
 
 Each distribution is `{"mean": <float>, "sd": <float>}` with optional `min_value` and `max_value` overrides.
+
+`substitution` and `duration` are optional and product-specific: setting `substitution` on any
+product other than `"Oral PrEP plus contraceptive"`, or `duration` on anything other than
+`"Implantable PrEP"`, is a validation error. When omitted, the model's PJNZ default is used.
 
 ```json
 {
@@ -206,6 +212,21 @@ Each distribution is `{"mean": <float>, "sd": <float>}` with optional `min_value
     "adherence":       {"mean": 0.85, "sd": 0.05},
     "target_coverage": {"mean": 0.30, "sd": 0.05},
     "target_year":     {"mean": 2028, "sd": 2}
+  }
+}
+```
+
+Implantable PrEP with a `duration` (months), and Oral PrEP plus contraceptive with a `substitution`:
+
+```json
+{
+  "product": "Implantable PrEP",
+  "targets": [{"risk_group": "High risk heterosexual", "sex": "Female"}],
+  "parameters": {
+    "efficacy":    {"mean": 0.90, "sd": 0.03},
+    "adherence":   {"mean": 0.85, "sd": 0.05},
+    "target_year": {"mean": 2028, "sd": 2},
+    "duration":    {"mean": 12, "sd": 1}
   }
 }
 ```
