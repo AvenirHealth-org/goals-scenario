@@ -17,6 +17,7 @@ from SpectrumCommon.Const.RN import (
     RN_Infectiousness,
     RN_Progression,
     RN_Single,
+    RN_Type,
 )
 
 from avenir_goals_scenario._runner.simulation import apply_simulation
@@ -339,6 +340,30 @@ def test_vaccine_risk_group_both_writes_male_and_female():
     assert lp["rn_vac_cov_type"] == RN_Diff
     assert lp["rn_vac_coverage_rg"][RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.35)
     assert lp["rn_vac_coverage_rg"][RN_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.35)
+
+
+def test_vaccine_action_type_is_mapped():
+    lp = _vaccine_params()
+    ivs = _iv("vaccine", "Vaccine")
+    sim = _sim(
+        "vaccine",
+        target_coverages=[{"sex": None, "risk_group": "PLHIV", "coverage": 0.50}],
+        **{**_VAC_SIM_BASE, "vaccine_action_type": "Take"},
+    )
+
+    apply_simulation(lp, ivs, sim)
+
+    assert lp["rn_vac_params"][RN_Type] == 0
+
+    sim = _sim(
+        "vaccine",
+        target_coverages=[{"sex": None, "risk_group": "PLHIV", "coverage": 0.50}],
+        **{**_VAC_SIM_BASE, "vaccine_action_type": "Degree"},
+    )
+
+    apply_simulation(lp, ivs, sim)
+
+    assert lp["rn_vac_params"][RN_Type] == 1
 
 
 def test_vaccine_invalid_action_type_raises():

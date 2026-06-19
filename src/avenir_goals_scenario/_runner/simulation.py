@@ -20,6 +20,7 @@ from SpectrumCommon.Const.RN import (
     RN_AHDTreatment,
     RN_AllRisk,
     RN_CureAdultsChildren,
+    RN_DegreeAction,
     RN_Diff,
     RN_Duration,
     RN_Effectiveness,
@@ -39,6 +40,8 @@ from SpectrumCommon.Const.RN import (
     RN_PrEPRing,
     RN_Progression,
     RN_Single,
+    RN_TakeAction,
+    RN_Type,
     RN_Vaccines,
 )
 
@@ -246,12 +249,9 @@ def _apply_vaccine(lp: LeapfrogParams, draw: _VaccineDraw) -> None:
     lp["rn_vac_params"][RN_Duration] = draw["vaccine_duration_years"]
 
     if draw["vaccine_action_type"] == "Take":
-        ## TODO: Implement these in model see issue https://trello.com/c/Qqzniap4
-        pass
-        # lp["rn_vac_params"][RN_Type] = RN_TakeAction - RN_TakeAction  # start count at 0 in lf
+        lp["rn_vac_params"][RN_Type] = RN_TakeAction - RN_TakeAction  # start count at 0 in lf
     elif draw["vaccine_action_type"] == "Degree":
-        pass
-        # lp["rn_vac_params"][RN_Type] = RN_DegreeAction - RN_TakeAction
+        lp["rn_vac_params"][RN_Type] = RN_DegreeAction - RN_TakeAction
     else:
         msg = (
             'Invalid value for vaccine intervention "vaccine_action_type" '
