@@ -4,7 +4,7 @@
       "id": "1",
       "interventions": [
         {
-          "product": "One month pill for PrEP",
+          "product": "Oral PrEP (monthly)",
           "targets": [
             {
               "risk_group": "High risk heterosexual",
@@ -36,7 +36,7 @@
       "id": "2",
       "interventions": [
         {
-          "product": "Daily PrEP",
+          "product": "Oral PrEP (daily)",
           "targets": [
             {
               "risk_group": "High risk heterosexual",
@@ -68,7 +68,7 @@
       "id": "3",
       "interventions": [
         {
-          "product": "One month pill for PrEP",
+          "product": "Oral PrEP (monthly)",
           "targets": [
             {
               "risk_group": "High risk heterosexual",

@@ -114,13 +114,13 @@ def _iv(intervention_id: str, product: str) -> list[InterventionOut]:
 # ---------------------------------------------------------------------------
 
 _PREP_CASES = [
-    ("daily_prep", "Daily PrEP", 0),
-    ("one_month_pill_for_prep", "One month pill for PrEP", 1),
+    ("oral_prep_daily", "Oral PrEP (daily)", 0),
+    ("oral_prep_monthly", "Oral PrEP (monthly)", 1),
     ("oral_prep_plus_contraceptive", "Oral PrEP plus contraceptive", 2),
-    ("one_month_injectable_prep", "One month injectable PrEP", 3),
-    ("two_month_injectable_prep", "Two month injectable PrEP", 4),
-    ("six_month_injectable_prep", "Six month injectable PrEP", 5),
-    ("ring_prep", "Ring PrEP", 6),
+    ("injectable_prep_1_month", "Injectable PrEP (1 month)", 3),
+    ("injectable_prep_2_month", "Injectable PrEP (2 month)", 4),
+    ("injectable_prep_6_month", "Injectable PrEP (6 month)", 5),
+    ("prep_ring", "PrEP ring", 6),
     ("bnabs", "bNABs", 7),
     ("implantable_prep", "Implantable PrEP", 8),
     ("pep", "PEP", 9),
@@ -150,9 +150,9 @@ def test_prep_sets_effectiveness_and_coverage(pid, product, offset):
 
 def test_prep_multiple_targets_writes_each_population():
     lp = _prep_params()
-    ivs = _iv("daily_prep", "Daily PrEP")
+    ivs = _iv("oral_prep_daily", "Oral PrEP (daily)")
     sim = _sim(
-        "daily_prep",
+        "oral_prep_daily",
         efficacy=0.9,
         adherence=0.8,
         target_coverages=[
@@ -171,9 +171,9 @@ def test_prep_multiple_targets_writes_each_population():
 
 def test_prep_does_not_write_other_products():
     lp = _prep_params()
-    ivs = _iv("daily_prep", "Daily PrEP")
+    ivs = _iv("oral_prep_daily", "Oral PrEP (daily)")
     sim = _sim(
-        "daily_prep",
+        "oral_prep_daily",
         efficacy=0.9,
         adherence=0.8,
         target_coverages=[{"sex": "Female", "risk_group": "High risk heterosexual", "coverage": 0.20}],
@@ -224,9 +224,9 @@ def test_prep_duration_maps_for_implantable():
 
 def test_prep_leaves_substitution_and_duration_default_when_unset():
     lp = _prep_params()
-    ivs = _iv("daily_prep", "Daily PrEP")
+    ivs = _iv("oral_prep_daily", "Oral PrEP (daily)")
     sim = _sim(
-        "daily_prep",
+        "oral_prep_daily",
         efficacy=0.9,
         adherence=0.8,
         target_coverages=[{"sex": "Female", "risk_group": "High risk heterosexual", "coverage": 0.20}],
@@ -242,17 +242,17 @@ def test_prep_multi_product_aggregates_cov_and_sets_method_mix():
     """Two products targeting the same (sex, risk_group): cov sums, method mix weights by share."""
     lp = _prep_params()
     ivs = [
-        InterventionOut(id="daily_prep", product="Daily PrEP"),
-        InterventionOut(id="two_month_injectable_prep", product="Two month injectable PrEP"),
+        InterventionOut(id="oral_prep_daily", product="Oral PrEP (daily)"),
+        InterventionOut(id="injectable_prep_2_month", product="Injectable PrEP (2 month)"),
     ]
     sim = {
-        "daily_prep": InterventionSimulation({
+        "oral_prep_daily": InterventionSimulation({
             "target_year": _TARGET_YEAR,
             "efficacy": 0.9,
             "adherence": 0.8,
             "target_coverages": [TargetCoverage(sex="Female", risk_group="High risk heterosexual", coverage=0.30)],
         }),
-        "two_month_injectable_prep": InterventionSimulation({
+        "injectable_prep_2_month": InterventionSimulation({
             "target_year": _TARGET_YEAR,
             "efficacy": 0.85,
             "adherence": 0.75,
@@ -277,18 +277,18 @@ def test_prep_coverage_over_1_clamps_to_1():
     """Total coverage > 1.0 is clamped: prep_cov = 1.0, method mix still normalised by actual sum."""
     lp = _prep_params()
     ivs = [
-        InterventionOut(id="daily_prep", product="Daily PrEP"),
-        InterventionOut(id="two_month_injectable_prep", product="Two month injectable PrEP"),
+        InterventionOut(id="oral_prep_daily", product="Oral PrEP (daily)"),
+        InterventionOut(id="injectable_prep_2_month", product="Injectable PrEP (2 month)"),
     ]
     # 0.70 + 0.50 = 1.20 → clamped to 1.0; mix = 0.70/1.20, 0.50/1.20
     sim = {
-        "daily_prep": InterventionSimulation({
+        "oral_prep_daily": InterventionSimulation({
             "target_year": _TARGET_YEAR,
             "efficacy": 0.9,
             "adherence": 0.8,
             "target_coverages": [TargetCoverage(sex="Female", risk_group="High risk heterosexual", coverage=0.70)],
         }),
-        "two_month_injectable_prep": InterventionSimulation({
+        "injectable_prep_2_month": InterventionSimulation({
             "target_year": _TARGET_YEAR,
             "efficacy": 0.85,
             "adherence": 0.75,
@@ -306,9 +306,9 @@ def test_prep_coverage_over_1_clamps_to_1():
 def test_prep_zero_coverage_does_not_raise():
     """Zero sampled coverage (e.g. clamped draw) must not cause ZeroDivisionError."""
     lp = _prep_params()
-    ivs = [InterventionOut(id="daily_prep", product="Daily PrEP")]
+    ivs = [InterventionOut(id="oral_prep_daily", product="Oral PrEP (daily)")]
     sim = {
-        "daily_prep": InterventionSimulation({
+        "oral_prep_daily": InterventionSimulation({
             "target_year": _TARGET_YEAR,
             "efficacy": 0.9,
             "adherence": 0.8,
@@ -450,9 +450,9 @@ def test_vaccine_invalid_targeting_raises():
 
 def test_cure_plhiv_target_writes_all_risk():
     lp = _cure_params()
-    ivs = _iv("cure", "Cure")
+    ivs = _iv("cure_adults_and_children", "Cure (adults and children)")
     sim = _sim(
-        "cure",
+        "cure_adults_and_children",
         target_coverages=[{"sex": "Both", "risk_group": "PLHIV", "coverage": 0.30}],
         efficacy=0.80,
         duration_of_cure=5.0,
@@ -468,9 +468,9 @@ def test_cure_plhiv_target_writes_all_risk():
 
 def test_cure_risk_group_female_writes_female_index():
     lp = _cure_params()
-    ivs = _iv("cure", "Cure")
+    ivs = _iv("cure_adults_and_children", "Cure (adults and children)")
     sim = _sim(
-        "cure",
+        "cure_adults_and_children",
         target_coverages=[{"sex": "Female", "risk_group": "High risk heterosexual", "coverage": 0.25}],
         efficacy=0.75,
         duration_of_cure=3.0,
@@ -486,9 +486,9 @@ def test_cure_risk_group_female_writes_female_index():
 
 def test_cure_risk_group_both_writes_male_and_female():
     lp = _cure_params()
-    ivs = _iv("cure", "Cure")
+    ivs = _iv("cure_adults_and_children", "Cure (adults and children)")
     sim = _sim(
-        "cure",
+        "cure_adults_and_children",
         target_coverages=[{"sex": "Both", "risk_group": "High risk heterosexual", "coverage": 0.20}],
         efficacy=0.70,
         duration_of_cure=4.0,
@@ -524,8 +524,8 @@ def test_ahd_treatment_writes_coverage_and_mortality_reduction():
 
 def test_poc_viral_load_writes_coverage_and_effect():
     lp = _poc_params()
-    ivs = _iv("point_of_care_viral_load_test", "Point of care viral load test")
-    sim = _sim("point_of_care_viral_load_test", target_coverage=0.70, effect=0.12)
+    ivs = _iv("poc_vl_test", "POC VL test")
+    sim = _sim("poc_vl_test", target_coverage=0.70, effect=0.12)
 
     apply_simulation(lp, ivs, sim)
 
@@ -535,8 +535,8 @@ def test_poc_viral_load_writes_coverage_and_effect():
 
 def test_poc_cd4_writes_coverage_and_effect():
     lp = _poc_params()
-    ivs = _iv("point_of_care_cd4_test", "Point of care CD4 test")
-    sim = _sim("point_of_care_cd4_test", target_coverage=0.65, effect=0.25)
+    ivs = _iv("poc_cd4_test", "POC CD4 test")
+    sim = _sim("poc_cd4_test", target_coverage=0.65, effect=0.25)
 
     apply_simulation(lp, ivs, sim)
 

@@ -5,7 +5,7 @@ from avenir_goals_scenario.models import ScenarioSimulations
 from avenir_goals_scenario.scenarios import draw_simulations, read_simulations, write_simulations
 
 _PREP_PILL = {
-    "product": "One month pill for PrEP",
+    "product": "Oral PrEP (monthly)",
     "targets": [
         {"risk_group": "High risk heterosexual", "sex": "Female", "target_coverage": {"mean": 0.20, "sd": 0.05}},
         {"risk_group": "Men who have sex with men", "sex": "Male", "target_coverage": {"mean": 0.15, "sd": 0.03}},
@@ -18,7 +18,7 @@ _PREP_PILL = {
 }
 
 _DAILY_PREP = {
-    "product": "Daily PrEP",
+    "product": "Oral PrEP (daily)",
     "targets": [
         {"risk_group": "High risk heterosexual", "sex": "Female", "target_coverage": {"mean": 0.10, "sd": 0.05}}
     ],

@@ -260,13 +260,13 @@ class AdultARTParameters(BaseModel):
 # ---------------------------------------------------------------------------
 
 PrepProduct = Literal[
-    "Daily PrEP",
-    "One month pill for PrEP",
-    "One month injectable PrEP",
-    "Two month injectable PrEP",
-    "Six month injectable PrEP",
+    "Oral PrEP (daily)",
+    "Oral PrEP (monthly)",
+    "Injectable PrEP (1 month)",
+    "Injectable PrEP (2 month)",
+    "Injectable PrEP (6 month)",
     "Oral PrEP plus contraceptive",
-    "Ring PrEP",
+    "PrEP ring",
     "Implantable PrEP",
     "bNABs",
     "PEP",
@@ -302,7 +302,7 @@ class VaccineInterventionDef(BaseModel):
 class CureInterventionDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    product: Literal["Cure"]
+    product: Literal["Cure (adults and children)"]
     targets: list[VaccineCureTarget] = Field(min_length=1)
     parameters: CureParameters
 
@@ -317,14 +317,14 @@ class AHDTreatmentDef(BaseModel):
 class POCViralLoadTestDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    product: Literal["Point of care viral load test"]
+    product: Literal["POC VL test"]
     parameters: POCTestParameters
 
 
 class POCCD4TestDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    product: Literal["Point of care CD4 test"]
+    product: Literal["POC CD4 test"]
     parameters: POCTestParameters
 
 
