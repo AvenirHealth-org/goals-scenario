@@ -25,7 +25,7 @@ from avenir_goals_scenario.models import (
 # ---------------------------------------------------------------------------
 
 PREP_PILL_INTERVENTION = {
-    "product": "One month pill for PrEP",
+    "product": "Oral PrEP (monthly)",
     "targets": [
         {"risk_group": "High risk heterosexual", "sex": "Female", "target_coverage": {"mean": 0.20, "sd": 0.05}},
         {"risk_group": "Men who have sex with men", "sex": "Male", "target_coverage": {"mean": 0.15, "sd": 0.03}},
@@ -38,7 +38,7 @@ PREP_PILL_INTERVENTION = {
 }
 
 DAILY_PREP_INTERVENTION = {
-    "product": "Daily PrEP",
+    "product": "Oral PrEP (daily)",
     "targets": [
         {"risk_group": "High risk heterosexual", "sex": "Female", "target_coverage": {"mean": 0.10, "sd": 0.05}}
     ],
@@ -75,11 +75,11 @@ def _seeded_rng() -> np.random.Generator:
 
 
 def test_product_to_id_lowercases_and_slugifies():
-    assert _product_to_id("Daily PrEP") == "daily_prep"
+    assert _product_to_id("Oral PrEP (daily)") == "oral_prep_daily"
 
 
 def test_product_to_id_collapses_special_chars():
-    assert _product_to_id("One month pill for PrEP") == "one_month_pill_for_prep"
+    assert _product_to_id("Oral PrEP (monthly)") == "oral_prep_monthly"
 
 
 def test_product_to_id_strips_leading_trailing_underscores():
@@ -353,15 +353,15 @@ def test_output_has_correct_number_of_simulations():
 def test_single_scenario_intervention_id():
     definition = ScenarioInput.model_validate(MINIMAL_INPUT)
     output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
-    assert output.scenarios[0].interventions[0].id == "one_month_pill_for_prep"
+    assert output.scenarios[0].interventions[0].id == "oral_prep_monthly"
 
 
 def test_intervention_out_has_id_and_product():
     definition = ScenarioInput.model_validate(MINIMAL_INPUT)
     output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
     iv = output.scenarios[0].interventions[0]
-    assert iv.id == "one_month_pill_for_prep"
-    assert iv.product == "One month pill for PrEP"
+    assert iv.id == "oral_prep_monthly"
+    assert iv.product == "Oral PrEP (monthly)"
 
 
 def test_combined_scenario_merges_interventions():
@@ -369,21 +369,21 @@ def test_combined_scenario_merges_interventions():
     output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
     combined = output.scenarios[2]
     ids = {iv.id for iv in combined.interventions}
-    assert ids == {"one_month_pill_for_prep", "daily_prep"}
+    assert ids == {"oral_prep_monthly", "oral_prep_daily"}
 
 
 def test_combined_scenario_simulation_has_both_keys():
     definition = ScenarioInput.model_validate(COMBINED_INPUT)
     output = gen_simulations(definition, n_simulations=3, rng=_seeded_rng())
     for sim in output.scenarios[2].simulations:
-        assert "one_month_pill_for_prep" in sim
-        assert "daily_prep" in sim
+        assert "oral_prep_monthly" in sim
+        assert "oral_prep_daily" in sim
 
 
 def test_simulation_parameters_present():
     definition = ScenarioInput.model_validate(MINIMAL_INPUT)
     output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
-    params = output.scenarios[0].simulations[0]["one_month_pill_for_prep"].root
+    params = output.scenarios[0].simulations[0]["oral_prep_monthly"].root
     # 2 targets → target_coverage_0 and target_coverage_1
     assert set(params.keys()) == {"efficacy", "adherence", "target_year", "target_coverages"}
 
@@ -392,11 +392,11 @@ def test_per_target_coverages_are_sampled_independently():
     definition = ScenarioInput.model_validate(MINIMAL_INPUT)
     output = gen_simulations(definition, n_simulations=50, rng=np.random.default_rng(0))
     cov_0s = [
-        cast(list[TargetCoverage], sim["one_month_pill_for_prep"].root["target_coverages"])[0].coverage
+        cast(list[TargetCoverage], sim["oral_prep_monthly"].root["target_coverages"])[0].coverage
         for sim in output.scenarios[0].simulations
     ]
     cov_1s = [
-        cast(list[TargetCoverage], sim["one_month_pill_for_prep"].root["target_coverages"])[1].coverage
+        cast(list[TargetCoverage], sim["oral_prep_monthly"].root["target_coverages"])[1].coverage
         for sim in output.scenarios[0].simulations
     ]
     # Different distributions (mean 0.20 vs 0.15) should produce different mean values
@@ -406,7 +406,7 @@ def test_per_target_coverages_are_sampled_independently():
 def test_target_year_is_int_in_output():
     definition = ScenarioInput.model_validate(MINIMAL_INPUT)
     output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
-    year = output.scenarios[0].simulations[0]["one_month_pill_for_prep"].root["target_year"]
+    year = output.scenarios[0].simulations[0]["oral_prep_monthly"].root["target_year"]
     assert isinstance(year, int)
 
 
@@ -414,7 +414,7 @@ def test_target_year_value_is_near_mean():
     # Regression: target_year was clamped to 1.0 due to `is` instead of `==` in constraint logic.
     definition = ScenarioInput.model_validate(MINIMAL_INPUT)
     output = gen_simulations(definition, n_simulations=50, rng=np.random.default_rng(0))
-    years = [sim["one_month_pill_for_prep"].root["target_year"] for sim in output.scenarios[0].simulations]
+    years = [sim["oral_prep_monthly"].root["target_year"] for sim in output.scenarios[0].simulations]
     assert all(2020 <= y <= 2040 for y in years), f"Unexpected target_year values: {years}"  # ty: ignore[unsupported-operator]
 
 

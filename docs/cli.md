@@ -169,10 +169,10 @@ required fields are listed below.
 
 ##### PrEP interventions
 
-Valid `product` values: `"Daily PrEP"`, `"One month pill for PrEP"`,
-`"One month injectable PrEP"`, `"Two month injectable PrEP"`,
-`"Six month injectable PrEP"`, `"Oral PrEP plus contraceptive"`,
-`"Ring PrEP"`, `"Implantable PrEP"`, `"bNABs"`, `"PEP"`
+Valid `product` values: `"Oral PrEP (daily)"`, `"Oral PrEP (monthly)"`,
+`"Injectable PrEP (1 month)"`, `"Injectable PrEP (2 month)"`,
+`"Injectable PrEP (6 month)"`, `"Oral PrEP plus contraceptive"`,
+`"PrEP ring"`, `"Implantable PrEP"`, `"bNABs"`, `"PEP"`
 
 `targets`: one or more risk group/sex combinations.
 
@@ -202,7 +202,7 @@ product other than `"Oral PrEP plus contraceptive"`, or `duration` on anything o
 
 ```json
 {
-  "product": "Daily PrEP",
+  "product": "Oral PrEP (daily)",
   "targets": [
     {"risk_group": "High risk heterosexual", "sex": "Female"},
     {"risk_group": "Men who have sex with men", "sex": "Male"}
@@ -280,7 +280,7 @@ Implantable PrEP with a `duration` (months), and Oral PrEP plus contraceptive wi
 
 ##### Cure
 
-`product`: `"Cure"`
+`product`: `"Cure (adults and children)"`
 
 `targets`: one or more entries (one or more required). Same two targeting modes as Vaccine:
 
@@ -300,7 +300,7 @@ Implantable PrEP with a `duration` (months), and Oral PrEP plus contraceptive wi
 
 ```json
 {
-  "product": "Cure",
+  "product": "Cure (adults and children)",
   "targets": [
     {"risk_group": "PLHIV"}
   ],
@@ -342,9 +342,9 @@ No `targets` field — coverage applies globally.
 
 ---
 
-##### Point of care viral load test
+##### POC VL test
 
-`product`: `"Point of care viral load test"`
+`product`: `"POC VL test"`
 
 No `targets` field.
 
@@ -358,7 +358,7 @@ No `targets` field.
 
 ```json
 {
-  "product": "Point of care viral load test",
+  "product": "POC VL test",
   "parameters": {
     "target_year":     {"mean": 2027, "sd": 1},
     "target_coverage": {"mean": 0.70, "sd": 0.08},
@@ -369,15 +369,15 @@ No `targets` field.
 
 ---
 
-##### Point of care CD4 test
+##### POC CD4 test
 
-`product`: `"Point of care CD4 test"`
+`product`: `"POC CD4 test"`
 
-Same structure as Point of care viral load test.
+Same structure as POC VL test.
 
 ```json
 {
-  "product": "Point of care CD4 test",
+  "product": "POC CD4 test",
   "parameters": {
     "target_year":     {"mean": 2027, "sd": 1},
     "target_coverage": {"mean": 0.70, "sd": 0.08},
@@ -470,8 +470,8 @@ The draws file produced by `draw` (or saved automatically by `run`) has this str
       "id": "1",
       "interventions": [
         {
-          "id": "daily_prep",
-          "product": "Daily PrEP",
+          "id": "oral_prep_daily",
+          "product": "Oral PrEP (daily)",
           "targets": [
             { "risk_group": "High risk heterosexual", "sex": "Female" },
             { "risk_group": "Men who have sex with men", "sex": "Male" }
@@ -480,7 +480,7 @@ The draws file produced by `draw` (or saved automatically by `run`) has this str
       ],
       "simulations": [
         {
-          "daily_prep": {
+          "oral_prep_daily": {
             "efficacy": 0.976158,
             "adherence": 0.942526,
             "target_coverage": 0.202123,

@@ -46,7 +46,7 @@ from SpectrumCommon.Const.RN import (
     RN_Vaccines,
 )
 
-from avenir_goals_scenario._runner.indicator_dims import CALCULATED_INDICATORS
+from avenir_goals_scenario._runner.indicator_dims import CALCULATED_INDICATORS, RESOURCE_INDICATOR_ROWS
 from avenir_goals_scenario._scenario_generator.scenario_generator import _product_to_id
 from avenir_goals_scenario.models.scenario_definition import (
     PrepProduct,
@@ -59,21 +59,21 @@ from avenir_goals_scenario.models.scenario_simulations import InterventionOut, I
 LeapfrogParams = dict
 
 _interv_map: dict[str, int] = {
-    "one_month_pill_for_prep": RN_PrEPOralMonthly,
-    "daily_prep": RN_PrEPOralDaily,
-    "one_month_injectable_prep": RN_PrEPInject1Mo,
-    "two_month_injectable_prep": RN_PrEPInject2Mo,
-    "six_month_injectable_prep": RN_PrEPInject6Mo,
+    "oral_prep_monthly": RN_PrEPOralMonthly,
+    "oral_prep_daily": RN_PrEPOralDaily,
+    "injectable_prep_1_month": RN_PrEPInject1Mo,
+    "injectable_prep_2_month": RN_PrEPInject2Mo,
+    "injectable_prep_6_month": RN_PrEPInject6Mo,
     "oral_prep_plus_contraceptive": RN_PrEPOralPlusCon,
-    "ring_prep": RN_PrEPRing,
+    "prep_ring": RN_PrEPRing,
     "implantable_prep": RN_PrEPImplant,
     "bnabs": RN_PrEPbNABs,
     "pep": RN_PrEP_PEP,
     "vaccine": RN_Vaccines,
-    "cure": RN_CureAdultsChildren,
+    "cure_adults_and_children": RN_CureAdultsChildren,
     "ahd_treatment": RN_AHDTreatment,
-    "point_of_care_cd4_test": RN_POC_CD4_Int,
-    "point_of_care_viral_load_test": RN_POC_VL_Int,
+    "poc_cd4_test": RN_POC_CD4_Int,
+    "poc_vl_test": RN_POC_VL_Int,
     # "long_acting_treatment": RN_LongActingTreatment,
 }
 
@@ -339,13 +339,13 @@ def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict) -> None:
     match iv.id:
         case "vaccine":
             _apply_vaccine(lp, cast(_VaccineDraw, draw))
-        case "cure":
+        case "cure_adults_and_children":
             _apply_cure(lp, cast(_CureDraw, draw))
         case "ahd_treatment":
             _apply_ahd(lp, cast(_AHDTreatmentDraw, draw))
-        case "point_of_care_viral_load_test":
+        case "poc_vl_test":
             _apply_poc(lp, RN_POC_VL_Int, cast(_POCTestDraw, draw))
-        case "point_of_care_cd4_test":
+        case "poc_cd4_test":
             _apply_poc(lp, RN_POC_CD4_Int, cast(_POCTestDraw, draw))
         case "long_acting_treatment":
             raise NotImplementedError("Long-acting treatment application is not yet implemented.")
@@ -425,6 +425,9 @@ def _extract_indicators(goals_output: dict, output_indicators: list[str]) -> dic
             hiv_neg = goals_output["p_totpop"] - goals_output["p_hivpop"]
             denom = np.where(hiv_neg == 0, np.nan, hiv_neg)
             return goals_output["p_totpop"] / denom
+        elif k in RESOURCE_INDICATOR_ROWS:
+            # Keep only the populated rows; full array is (nIntervnRN + 4, year).
+            return goals_output[k][RESOURCE_INDICATOR_ROWS[k], :]
         else:
             return goals_output[k]
 

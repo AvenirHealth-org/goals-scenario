@@ -187,6 +187,74 @@ _mtct_source = DimSpec(
 
 
 # ---------------------------------------------------------------------------
+# Resource-tracking indicators (num_people_reached, resources_required)
+#
+# These leapfrog arrays have shape (nIntervnRN + 4, year) and are indexed by the
+# 1-based RN_* intervention enum (numpy index == enum value; index 0 is unused).
+# Only a subset of rows carry values, so we select those rows and relabel them.
+# Each tuple below is (array row index, output label); the order defines both
+# the row subset and the order of the dictionary-encoded labels in the output.
+# ---------------------------------------------------------------------------
+
+# Interventions populated in num_people_reached (and the per-intervention rows
+# of resources_required).
+_REACHED_INTERVENTIONS: tuple[tuple[int, str], ...] = (
+    (6, "Comprehensive sexuality education"),
+    (10, "Female sex workers and clients"),
+    (8, "Economic strengthening"),
+    (14, "PWID harm reduction"),
+    (17, "PWID needle and syringe exchange"),
+    (18, "Opioid agonist maintenance therapy"),
+    (12, "Men who have sex with men"),
+    (4, "Condom promotion"),
+    (51, "Condom supply"),
+    (52, "ANC testing"),
+    (19, "Male circumcision"),
+    (22, "Oral PrEP (daily)"),
+    (23, "Oral PrEP (monthly)"),
+    (24, "Oral PrEP plus contraceptive"),
+    (25, "Injectable PrEP (1 month)"),
+    (26, "Injectable PrEP (2 month)"),
+    (27, "Injectable PrEP (6 month)"),
+    (28, "PrEP ring"),
+    (29, "bNABs"),
+    (30, "Implantable PrEP"),
+    (31, "PEP"),
+    (46, "HIV test at ANC visit"),
+    (47, "HIV-positive women counselled"),
+    (48, "Infant males circumcised"),
+    (49, "Adults on ART"),
+    (50, "Children on ART"),
+    (39, "Vaccine"),
+    (40, "Cure (adults and children)"),
+    (41, "Cure (neonates)"),
+    (43, "AHD treatment"),
+    (44, "POC CD4 test"),
+    (45, "POC VL test"),
+    (42, "Annual number of VMMC conducted"),
+)
+
+# Aggregate cost rows present only in resources_required.
+_COST_ROWS: tuple[tuple[int, str], ...] = (
+    (53, "Direct costs"),
+    (54, "Program costs"),
+    (55, "Total costs"),
+)
+
+_RESOURCES_REQUIRED_ROWS = (*_REACHED_INTERVENTIONS, *_COST_ROWS)
+
+#: Ordered array row indices to keep for each resource-tracking indicator.
+#: Consumed by the runner to subset the raw leapfrog arrays before output.
+RESOURCE_INDICATOR_ROWS: dict[str, list[int]] = {
+    "num_people_reached": [row for row, _ in _REACHED_INTERVENTIONS],
+    "resources_required": [row for row, _ in _RESOURCES_REQUIRED_ROWS],
+}
+
+_reached_intervention = DimSpec("intervention", labels=[label for _, label in _REACHED_INTERVENTIONS])
+_resources_item = DimSpec("cost_item", labels=[label for _, label in _RESOURCES_REQUIRED_ROWS])
+
+
+# ---------------------------------------------------------------------------
 # Common dimension combinations (year is always appended automatically)
 # ---------------------------------------------------------------------------
 
@@ -357,6 +425,15 @@ _INDICATOR_SPECS: dict[str, IndicatorSpec] = {
     "pmtct_coverage_at_delivery": IndicatorSpec(
         "PMTCT coverage at delivery by ARV regimen.",
         dims=(_pmtct_regimen,),
+    ),
+    # --- resources ---
+    "num_people_reached": IndicatorSpec(
+        "Number of people reached by each intervention.",
+        dims=(_reached_intervention,),
+    ),
+    "resources_required": IndicatorSpec(
+        "Resources required (cost) per intervention, plus direct, program, and total cost aggregates.",
+        dims=(_resources_item,),
     ),
     # -- Calculated indicators --
     "p_prevalence": IndicatorSpec("Prevalence by single year age and sex.", dims=(_age, _sex)),

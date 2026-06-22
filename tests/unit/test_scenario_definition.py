@@ -97,7 +97,7 @@ def test_duration_valid_on_implantable():
 def test_substitution_on_other_product_raises():
     with pytest.raises(ValidationError, match="'substitution' parameter is only valid"):
         PrepInterventionDef(
-            product="Daily PrEP",
+            product="Oral PrEP (daily)",
             targets=[_prep_target()],
             parameters=PrepParameters(substitution=NormalDistParameters(mean=0.4, sd=0.05), **_PREP_FULL),
         )
@@ -106,7 +106,7 @@ def test_substitution_on_other_product_raises():
 def test_duration_on_other_product_raises():
     with pytest.raises(ValidationError, match="'duration' parameter is only valid"):
         PrepInterventionDef(
-            product="Daily PrEP",
+            product="Oral PrEP (daily)",
             targets=[_prep_target()],
             parameters=PrepParameters(duration=NormalDistParameters(mean=12.0, sd=2.0), **_PREP_FULL),
         )
