@@ -368,9 +368,8 @@ def _apply_vmm(lp: LeapfrogParams, draw: _VMMDraw) -> None:
 
 def _apply_ahd(lp: LeapfrogParams, draw: _AHDTreatmentDraw) -> None:
     year_idx = _target_year_idx(lp, draw)
-    # TODO: fix typo in adh see https://trello.com/c/fEiv46rE
-    lp["rn_adh_treat_cov"][year_idx] = draw["target_coverage"]
-    lp["rn_adh_treat_reduc_mort"] = draw["reduction_in_mortality"]
+    lp["rn_ahd_treat_cov"][year_idx] = draw["target_coverage"]
+    lp["rn_ahd_treat_reduc_mort"] = draw["reduction_in_mortality"]
 
 
 def _apply_adult_art(lp: LeapfrogParams, draw: _AdultARTDraw) -> None:
@@ -383,8 +382,21 @@ def _apply_adult_art(lp: LeapfrogParams, draw: _AdultARTDraw) -> None:
         else:
             sex_indices = [1]
         for sex_idx in sex_indices:
-            lp["adults_on_art"][sex_idx, year_idx] = tc.coverage
-            lp["adults_on_art_is_percent"][sex_idx, year_idx] = 1
+            # Leapfrog stores adult ART coverage under "art15plus_num" with an
+            # "art15plus_isperc" flag (see SpectrumCommon LeapfrogDataMapping).
+            lp["art15plus_num"][sex_idx, year_idx] = tc.coverage
+            lp["art15plus_isperc"][sex_idx, year_idx] = 1
+
+
+def _apply_long_acting_treatment(lp: LeapfrogParams, draw: dict) -> None:
+    """No-op stub for long-acting treatment.
+
+    The product is accepted in scenario definitions but has no effect on the
+    Goals model yet: the leapfrog mapping for ``interruption_rate_reduction`` and
+    ``viral_load_suppression_ratio`` is not wired up. This lets scenarios that
+    include long-acting treatment run to completion (it behaves as if absent).
+    TODO: implement the actual model effect.
+    """
 
 
 def _apply_poc(lp: LeapfrogParams, poc_type: int, draw: _POCTestDraw) -> None:
@@ -412,7 +424,7 @@ def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict) -> None:
         case "poc_cd4_test":
             _apply_poc(lp, RN_POC_CD4_Int, cast(_POCTestDraw, draw))
         case "long_acting_treatment":
-            raise NotImplementedError("Long-acting treatment application is not yet implemented.")
+            _apply_long_acting_treatment(lp, draw)
         case "adult_art":
             _apply_adult_art(lp, cast(_AdultARTDraw, draw))
         case _:

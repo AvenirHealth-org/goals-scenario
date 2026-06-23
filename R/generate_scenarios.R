@@ -54,33 +54,29 @@
 
 # ---- Config ------------------------------------------------------------------
 
-# Standard-of-care products: always present in every scenario.
-# For SOC products, id == product (no separate id needed).
-# NOTE: "Daily ART" removed — not a supported intervention type in Goals scenario yet.
 SOC_PRODUCTS <- c(
-  "Daily PrEP",
-  "Two month injectable PrEP"
+  "Oral PrEP (daily)",
+  "Injectable PrEP (2 month)",
+  "Adult ART"
 )
 
-# R&D products. Use INTERNAL IDs here (the "id" field from products_input.json,
-# defaulting to "product" if "id" is absent).
-# For products that share a canonical Goals product name (e.g. the two vaccines),
-# these ids distinguish them in the PTRS and market-dynamics lookups.
-#
-# Removed vs. original script:
-#   "One month pill for PEP"    — not in Goals scenario schema
-#   "Daily ART"                 — not in Goals scenario schema
-#   "Long acting treatment 1" + "Long acting treatment 2" → merged (see ASSUMPTION 2)
-#   "Long-acting treatment"     — not yet implemented in Goals model; omitted for now
+# R&D products.
+# NOT YET INCLUDED:
+#   "Therapeutic vaccine"            — not added yet (TODO).
+#   2nd "Long-acting treatment" variant — only one variant included for now.
+#   "Vaginal microbiome modification" / "Cure (neonates)" — new model products
+#                                       available to adopt, omitted for now.
 RND_PRODUCTS <- c(
-  "Six month injectable PrEP",
-  "One month pill for PrEP",
+  "Injectable PrEP (6 month)",
+  "Oral PrEP (monthly)",
   "Implantable PrEP",
+  "PEP",
   "Vaccine",
+  "Long-acting treatment",
   "AHD treatment",
-  "Cure",
-  "Point of care CD4 test",
-  "Point of care viral load test"
+  "Cure (adults and children)",
+  "POC CD4 test",
+  "POC VL test"
 )
 
 PRODUCTS_INPUT_PATH        <- "products_input.json"
@@ -98,27 +94,40 @@ create_dummy_products <- function(path) {
   #   id (optional) : internal name matching RND_PRODUCTS / ptrs_input.csv.
   #                   If absent, "product" is used as the id.
   #   product       : canonical Goals product name (Python Literal, e.g. "Vaccine")
-  #   targets       : list of {population, sex}; omit entirely for AHD/POC products
+  #   targets       : product-type-specific list of target objects (see below);
+  #                   omit entirely for AHD treatment and POC tests.
   #   parameters    : product-type-specific
   #
-  # Valid canonical product names:
-  #   PrEP:    "Daily PrEP", "Two month injectable PrEP", "Six month injectable PrEP",
-  #            "One month pill for PrEP", "Implantable PrEP",
-  #            "Oral PrEP plus contraceptive", "Ring PrEP", "bNABs",
-  #            "One month injectable PrEP"
-  #   Other:   "Vaccine", "Cure", "AHD treatment",
-  #            "Point of care CD4 test", "Point of care viral load test",
-  #            "Long-acting treatment"
+  # IMPORTANT — coverage location (Goals model "coverage fix"):
+  #   For products WITH targets (PrEP/PEP, Vaccine, Cure, Adult ART), the
+  #   "target_coverage" {mean, sd} now lives INSIDE EACH TARGET, not in
+  #   "parameters". Only the target-less products (AHD treatment, POC tests) keep
+  #   "target_coverage" in "parameters". Long-acting treatment has no coverage at all.
   #
-  # Risk group populations (PrEP / Vaccine / Cure):
+  # Valid canonical product names:
+  #   PrEP:    "Oral PrEP (daily)", "Oral PrEP (monthly)",
+  #            "Injectable PrEP (1 month)", "Injectable PrEP (2 month)",
+  #            "Injectable PrEP (6 month)", "Oral PrEP plus contraceptive",
+  #            "PrEP ring", "Implantable PrEP", "bNABs", "PEP"
+  #   Other:   "Vaccine", "Cure (adults and children)", "Cure (neonates)",
+  #            "Vaginal microbiome modification", "AHD treatment",
+  #            "POC CD4 test", "POC VL test", "Long-acting treatment", "Adult ART"
+  #
+  # Target shapes by product family:
+  #   PrEP / PEP        : {risk_group, sex, target_coverage}
+  #   Vaccine / Cure    : {risk_group, sex (optional), target_coverage}
+  #                       risk_group may be "PLHIV" (then sex must be "Both" or omitted)
+  #   Adult ART         : {sex, target_coverage}            (no risk_group)
+  #   Long-acting tx    : {risk_group, sex (optional)}      (NO target_coverage)
+  #
+  # Risk groups (PrEP / Vaccine / Cure):
   #   "Low risk heterosexual", "Medium risk heterosexual", "High risk heterosexual",
-  #   "People who inject drugs", "Men who have sex with men"
+  #   "People who inject drugs", "Men who have sex with men", and (Vaccine/Cure) "PLHIV"
   #   sex: "Male", "Female", "Both"
   #
-  # LongActingTreatmentTarget populations:
+  # LongActingTreatmentTarget risk groups:
   #   "Key populations", "General population", "Medium risk populations",
-  #   "Not sexually active"
-  #   sex: "Male", "Female", "Both" or omit
+  #   "Not sexually active"; sex: "Male", "Female", "Both" or omit
   #
   # Vaccine parameter Literals:
   #   vaccine_action_type: "Take" | "Degree"
@@ -129,69 +138,100 @@ create_dummy_products <- function(path) {
   products <- list(
     # --- SOC ---
     list(
-      product = "Daily PrEP",
+      product = "Oral PrEP (daily)",
       targets = list(
-        list(population = "High risk heterosexual", sex = "Female"),
-        list(population = "Men who have sex with men", sex = "Male")
+        list(risk_group = "High risk heterosexual", sex = "Female",
+             target_coverage = list(mean = 0.30, sd = 0.05)),
+        list(risk_group = "Men who have sex with men", sex = "Male",
+             target_coverage = list(mean = 0.30, sd = 0.05))
       ),
       parameters = list(
-        efficacy        = list(mean = 0.95, sd = 0.03),
-        adherence       = list(mean = 0.85, sd = 0.05),
-        target_coverage = list(mean = 0.30, sd = 0.05),
-        target_year     = list(mean = 2028, sd = 2)
+        efficacy    = list(mean = 0.95, sd = 0.03),
+        adherence   = list(mean = 0.85, sd = 0.05),
+        target_year = list(mean = 2028, sd = 2)
       )
     ),
     list(
-      product = "Two month injectable PrEP",
+      product = "Injectable PrEP (2 month)",
       targets = list(
-        list(population = "High risk heterosexual", sex = "Female"),
-        list(population = "Men who have sex with men", sex = "Male")
+        list(risk_group = "High risk heterosexual", sex = "Female",
+             target_coverage = list(mean = 0.20, sd = 0.05)),
+        list(risk_group = "Men who have sex with men", sex = "Male",
+             target_coverage = list(mean = 0.20, sd = 0.05))
       ),
       parameters = list(
-        efficacy        = list(mean = 0.99, sd = 0.01),
-        adherence       = list(mean = 0.95, sd = 0.03),
-        target_coverage = list(mean = 0.20, sd = 0.05),
-        target_year     = list(mean = 2028, sd = 2)
+        efficacy    = list(mean = 0.99, sd = 0.01),
+        adherence   = list(mean = 0.95, sd = 0.03),
+        target_year = list(mean = 2028, sd = 2)
+      )
+    ),
+    # Adult ART: standard-of-care treatment backbone. Targets are by sex only
+    # (no risk_group); parameters carry only target_year.
+    list(
+      product = "Adult ART",
+      targets = list(
+        list(sex = "Female", target_coverage = list(mean = 0.85, sd = 0.05)),
+        list(sex = "Male",   target_coverage = list(mean = 0.85, sd = 0.05))
+      ),
+      parameters = list(
+        target_year = list(mean = 2030, sd = 2)
       )
     ),
     # --- R&D ---
     list(
-      product = "Six month injectable PrEP",
+      product = "Injectable PrEP (6 month)",
       targets = list(
-        list(population = "High risk heterosexual", sex = "Female"),
-        list(population = "Men who have sex with men", sex = "Male"),
-        list(population = "Medium risk heterosexual", sex = "Female")
+        list(risk_group = "High risk heterosexual", sex = "Female",
+             target_coverage = list(mean = 0.20, sd = 0.05)),
+        list(risk_group = "Men who have sex with men", sex = "Male",
+             target_coverage = list(mean = 0.20, sd = 0.05)),
+        list(risk_group = "Medium risk heterosexual", sex = "Female",
+             target_coverage = list(mean = 0.20, sd = 0.05))
       ),
       parameters = list(
-        efficacy        = list(mean = 0.99, sd = 0.01),
-        adherence       = list(mean = 0.99, sd = 0.01),
-        target_coverage = list(mean = 0.20, sd = 0.05),
-        target_year     = list(mean = 2030, sd = 2)
+        efficacy    = list(mean = 0.99, sd = 0.01),
+        adherence   = list(mean = 0.99, sd = 0.01),
+        target_year = list(mean = 2030, sd = 2)
       )
     ),
     list(
-      product = "One month pill for PrEP",
+      product = "Oral PrEP (monthly)",
       targets = list(
-        list(population = "High risk heterosexual", sex = "Female"),
-        list(population = "Medium risk heterosexual", sex = "Female")
+        list(risk_group = "High risk heterosexual", sex = "Female",
+             target_coverage = list(mean = 0.20, sd = 0.05)),
+        list(risk_group = "Medium risk heterosexual", sex = "Female",
+             target_coverage = list(mean = 0.20, sd = 0.05))
       ),
       parameters = list(
-        efficacy        = list(mean = 0.95, sd = 0.03),
-        adherence       = list(mean = 0.95, sd = 0.03),
-        target_coverage = list(mean = 0.20, sd = 0.05),
-        target_year     = list(mean = 2028, sd = 2)
+        efficacy    = list(mean = 0.95, sd = 0.03),
+        adherence   = list(mean = 0.95, sd = 0.03),
+        target_year = list(mean = 2028, sd = 2)
       )
     ),
     list(
       product = "Implantable PrEP",
       targets = list(
-        list(population = "High risk heterosexual", sex = "Female")
+        list(risk_group = "High risk heterosexual", sex = "Female",
+             target_coverage = list(mean = 0.15, sd = 0.05))
       ),
       parameters = list(
-        efficacy        = list(mean = 0.98, sd = 0.02),
-        adherence       = list(mean = 0.99, sd = 0.01),
-        target_coverage = list(mean = 0.15, sd = 0.05),
-        target_year     = list(mean = 2032, sd = 2)
+        efficacy    = list(mean = 0.98, sd = 0.02),
+        adherence   = list(mean = 0.99, sd = 0.01),
+        target_year = list(mean = 2032, sd = 2)
+      )
+    ),
+    # PEP (post-exposure prophylaxis): a PrEP-family product. From the original
+    # script's "One month pill for PEP".
+    list(
+      product = "PEP",
+      targets = list(
+        list(risk_group = "High risk heterosexual", sex = "Female",
+             target_coverage = list(mean = 0.10, sd = 0.03))
+      ),
+      parameters = list(
+        efficacy    = list(mean = 0.90, sd = 0.05),
+        adherence   = list(mean = 0.85, sd = 0.05),
+        target_year = list(mean = 2030, sd = 2)
       )
     ),
     # TODO: confirm whether targeting should be "Vaccinate without HIV testing"
@@ -199,12 +239,13 @@ create_dummy_products <- function(path) {
     list(
       product = "Vaccine",
       targets = list(
-        list(population = "Medium risk heterosexual", sex = "Female"),
-        list(population = "Medium risk heterosexual", sex = "Male")
+        list(risk_group = "Medium risk heterosexual", sex = "Female",
+             target_coverage = list(mean = 0.50, sd = 0.10)),
+        list(risk_group = "Medium risk heterosexual", sex = "Male",
+             target_coverage = list(mean = 0.50, sd = 0.10))
       ),
       parameters = list(
         target_year                          = list(mean = 2035, sd = 3),
-        target_coverage                      = list(mean = 0.50, sd = 0.10),
         reduction_in_susceptibility          = list(mean = 0.70, sd = 0.10),
         reduction_in_infectiousness          = list(mean = 0.50, sd = 0.10),
         increase_in_progression_time_to_aids = list(mean = 0.30, sd = 0.05),
@@ -213,30 +254,32 @@ create_dummy_products <- function(path) {
         targeting                            = "Vaccinate without HIV testing"
       )
     ),
+    # Cure: targets PLHIV (sex omitted; PLHIV must be sex "Both" or unset).
+    list(
+      product = "Cure (adults and children)",
+      targets = list(
+        list(risk_group = "PLHIV", target_coverage = list(mean = 0.20, sd = 0.05))
+      ),
+      parameters = list(
+        target_year      = list(mean = 2035, sd = 3),
+        efficacy         = list(mean = 0.85, sd = 0.05),
+        duration_of_cure = list(mean = 5.0,  sd = 1.0)
+      )
+    ),
+    # Long-acting treatment: NO target_coverage anywhere, so archetype and market
+    # multipliers have no effect on it (ASSUMPTION). Included as a single variant.
     list(
       product = "Long-acting treatment",
       targets = list(
-        list(population = "Key populations", sex = "Both")
+        list(risk_group = "Key populations", sex = "Both")
       ),
       parameters = list(
         interruption_rate_reduction  = list(mean = 0.25, sd = 0.05),
         viral_load_suppression_ratio = list(mean = 0.80, sd = 0.05)
       )
     ),
-    list(
-      product = "Cure",
-      targets = list(
-        list(population = "High risk heterosexual", sex = "Female"),
-        list(population = "Men who have sex with men", sex = "Male")
-      ),
-      parameters = list(
-        target_year      = list(mean = 2035, sd = 3),
-        target_coverage  = list(mean = 0.20, sd = 0.05),
-        efficacy         = list(mean = 0.85, sd = 0.05),
-        duration_of_cure = list(mean = 5.0,  sd = 1.0)
-      )
-    ),
-    # AHD treatment and POC tests: NO targets field (Goals schema forbids it).
+    # AHD treatment and POC tests: NO targets field (Goals schema forbids it);
+    # target_coverage stays in parameters.
     list(
       product = "AHD treatment",
       parameters = list(
@@ -246,7 +289,7 @@ create_dummy_products <- function(path) {
       )
     ),
     list(
-      product = "Point of care CD4 test",
+      product = "POC CD4 test",
       parameters = list(
         target_year     = list(mean = 2029, sd = 2),
         target_coverage = list(mean = 0.70, sd = 0.08),
@@ -254,7 +297,7 @@ create_dummy_products <- function(path) {
       )
     ),
     list(
-      product = "Point of care viral load test",
+      product = "POC VL test",
       parameters = list(
         target_year     = list(mean = 2029, sd = 2),
         target_coverage = list(mean = 0.70, sd = 0.08),
@@ -293,25 +336,31 @@ create_dummy_archetypes <- function(path) {
 
 create_dummy_ptrs <- function(path) {
   # Uses internal product ids (the "id" field, defaulting to "product").
+  # One row per R&D product, in RND_PRODUCTS order:
+  #   Injectable PrEP (6 month), Oral PrEP (monthly), Implantable PrEP, PEP,
+  #   Vaccine, Cure (adults and children), Long-acting treatment, AHD treatment,
+  #   POC CD4 test, POC VL test
   readr::write_csv(tibble::tibble(
     Product = RND_PRODUCTS,
-    ptrs    = c(0.90, 0.70, 0.40, 0.17, 0.30, 0.10, 0.60, 0.60)
+    ptrs    = c(0.90, 0.70, 0.40, 0.50, 0.17, 0.10, 0.50, 0.30, 0.60, 0.60)
   ), path)
   message("Wrote dummy ", path)
 }
 
 create_dummy_market_dynamics <- function(path) {
   # trigger_products and affected_product use CANONICAL product names (e.g.
-  # "Vaccine"), so a rule fires when any vaccine variant is present.
-  # NOTE: Rules referencing "Daily ART" have been removed (not in Goals schema).
+  # "Vaccine"), so a rule fires when any matching variant is present.
+  # NOTE: "Long-acting treatment" carries no target_coverage, so a rule that
+  # *affects* it would be a no-op; it may still appear as a trigger.
   readr::write_csv(tibble::tribble(
-    ~trigger_products,                                   ~affected_product,           ~coverage_multiplier, ~type,
-    "Vaccine",                                           "Daily PrEP",                0.50,                 "cannibalization",
-    "Vaccine",                                           "Two month injectable PrEP", 0.50,                 "cannibalization",
-    "Vaccine",                                           "Six month injectable PrEP", 0.50,                 "cannibalization",
-    "Implantable PrEP",                                  "Daily PrEP",                0.10,                 "cannibalization",
-    "Six month injectable PrEP;One month pill for PrEP", "Six month injectable PrEP", 1.10,                 "synergy",
-    "Six month injectable PrEP;One month pill for PrEP", "One month pill for PrEP",   1.10,                 "synergy"
+    ~trigger_products,                                       ~affected_product,            ~coverage_multiplier, ~type,
+    "Vaccine",                                               "Oral PrEP (daily)",          0.50,                 "cannibalization",
+    "Vaccine",                                               "Injectable PrEP (2 month)",  0.50,                 "cannibalization",
+    "Vaccine",                                               "Injectable PrEP (6 month)",  0.50,                 "cannibalization",
+    "Implantable PrEP",                                      "Oral PrEP (daily)",          0.10,                 "cannibalization",
+    "Cure (adults and children)",                            "Adult ART",                  0.10,                 "cannibalization",
+    "Injectable PrEP (6 month);Oral PrEP (monthly)",         "Injectable PrEP (6 month)",  1.10,                 "synergy",
+    "Injectable PrEP (6 month);Oral PrEP (monthly)",         "Oral PrEP (monthly)",        1.10,                 "synergy"
   ), path)
   message("Wrote dummy ", path)
 }
@@ -371,23 +420,34 @@ load_market_dynamics <- function(path) {
     if (!col %in% names(df)) stop("market_dynamics_input.csv must have a '", col, "' column.")
   }
   if (!"type" %in% names(df)) df$type <- NA_character_
+  # Pre-split trigger_products once (it's constant per rule but consulted for
+  # every scenario) to avoid repeated stringr calls in the hot loop.
+  df$triggers <- lapply(df$trigger_products, function(s) {
+    stringr::str_trim(stringr::str_split(s, ";")[[1]])
+  })
   df
 }
 
 # ---- Scenario construction ---------------------------------------------------
 
+# Precompute archetype × target-population -> multiplier as a named numeric
+# vector for O(1) lookups. Done once per run; passed to archetype_multiplier in
+# place of the data frame (per-call dplyr::filter otherwise dominates runtime).
+# Keys are "{archetype}\u001f{target population}" (\u001f = unit separator, which
+# cannot appear in a name).
+archetype_lookup <- function(archetypes_df) {
+  keys <- paste(archetypes_df$Archetype, archetypes_df$`Target Population`, sep = "\u001f")
+  stats::setNames(archetypes_df$coverage_multiplier, keys)
+}
+
 # Lookup: archetype + target population -> coverage multiplier.
 # If no row matches the specific target population, fall back to the
 # archetype's "*" row; if that's also missing, return 1.
-archetype_multiplier <- function(archetypes_df, archetype, target_pop) {
-  specific <- archetypes_df |>
-    dplyr::filter(.data$Archetype == archetype,
-           .data$`Target Population` == target_pop)
-  if (nrow(specific) > 0) return(specific$coverage_multiplier[1])
-  wildcard <- archetypes_df |>
-    dplyr::filter(.data$Archetype == archetype,
-           .data$`Target Population` == "*")
-  if (nrow(wildcard) > 0) return(wildcard$coverage_multiplier[1])
+archetype_multiplier <- function(lookup, archetype, target_pop) {
+  v <- lookup[paste(archetype, target_pop, sep = "\u001f")]
+  if (!is.na(v)) return(unname(v))
+  w <- lookup[paste(archetype, "*", sep = "\u001f")]
+  if (!is.na(w)) return(unname(w))
   1
 }
 
@@ -400,7 +460,7 @@ market_dynamic_multipliers <- function(canonical_products_in_scenario, market_df
                          canonical_products_in_scenario)
   if (nrow(market_df) == 0) return(out)
   for (i in seq_len(nrow(market_df))) {
-    triggers <- stringr::str_trim(stringr::str_split(market_df$trigger_products[i], ";")[[1]])
+    triggers <- market_df$triggers[[i]]  # pre-split in load_market_dynamics
     affected <- market_df$affected_product[i]
     if (all(triggers %in% canonical_products_in_scenario) &&
         affected %in% canonical_products_in_scenario) {
@@ -443,14 +503,6 @@ branch_probability <- function(success_row, ptrs_named) {
   prod(ifelse(s, p, 1 - p))
 }
 
-scale_coverage <- function(prod_entry, coverage_mult) {
-  if (!is.null(prod_entry$parameters$target_coverage)) {
-    prod_entry$parameters$target_coverage$mean <-
-      prod_entry$parameters$target_coverage$mean * coverage_mult
-  }
-  prod_entry
-}
-
 build_intervention <- function(prod_entry) {
   if (!is.null(prod_entry$targets) && length(prod_entry$targets) > 0) {
     list(product    = prod_entry$product,
@@ -462,30 +514,38 @@ build_intervention <- function(prod_entry) {
   }
 }
 
-# Build interventions for one product entry, applying per-target archetype multipliers.
-# Returns a list of intervention objects (may be > 1 if targets have different multipliers).
-build_interventions_with_archetype <- function(entry, archetypes_df, archetype) {
-  if (is.null(entry$targets) || length(entry$targets) == 0) {
-    return(list(build_intervention(entry)))
-  }
-  target_mults <- vapply(entry$targets, function(t) {
-    archetype_multiplier(archetypes_df, archetype, t$population)
-  }, numeric(1))
-  if (length(unique(target_mults)) == 1) {
-    list(build_intervention(scale_coverage(entry, target_mults[1])))
-  } else {
-    lapply(seq_along(entry$targets), function(i) {
-      e <- entry
-      e$targets <- list(entry$targets[[i]])
-      build_intervention(scale_coverage(e, target_mults[i]))
+# Build a single intervention for one product entry, scaling coverage by both the
+# per-target archetype multiplier and the product-level market-dynamic multiplier.
+#
+# Coverage lives in one of two places (see create_dummy_products):
+#   - per-target "target_coverage" (PrEP/PEP, Vaccine, Cure, Adult ART):
+#     each target is scaled by archetype_multiplier(archetype, its risk_group)
+#     * md_mult. Targets with no risk_group (Adult ART) use the "*" archetype row.
+#   - parameters$target_coverage (AHD treatment, POC tests): scaled by
+#     archetype_multiplier(archetype, "*") * md_mult.
+# Products with no coverage at all (Long-acting treatment) are left untouched.
+build_intervention_scaled <- function(entry, arch_lookup, archetype, md_mult) {
+  if (!is.null(entry$targets) && length(entry$targets) > 0) {
+    entry$targets <- lapply(entry$targets, function(t) {
+      if (!is.null(t$target_coverage)) {
+        pop <- if (!is.null(t$risk_group)) t$risk_group else "*"
+        am  <- archetype_multiplier(arch_lookup, archetype, pop)
+        t$target_coverage$mean <- t$target_coverage$mean * am * md_mult
+      }
+      t
     })
+  } else if (!is.null(entry$parameters$target_coverage)) {
+    am <- archetype_multiplier(arch_lookup, archetype, "*")
+    entry$parameters$target_coverage$mean <-
+      entry$parameters$target_coverage$mean * am * md_mult
   }
+  build_intervention(entry)
 }
 
 # Build a scenario object for one branch × archetype-group combination.
 # Returns a list of length 1 (one scenario).
 build_scenarios_for_branch <- function(success_row, products_named, pjnz_names,
-                                       archetypes_df, archetype, arch_idx,
+                                       arch_lookup, archetype, arch_idx,
                                        market_df, ptrs_named) {
   rnd_in      <- names(success_row)[as.logical(success_row)]
   ids_in_scen <- c(SOC_PRODUCTS, rnd_in)
@@ -499,17 +559,12 @@ build_scenarios_for_branch <- function(success_row, products_named, pjnz_names,
   }, character(1)))
   md_mult <- market_dynamic_multipliers(canonical_in_scen, market_df)
 
-  entries <- lapply(ids_in_scen, function(pid) {
+  interventions <- lapply(ids_in_scen, function(pid) {
     entry <- products_named[[pid]]
     if (is.null(entry)) { warning("No entry for '", pid, "' — skipping."); return(NULL) }
-    scale_coverage(entry, md_mult[[entry$product]])
+    build_intervention_scaled(entry, arch_lookup, archetype, md_mult[[entry$product]])
   })
-  entries <- Filter(Negate(is.null), entries)
-
-  interventions <- unlist(
-    lapply(entries, function(e) build_interventions_with_archetype(e, archetypes_df, archetype)),
-    recursive = FALSE
-  )
+  interventions <- Filter(Negate(is.null), interventions)
 
   list(list(
     id                 = paste0(bid, "_A", arch_idx),
@@ -523,18 +578,23 @@ build_scenarios_for_branch <- function(success_row, products_named, pjnz_names,
 build_all_scenarios <- function(products_named, countries_df, archetypes_df, market_df, ptrs_df) {
   success_mat <- rnd_success_matrix(RND_PRODUCTS)
   ptrs_named  <- stats::setNames(ptrs_df$ptrs, ptrs_df$Product)
+  arch_lookup <- archetype_lookup(archetypes_df)
 
-  # Collect all target populations across all products for profile comparison.
+  # Collect all target risk groups across all products for profile comparison.
+  # Targets without a risk_group (e.g. Adult ART, which targets by sex) are skipped.
   all_target_pops <- unique(unlist(lapply(products_named, function(e) {
-    if (!is.null(e$targets)) vapply(e$targets, `[[`, character(1), "population")
-    else character(0)
+    if (!is.null(e$targets)) {
+      Filter(Negate(is.null), lapply(e$targets, function(t) t$risk_group))
+    } else {
+      character(0)
+    }
   })))
 
   # Profile key: concatenated multipliers over all target populations. Archetypes
   # with identical effective multipliers are grouped together so they share a scenario.
   profile_key <- function(arch) {
     mults <- vapply(all_target_pops, function(pop) {
-      archetype_multiplier(archetypes_df, arch, pop)
+      archetype_multiplier(arch_lookup, arch, pop)
     }, numeric(1))
     paste(mults, collapse = "_")
   }
@@ -548,20 +608,23 @@ build_all_scenarios <- function(products_named, countries_df, archetypes_df, mar
   message("Building ", n_branches, " branches × ", n_groups, " archetype group(s) = ",
           n_branches * n_groups, " scenarios...")
 
-  scenarios <- list()
+  # Preallocate (one scenario per branch × group) to avoid quadratic list growth.
+  scenarios <- vector("list", n_branches * n_groups)
+  k <- 0L
   for (i in seq_len(n_branches)) {
     for (j in seq_along(archetype_groups)) {
       grp       <- archetype_groups[[j]]
       new_scens <- build_scenarios_for_branch(
         success_mat[i, ], products_named,
-        pjnz_names    = grp$countries,
-        archetypes_df = archetypes_df,
-        archetype     = grp$archetype,
-        arch_idx      = j,
-        market_df     = market_df,
-        ptrs_named    = ptrs_named
+        pjnz_names  = grp$countries,
+        arch_lookup = arch_lookup,
+        archetype   = grp$archetype,
+        arch_idx    = j,
+        market_df   = market_df,
+        ptrs_named  = ptrs_named
       )
-      scenarios <- c(scenarios, new_scens)
+      k <- k + 1L
+      scenarios[[k]] <- new_scens[[1]]
     }
     if (i %% 64 == 0) message("  ...", i, " / ", n_branches)
   }

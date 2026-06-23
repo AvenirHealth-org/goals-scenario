@@ -14,7 +14,7 @@ dependencies = [
     "pyarrow>=23.0.1",
     "pandas>=3.0.3",
     "loguru>=0.7.3",
-    "avenir-spectrum-common>=0.1.12",
+    "avenir-spectrum-common>=0.1.13",
     "leapfrog-goals>=0.0.7",
     "avenir-spectrum-import-pjnz>=0.1.8",
 ]
