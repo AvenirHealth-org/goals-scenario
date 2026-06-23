@@ -104,8 +104,8 @@ def _vmm_params() -> dict:
 def _ahd_params() -> dict:
     return {
         "projection_start_year": _START_YEAR,
-        "rn_adh_treat_cov": np.zeros(_N_YEARS),
-        "rn_adh_treat_reduc_mort": 0.0,
+        "rn_ahd_treat_cov": np.zeros(_N_YEARS),
+        "rn_ahd_treat_reduc_mort": 0.0,
     }
 
 
@@ -600,8 +600,8 @@ def test_ahd_treatment_writes_coverage_and_mortality_reduction():
 
     apply_simulation(lp, ivs, sim)
 
-    assert lp["rn_adh_treat_cov"][_TARGET_YEAR_IDX] == pytest.approx(0.80)
-    assert lp["rn_adh_treat_reduc_mort"] == pytest.approx(0.60)
+    assert lp["rn_ahd_treat_cov"][_TARGET_YEAR_IDX] == pytest.approx(0.80)
+    assert lp["rn_ahd_treat_reduc_mort"] == pytest.approx(0.60)
 
 
 # ---------------------------------------------------------------------------
@@ -642,8 +642,8 @@ _N_YEARS_ART = 20
 def _adult_art_params() -> dict:
     return {
         "projection_start_year": _START_YEAR,
-        "adults_on_art": np.zeros((_N_SEXES_ART, _N_YEARS_ART)),
-        "adults_on_art_is_percent": np.zeros((_N_SEXES_ART, _N_YEARS_ART)),
+        "art15plus_num": np.zeros((_N_SEXES_ART, _N_YEARS_ART)),
+        "art15plus_isperc": np.zeros((_N_SEXES_ART, _N_YEARS_ART)),
     }
 
 
@@ -654,10 +654,10 @@ def test_adult_art_male_writes_male_index():
 
     apply_simulation(lp, ivs, sim)
 
-    assert lp["adults_on_art"][0, _TARGET_YEAR_IDX] == pytest.approx(0.75)
-    assert lp["adults_on_art"][1, _TARGET_YEAR_IDX] == 0.0
-    assert lp["adults_on_art_is_percent"][0, _TARGET_YEAR_IDX] == 1
-    assert lp["adults_on_art_is_percent"][1, _TARGET_YEAR_IDX] == 0
+    assert lp["art15plus_num"][0, _TARGET_YEAR_IDX] == pytest.approx(0.75)
+    assert lp["art15plus_num"][1, _TARGET_YEAR_IDX] == 0.0
+    assert lp["art15plus_isperc"][0, _TARGET_YEAR_IDX] == 1
+    assert lp["art15plus_isperc"][1, _TARGET_YEAR_IDX] == 0
 
 
 def test_adult_art_female_writes_female_index():
@@ -667,10 +667,10 @@ def test_adult_art_female_writes_female_index():
 
     apply_simulation(lp, ivs, sim)
 
-    assert lp["adults_on_art"][0, _TARGET_YEAR_IDX] == 0.0
-    assert lp["adults_on_art"][1, _TARGET_YEAR_IDX] == pytest.approx(0.60)
-    assert lp["adults_on_art_is_percent"][0, _TARGET_YEAR_IDX] == 0
-    assert lp["adults_on_art_is_percent"][1, _TARGET_YEAR_IDX] == 1
+    assert lp["art15plus_num"][0, _TARGET_YEAR_IDX] == 0.0
+    assert lp["art15plus_num"][1, _TARGET_YEAR_IDX] == pytest.approx(0.60)
+    assert lp["art15plus_isperc"][0, _TARGET_YEAR_IDX] == 0
+    assert lp["art15plus_isperc"][1, _TARGET_YEAR_IDX] == 1
 
 
 def test_adult_art_both_writes_male_and_female():
@@ -680,10 +680,10 @@ def test_adult_art_both_writes_male_and_female():
 
     apply_simulation(lp, ivs, sim)
 
-    assert lp["adults_on_art"][0, _TARGET_YEAR_IDX] == pytest.approx(0.80)
-    assert lp["adults_on_art"][1, _TARGET_YEAR_IDX] == pytest.approx(0.80)
-    assert lp["adults_on_art_is_percent"][0, _TARGET_YEAR_IDX] == 1
-    assert lp["adults_on_art_is_percent"][1, _TARGET_YEAR_IDX] == 1
+    assert lp["art15plus_num"][0, _TARGET_YEAR_IDX] == pytest.approx(0.80)
+    assert lp["art15plus_num"][1, _TARGET_YEAR_IDX] == pytest.approx(0.80)
+    assert lp["art15plus_isperc"][0, _TARGET_YEAR_IDX] == 1
+    assert lp["art15plus_isperc"][1, _TARGET_YEAR_IDX] == 1
 
 
 def test_adult_art_multiple_targets_can_have_different_coverages():
@@ -699,18 +699,19 @@ def test_adult_art_multiple_targets_can_have_different_coverages():
 
     apply_simulation(lp, ivs, sim)
 
-    assert lp["adults_on_art"][0, _TARGET_YEAR_IDX] == pytest.approx(0.75)
-    assert lp["adults_on_art"][1, _TARGET_YEAR_IDX] == pytest.approx(0.60)
-    assert lp["adults_on_art_is_percent"][0, _TARGET_YEAR_IDX] == 1
-    assert lp["adults_on_art_is_percent"][1, _TARGET_YEAR_IDX] == 1
+    assert lp["art15plus_num"][0, _TARGET_YEAR_IDX] == pytest.approx(0.75)
+    assert lp["art15plus_num"][1, _TARGET_YEAR_IDX] == pytest.approx(0.60)
+    assert lp["art15plus_isperc"][0, _TARGET_YEAR_IDX] == 1
+    assert lp["art15plus_isperc"][1, _TARGET_YEAR_IDX] == 1
 
 
 # ---------------------------------------------------------------------------
-# Long-acting treatment — target_year absent from params (known limitation)
+# Long-acting treatment — accepted but currently a no-op (not yet wired to the
+# Goals model). It must not raise and must not modify params.
 # ---------------------------------------------------------------------------
 
 
-def test_long_acting_treatment_raises_not_implemented():
+def test_long_acting_treatment_is_noop():
     lp = {"projection_start_year": _START_YEAR}
     ivs = [InterventionOut(id="long_acting_treatment", product="Long-acting treatment")]
     sim = {
@@ -720,8 +721,9 @@ def test_long_acting_treatment_raises_not_implemented():
         })
     }
 
-    with pytest.raises(NotImplementedError, match="Long-acting treatment"):
-        apply_simulation(lp, ivs, sim)
+    # Should not raise; leaves params untouched (no effect on the model yet).
+    apply_simulation(lp, ivs, sim)
+    assert lp == {"projection_start_year": _START_YEAR}
 
 
 # ---------------------------------------------------------------------------

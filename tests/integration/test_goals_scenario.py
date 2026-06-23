@@ -13,6 +13,21 @@ _SCENARIOS = [1, 2, 3, 4]
 _PJNZ_NAMES = ["SouthAfrica"]
 # _PJNZ_NAMES = ["Azerbaijan", "Botswana", "DRC", "Ethiopia", "Ghana", "SouthAfrica", "Zambia", "Zimbabwe"]
 
+# Every output indicator type, including the resource and calculated indicators.
+_ALL_INDICATORS = [
+    "p_hivpop",
+    "p_infections",
+    "p_hiv_deaths",
+    "h_artpop",
+    "num_people_reached",
+    "resources_required",
+    "p_prevalence",
+    "p_incidence",
+]
+# Scenarios in scenario_definitions_all_products.json: baseline + one scenario
+# exercising every intervention/product type.
+_ALL_PRODUCT_SCENARIOS = ["0", "all_products"]
+
 
 @requires_test_data
 def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_data):
@@ -59,3 +74,41 @@ def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_data):
         expected_n_years = params["projection_end_year"] - _BASE_YEAR + 1
         expected_rows = _N_SIMULATIONS * 81 * 2 * expected_n_years
         assert len(table) == expected_rows
+
+
+@requires_test_data
+def test_every_product_type_runs_end_to_end(tmp_path_factory, test_data):
+    """Guard that a scenario containing one of every intervention/product type
+    applies cleanly and runs through Goals, producing every output indicator.
+
+    The fixture restricts itself to a single PJNZ (SouthAfrica) via ``pjnz_names``
+    to keep the test fast.
+    """
+    tmp = tmp_path_factory.mktemp("all_products")
+
+    simulations = draw_simulations(
+        test_data / "scenario_definitions_all_products.json",
+        base_year=_BASE_YEAR,
+        n_simulations=_N_SIMULATIONS,
+    )
+
+    config = RunConfig(
+        pjnz_dir=test_data / "pjnz" / "goals",
+        output_dir=tmp / "output",
+        base_year=_BASE_YEAR,
+        output_indicators=_ALL_INDICATORS,
+    )
+
+    out_dir = run_scenario_analysis(config, simulations)
+
+    # Every requested indicator is written as a top-level directory.
+    indicator_dirs = {p.name for p in out_dir.iterdir() if p.is_dir()}
+    assert indicator_dirs == set(_ALL_INDICATORS)
+
+    # Each indicator has output for both scenarios (baseline + all-products) for
+    # the single targeted PJNZ. Reaching this point means every product type was
+    # dispatched and applied without error.
+    for indicator in _ALL_INDICATORS:
+        pjnz_dir = out_dir / indicator / "pjnz_name=SouthAfrica"
+        scenario_dirs = {p.name for p in pjnz_dir.iterdir() if p.is_dir()}
+        assert scenario_dirs == {f"scenario_id={sid}" for sid in _ALL_PRODUCT_SCENARIOS}

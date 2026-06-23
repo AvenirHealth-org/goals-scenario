@@ -1,0 +1,499 @@
+{
+  "scenarios": [
+    {
+      "id": "0",
+      "interventions": [],
+      "pjnz_names": [
+        "SouthAfrica"
+      ]
+    },
+    {
+      "id": "all_products",
+      "interventions": [
+        {
+          "product": "Oral PrEP (daily)",
+          "targets": [
+            {
+              "risk_group": "High risk heterosexual",
+              "sex": "Female",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.0
+              }
+            }
+          ],
+          "parameters": {
+            "efficacy": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "adherence": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "target_year": {
+              "mean": 2030,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "Oral PrEP (monthly)",
+          "targets": [
+            {
+              "risk_group": "High risk heterosexual",
+              "sex": "Female",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.0
+              }
+            }
+          ],
+          "parameters": {
+            "efficacy": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "adherence": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "target_year": {
+              "mean": 2030,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "Injectable PrEP (1 month)",
+          "targets": [
+            {
+              "risk_group": "High risk heterosexual",
+              "sex": "Female",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.0
+              }
+            }
+          ],
+          "parameters": {
+            "efficacy": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "adherence": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "target_year": {
+              "mean": 2030,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "Injectable PrEP (2 month)",
+          "targets": [
+            {
+              "risk_group": "High risk heterosexual",
+              "sex": "Female",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.0
+              }
+            }
+          ],
+          "parameters": {
+            "efficacy": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "adherence": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "target_year": {
+              "mean": 2030,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "Injectable PrEP (6 month)",
+          "targets": [
+            {
+              "risk_group": "High risk heterosexual",
+              "sex": "Female",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.0
+              }
+            }
+          ],
+          "parameters": {
+            "efficacy": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "adherence": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "target_year": {
+              "mean": 2030,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "Oral PrEP plus contraceptive",
+          "targets": [
+            {
+              "risk_group": "High risk heterosexual",
+              "sex": "Female",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.0
+              }
+            }
+          ],
+          "parameters": {
+            "efficacy": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "adherence": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "target_year": {
+              "mean": 2030,
+              "sd": 0.0
+            },
+            "substitution": {
+              "mean": 0.3,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "PrEP ring",
+          "targets": [
+            {
+              "risk_group": "High risk heterosexual",
+              "sex": "Female",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.0
+              }
+            }
+          ],
+          "parameters": {
+            "efficacy": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "adherence": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "target_year": {
+              "mean": 2030,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "Implantable PrEP",
+          "targets": [
+            {
+              "risk_group": "High risk heterosexual",
+              "sex": "Female",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.0
+              }
+            }
+          ],
+          "parameters": {
+            "efficacy": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "adherence": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "target_year": {
+              "mean": 2030,
+              "sd": 0.0
+            },
+            "duration": {
+              "mean": 3.0,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "bNABs",
+          "targets": [
+            {
+              "risk_group": "High risk heterosexual",
+              "sex": "Female",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.0
+              }
+            }
+          ],
+          "parameters": {
+            "efficacy": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "adherence": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "target_year": {
+              "mean": 2030,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "PEP",
+          "targets": [
+            {
+              "risk_group": "High risk heterosexual",
+              "sex": "Female",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.0
+              }
+            }
+          ],
+          "parameters": {
+            "efficacy": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "adherence": {
+              "mean": 0.9,
+              "sd": 0.0
+            },
+            "target_year": {
+              "mean": 2030,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "Vaccine",
+          "targets": [
+            {
+              "risk_group": "Medium risk heterosexual",
+              "sex": "Female",
+              "target_coverage": {
+                "mean": 0.5,
+                "sd": 0.0
+              }
+            }
+          ],
+          "parameters": {
+            "target_year": {
+              "mean": 2035,
+              "sd": 0.0
+            },
+            "reduction_in_susceptibility": {
+              "mean": 0.7,
+              "sd": 0.0
+            },
+            "reduction_in_infectiousness": {
+              "mean": 0.5,
+              "sd": 0.0
+            },
+            "increase_in_progression_time_to_aids": {
+              "mean": 0.3,
+              "sd": 0.0
+            },
+            "vaccine_duration_years": {
+              "mean": 10.0,
+              "sd": 0.0
+            },
+            "vaccine_action_type": "Take",
+            "targeting": "Vaccinate without HIV testing"
+          }
+        },
+        {
+          "product": "Cure (adults and children)",
+          "targets": [
+            {
+              "risk_group": "PLHIV",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.0
+              }
+            }
+          ],
+          "parameters": {
+            "target_year": {
+              "mean": 2035,
+              "sd": 0.0
+            },
+            "efficacy": {
+              "mean": 0.85,
+              "sd": 0.0
+            },
+            "duration_of_cure": {
+              "mean": 5.0,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "Cure (neonates)",
+          "targets": [
+            {
+              "risk_group": "Neonates",
+              "target_coverage": {
+                "mean": 0.3,
+                "sd": 0.0
+              }
+            }
+          ],
+          "parameters": {
+            "target_year": {
+              "mean": 2035,
+              "sd": 0.0
+            },
+            "effectiveness": {
+              "mean": 0.8,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "Vaginal microbiome modification",
+          "targets": [
+            {
+              "risk_group": "Percent of women treated",
+              "target_coverage": {
+                "mean": 0.4,
+                "sd": 0.0
+              }
+            }
+          ],
+          "parameters": {
+            "target_year": {
+              "mean": 2033,
+              "sd": 0.0
+            },
+            "effectiveness": {
+              "mean": 0.6,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "AHD treatment",
+          "parameters": {
+            "target_year": {
+              "mean": 2029,
+              "sd": 0.0
+            },
+            "target_coverage": {
+              "mean": 0.8,
+              "sd": 0.0
+            },
+            "reduction_in_mortality": {
+              "mean": 0.6,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "POC VL test",
+          "parameters": {
+            "target_year": {
+              "mean": 2029,
+              "sd": 0.0
+            },
+            "target_coverage": {
+              "mean": 0.7,
+              "sd": 0.0
+            },
+            "effect": {
+              "mean": 0.12,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "POC CD4 test",
+          "parameters": {
+            "target_year": {
+              "mean": 2029,
+              "sd": 0.0
+            },
+            "target_coverage": {
+              "mean": 0.7,
+              "sd": 0.0
+            },
+            "effect": {
+              "mean": 0.25,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "Long-acting treatment",
+          "targets": [
+            {
+              "risk_group": "Key populations",
+              "sex": "Both"
+            }
+          ],
+          "parameters": {
+            "interruption_rate_reduction": {
+              "mean": 0.25,
+              "sd": 0.0
+            },
+            "viral_load_suppression_ratio": {
+              "mean": 0.8,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "Adult ART",
+          "targets": [
+            {
+              "sex": "Male",
+              "target_coverage": {
+                "mean": 0.85,
+                "sd": 0.0
+              }
+            },
+            {
+              "sex": "Female",
+              "target_coverage": {
+                "mean": 0.85,
+                "sd": 0.0
+              }
+            }
+          ],
+          "parameters": {
+            "target_year": {
+              "mean": 2030,
+              "sd": 0.0
+            }
+          }
+        }
+      ],
+      "pjnz_names": [
+        "SouthAfrica"
+      ]
+    }
+  ]
+}
