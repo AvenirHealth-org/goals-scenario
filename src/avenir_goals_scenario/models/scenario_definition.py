@@ -137,6 +137,48 @@ class AdultARTTarget(BaseModel):
         return self
 
 
+class CureNeonateTarget(BaseModel):
+    """Target population for neonatal cure. Neonates are the only population; there
+    is no risk-group split or sex dimension in leapfrog (coverage is by year only)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    risk_group: Literal["Neonates"]
+    target_coverage: NormalDistParameters
+
+    @model_validator(mode="after")
+    def _validate(self) -> Self:
+        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
+        return self
+
+
+VMMPopulationNames = Literal[
+    "Percent of women treated",
+    "Not sexually active",
+    "Low risk heterosexual",
+    "Medium risk heterosexual",
+    "High risk heterosexual",
+]
+
+
+class VMMTarget(BaseModel):
+    """Target population for vaginal microbiome modification (women only).
+
+    Either all women ("Percent of women treated") or a specific women's risk group.
+    There is no sex dimension.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    risk_group: VMMPopulationNames
+    target_coverage: NormalDistParameters
+
+    @model_validator(mode="after")
+    def _validate(self) -> Self:
+        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
+        return self
+
+
 # ---------------------------------------------------------------------------
 # Parameter models
 # ---------------------------------------------------------------------------
@@ -188,6 +230,12 @@ class VaccineParameters(BaseModel):
 
 
 class CureParameters(BaseModel):
+    """Parameters for the "Cure (adults and children)" product.
+
+    ``efficacy`` and ``duration_of_cure`` apply to **adults and children only**.
+    Neonatal cure is configured separately via the "Cure (neonates)" product.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     target_year: NormalDistParameters
@@ -198,6 +246,38 @@ class CureParameters(BaseModel):
     def _apply_constraints(self) -> Self:
         self.target_year = _apply_year_constraint(self.target_year)
         self.efficacy = _apply_proportion_defaults(self.efficacy)
+        return self
+
+
+class CureNeonateParameters(BaseModel):
+    """Parameters for the "Cure (neonates)" product.
+
+    There is no duration input for neonates; ``duration_of_cure`` on the adult/child
+    Cure product applies to adults and children only.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    target_year: NormalDistParameters
+    effectiveness: NormalDistParameters
+
+    @model_validator(mode="after")
+    def _apply_constraints(self) -> Self:
+        self.target_year = _apply_year_constraint(self.target_year)
+        self.effectiveness = _apply_proportion_defaults(self.effectiveness)
+        return self
+
+
+class VMMParameters(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_year: NormalDistParameters
+    effectiveness: NormalDistParameters
+
+    @model_validator(mode="after")
+    def _apply_constraints(self) -> Self:
+        self.target_year = _apply_year_constraint(self.target_year)
+        self.effectiveness = _apply_proportion_defaults(self.effectiveness)
         return self
 
 
@@ -307,6 +387,32 @@ class CureInterventionDef(BaseModel):
     parameters: CureParameters
 
 
+class CureNeonateInterventionDef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product: Literal["Cure (neonates)"]
+    targets: list[CureNeonateTarget] = Field(min_length=1)
+    parameters: CureNeonateParameters
+
+
+class VMMInterventionDef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product: Literal["Vaginal microbiome modification"]
+    targets: list[VMMTarget] = Field(min_length=1)
+    parameters: VMMParameters
+
+    @model_validator(mode="after")
+    def _validate_targets(self) -> Self:
+        # Coverage type is a single flag: "Percent of women treated" (all women)
+        # cannot be combined with per-risk-group targets.
+        has_all = any(t.risk_group == "Percent of women treated" for t in self.targets)
+        if has_all and len(self.targets) > 1:
+            msg = "'Percent of women treated' must be the only target when used."
+            raise ValueError(msg)
+        return self
+
+
 class AHDTreatmentDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -348,6 +454,8 @@ AnyInterventionDef = Annotated[
     PrepInterventionDef
     | VaccineInterventionDef
     | CureInterventionDef
+    | CureNeonateInterventionDef
+    | VMMInterventionDef
     | AHDTreatmentDef
     | POCViralLoadTestDef
     | POCCD4TestDef
@@ -366,6 +474,8 @@ def _intervention_keys(iv: "AnyInterventionDef") -> list[tuple]:
     """Return the uniqueness keys for *iv* used to detect duplicate interventions."""
     if isinstance(iv, (PrepInterventionDef, VaccineInterventionDef, CureInterventionDef, LongActingTreatmentDef)):
         return [(iv.product, t.risk_group, t.sex) for t in iv.targets]
+    if isinstance(iv, (CureNeonateInterventionDef, VMMInterventionDef)):
+        return [(iv.product, t.risk_group) for t in iv.targets]
     if isinstance(iv, AdultARTInterventionDef):
         return [(iv.product, t.sex) for t in iv.targets]
     return [(iv.product,)]

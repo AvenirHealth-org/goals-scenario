@@ -6,6 +6,8 @@ from pydantic import ValidationError
 from avenir_goals_scenario.models.scenario_definition import (
     AdultARTParameters,
     AdultARTTarget,
+    CureNeonateParameters,
+    CureNeonateTarget,
     CureParameters,
     LongActingTreatmentParameters,
     NormalDistParameters,
@@ -16,6 +18,9 @@ from avenir_goals_scenario.models.scenario_definition import (
     ScenarioInput,
     SingleScenarioDef,
     VaccineCureTarget,
+    VMMInterventionDef,
+    VMMParameters,
+    VMMTarget,
 )
 
 _PREP_BASE = {
@@ -179,6 +184,71 @@ def test_cure_parameters_applies_constraints():
     assert params.target_year.min_value == 1970
     assert params.efficacy.min_value == 0.0
     assert params.efficacy.max_value == 1.0
+
+
+# ---------------------------------------------------------------------------
+# Cure (neonates) and VMM
+# ---------------------------------------------------------------------------
+
+
+def test_cure_neonate_parameters_applies_constraints():
+    params = CureNeonateParameters(
+        target_year=NormalDistParameters(mean=2032, sd=3),
+        effectiveness=NormalDistParameters(mean=0.6, sd=0.1),
+    )
+    assert params.target_year.integer is True
+    assert params.target_year.min_value == 1970
+    assert params.effectiveness.min_value == 0.0
+    assert params.effectiveness.max_value == 1.0
+
+
+def test_cure_neonate_target_coverage_gets_proportion_bounds():
+    target = CureNeonateTarget(risk_group="Neonates", target_coverage=NormalDistParameters(mean=0.4, sd=0.05))
+    assert target.target_coverage.min_value == 0.0
+    assert target.target_coverage.max_value == 1.0
+
+
+def test_vmm_parameters_applies_constraints():
+    params = VMMParameters(
+        target_year=NormalDistParameters(mean=2030, sd=2),
+        effectiveness=NormalDistParameters(mean=0.3, sd=0.05),
+    )
+    assert params.target_year.integer is True
+    assert params.target_year.min_value == 1970
+    assert params.effectiveness.min_value == 0.0
+    assert params.effectiveness.max_value == 1.0
+
+
+def _vmm_def(targets: list[VMMTarget]) -> VMMInterventionDef:
+    return VMMInterventionDef(
+        product="Vaginal microbiome modification",
+        targets=targets,
+        parameters=VMMParameters(
+            target_year=NormalDistParameters(mean=2030, sd=2),
+            effectiveness=NormalDistParameters(mean=0.3, sd=0.05),
+        ),
+    )
+
+
+def test_vmm_risk_group_targets_valid():
+    iv = _vmm_def([
+        VMMTarget(risk_group="Not sexually active", target_coverage=_ANY_COV),
+        VMMTarget(risk_group="High risk heterosexual", target_coverage=_ANY_COV),
+    ])
+    assert len(iv.targets) == 2
+
+
+def test_vmm_percent_of_women_alone_is_valid():
+    iv = _vmm_def([VMMTarget(risk_group="Percent of women treated", target_coverage=_ANY_COV)])
+    assert iv.targets[0].risk_group == "Percent of women treated"
+
+
+def test_vmm_percent_of_women_mixed_with_risk_group_raises():
+    with pytest.raises(ValidationError, match="only target"):
+        _vmm_def([
+            VMMTarget(risk_group="Percent of women treated", target_coverage=_ANY_COV),
+            VMMTarget(risk_group="Low risk heterosexual", target_coverage=_ANY_COV),
+        ])
 
 
 # ---------------------------------------------------------------------------

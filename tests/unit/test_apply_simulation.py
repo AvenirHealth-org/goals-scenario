@@ -79,6 +79,28 @@ def _cure_params() -> dict:
     }
 
 
+def _cure_neonate_params() -> dict:
+    return {
+        "projection_start_year": _START_YEAR,
+        "rn_cure_coverage_neonates": np.zeros(_N_YEARS),
+        "rn_cure_effect_neonates": 0.0,
+    }
+
+
+# rn_vmm_coverage_rg has one row per women's risk group (NONE, LRH, MRH, HRH).
+_N_VMM_RG = 4
+
+
+def _vmm_params() -> dict:
+    return {
+        "projection_start_year": _START_YEAR,
+        "rn_vmm_coverage_type": 0,
+        "rn_vmm_coverage_all": np.zeros(_N_YEARS),
+        "rn_vmm_coverage_rg": np.zeros((_N_VMM_RG, _N_YEARS)),
+        "rn_vmm_effect": 0.0,
+    }
+
+
 def _ahd_params() -> dict:
     return {
         "projection_start_year": _START_YEAR,
@@ -499,6 +521,71 @@ def test_cure_risk_group_both_writes_male_and_female():
     assert lp["rn_cure_coverage_type"] == RN_Diff
     assert lp["rn_cure_coverage_rg"][RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.20)
     assert lp["rn_cure_coverage_rg"][RN_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.20)
+
+
+# ---------------------------------------------------------------------------
+# Cure (neonates)
+# ---------------------------------------------------------------------------
+
+
+def test_cure_neonates_writes_coverage_and_effect():
+    lp = _cure_neonate_params()
+    ivs = _iv("cure_neonates", "Cure (neonates)")
+    sim = _sim(
+        "cure_neonates",
+        target_coverages=[{"sex": None, "risk_group": "Neonates", "coverage": 0.40}],
+        effectiveness=0.65,
+    )
+
+    apply_simulation(lp, ivs, sim)
+
+    assert lp["rn_cure_coverage_neonates"][_TARGET_YEAR_IDX] == pytest.approx(0.40)
+    assert lp["rn_cure_effect_neonates"] == pytest.approx(0.65)
+
+
+# ---------------------------------------------------------------------------
+# Vaginal microbiome modification (VMM)
+# ---------------------------------------------------------------------------
+
+
+def test_vmm_percent_of_women_writes_coverage_all():
+    lp = _vmm_params()
+    ivs = _iv("vaginal_microbiome_modification", "Vaginal microbiome modification")
+    sim = _sim(
+        "vaginal_microbiome_modification",
+        target_coverages=[{"sex": None, "risk_group": "Percent of women treated", "coverage": 0.55}],
+        effectiveness=0.30,
+    )
+
+    apply_simulation(lp, ivs, sim)
+
+    assert lp["rn_vmm_coverage_type"] == 0  # _VMM_COV_ALLRISK
+    assert lp["rn_vmm_coverage_all"][_TARGET_YEAR_IDX] == pytest.approx(0.55)
+    assert lp["rn_vmm_effect"] == pytest.approx(0.30)
+
+
+def test_vmm_risk_groups_write_coverage_rg():
+    lp = _vmm_params()
+    ivs = _iv("vaginal_microbiome_modification", "Vaginal microbiome modification")
+    sim = _sim(
+        "vaginal_microbiome_modification",
+        target_coverages=[
+            {"sex": None, "risk_group": "Not sexually active", "coverage": 0.10},
+            {"sex": None, "risk_group": "Low risk heterosexual", "coverage": 0.20},
+            {"sex": None, "risk_group": "Medium risk heterosexual", "coverage": 0.30},
+            {"sex": None, "risk_group": "High risk heterosexual", "coverage": 0.40},
+        ],
+        effectiveness=0.50,
+    )
+
+    apply_simulation(lp, ivs, sim)
+
+    assert lp["rn_vmm_coverage_type"] == 1  # _VMM_COV_SINGLE
+    assert lp["rn_vmm_coverage_rg"][0, _TARGET_YEAR_IDX] == pytest.approx(0.10)
+    assert lp["rn_vmm_coverage_rg"][1, _TARGET_YEAR_IDX] == pytest.approx(0.20)
+    assert lp["rn_vmm_coverage_rg"][2, _TARGET_YEAR_IDX] == pytest.approx(0.30)
+    assert lp["rn_vmm_coverage_rg"][3, _TARGET_YEAR_IDX] == pytest.approx(0.40)
+    assert lp["rn_vmm_effect"] == pytest.approx(0.50)
 
 
 # ---------------------------------------------------------------------------

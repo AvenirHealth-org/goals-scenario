@@ -15,11 +15,13 @@ from SpectrumCommon.Const.RN import (
     RN_MSM_F,
     RN_POC_CD4,
     RN_POC_VL,
+    RN_VMM,
     # RN_LongActingTreatment,
     RN_Adherence,
     RN_AHDTreatment,
     RN_AllRisk,
     RN_CureAdultsChildren,
+    RN_CureNeonates,
     RN_DegreeAction,
     RN_Diff,
     RN_Duration,
@@ -71,6 +73,8 @@ _interv_map: dict[str, int] = {
     "pep": RN_PrEP_PEP,
     "vaccine": RN_Vaccines,
     "cure_adults_and_children": RN_CureAdultsChildren,
+    "cure_neonates": RN_CureNeonates,
+    "vaginal_microbiome_modification": RN_VMM,
     "ahd_treatment": RN_AHDTreatment,
     "poc_cd4_test": RN_POC_CD4_Int,
     "poc_vl_test": RN_POC_VL_Int,
@@ -80,6 +84,21 @@ _interv_map: dict[str, int] = {
 
 # Derived from PrepProduct so the two stay in sync automatically.
 _PREP_IDS = frozenset(_product_to_id(p) for p in get_args(PrepProduct))
+
+
+# VMM coverage-type flags (leapfrog enum, not exported from SpectrumCommon). Note the
+# naming is inverted relative to cure/vaccine's RN_Single/RN_Diff: ALLRISK uses the
+# single "Percent of women treated" value, SINGLE splits across women's risk groups.
+_VMM_COV_ALLRISK = 0
+_VMM_COV_SINGLE = 1
+
+# Row index into rn_vmm_coverage_rg for each women's risk group (RG_NONE..RG_HRH).
+_VMM_RG_IDX: dict[str, int] = {
+    "Not sexually active": 0,
+    "Low risk heterosexual": 1,
+    "Medium risk heterosexual": 2,
+    "High risk heterosexual": 3,
+}
 
 
 def _risk_group_idx(risk_group: RiskGroupNames, *, female: bool = False) -> int:
@@ -155,6 +174,18 @@ class _CureDraw(TypedDict):
     duration_of_cure: float
 
 
+class _CureNeonateDraw(TypedDict):
+    target_year: int
+    target_coverages: list[TargetCoverage]
+    effectiveness: float
+
+
+class _VMMDraw(TypedDict):
+    target_year: int
+    target_coverages: list[TargetCoverage]
+    effectiveness: float
+
+
 class _AHDTreatmentDraw(TypedDict):
     target_year: int
     target_coverage: float
@@ -172,7 +203,16 @@ class _AdultARTDraw(TypedDict):
     target_coverages: list[TargetCoverage]
 
 
-_Draw: TypeAlias = _PrepDraw | _VaccineDraw | _CureDraw | _AHDTreatmentDraw | _POCTestDraw | _AdultARTDraw
+_Draw: TypeAlias = (
+    _PrepDraw
+    | _VaccineDraw
+    | _CureDraw
+    | _CureNeonateDraw
+    | _VMMDraw
+    | _AHDTreatmentDraw
+    | _POCTestDraw
+    | _AdultARTDraw
+)
 
 
 def _target_year_idx(lp: LeapfrogParams, draw: _Draw) -> int:
@@ -306,6 +346,26 @@ def _apply_cure(lp: LeapfrogParams, draw: _CureDraw) -> None:
     lp["rn_cure_effect"][RN_Duration] = draw["duration_of_cure"]
 
 
+def _apply_cure_neonates(lp: LeapfrogParams, draw: _CureNeonateDraw) -> None:
+    year_idx = _target_year_idx(lp, draw)
+    # Neonates are the only population; coverage is a single value by year.
+    for tc in draw["target_coverages"]:
+        lp["rn_cure_coverage_neonates"][year_idx] = tc.coverage
+    lp["rn_cure_effect_neonates"] = draw["effectiveness"]
+
+
+def _apply_vmm(lp: LeapfrogParams, draw: _VMMDraw) -> None:
+    year_idx = _target_year_idx(lp, draw)
+    for tc in draw["target_coverages"]:
+        if tc.risk_group == "Percent of women treated":
+            lp["rn_vmm_coverage_type"] = _VMM_COV_ALLRISK
+            lp["rn_vmm_coverage_all"][year_idx] = tc.coverage
+        else:
+            lp["rn_vmm_coverage_type"] = _VMM_COV_SINGLE
+            lp["rn_vmm_coverage_rg"][_VMM_RG_IDX[cast(str, tc.risk_group)], year_idx] = tc.coverage
+    lp["rn_vmm_effect"] = draw["effectiveness"]
+
+
 def _apply_ahd(lp: LeapfrogParams, draw: _AHDTreatmentDraw) -> None:
     year_idx = _target_year_idx(lp, draw)
     # TODO: fix typo in adh see https://trello.com/c/fEiv46rE
@@ -341,6 +401,10 @@ def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict) -> None:
             _apply_vaccine(lp, cast(_VaccineDraw, draw))
         case "cure_adults_and_children":
             _apply_cure(lp, cast(_CureDraw, draw))
+        case "cure_neonates":
+            _apply_cure_neonates(lp, cast(_CureNeonateDraw, draw))
+        case "vaginal_microbiome_modification":
+            _apply_vmm(lp, cast(_VMMDraw, draw))
         case "ahd_treatment":
             _apply_ahd(lp, cast(_AHDTreatmentDraw, draw))
         case "poc_vl_test":
