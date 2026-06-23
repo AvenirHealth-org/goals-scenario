@@ -1,6 +1,6 @@
 [project]
 name = "avenir-goals-scenario"
-version = "0.0.14"
+version = "0.0.15"
 description = "Goals scenario analysis"
 authors = [{ name = "Rob Ashton", email = "rashton@avenirhealth.org" }]
 readme = "README.md"
@@ -67,6 +67,9 @@ python-version = "3.14"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Put the project root on sys.path so `from tests.conftest import ...` resolves
+# regardless of how pytest is launched (`uv run pytest` as well as `python -m pytest`).
+pythonpath = ["."]
 
 [tool.ruff]
 target-version = "py310"

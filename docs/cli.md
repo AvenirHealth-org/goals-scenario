@@ -93,9 +93,37 @@ which of `definition_path` and `scenario_path` are set in the config:
 goals-scenario run config.json
 ```
 
-| Argument | Description |
+| Argument / Option | Description |
 |---|---|
 | `CONFIG_PATH` | Path to a JSON config file (positional) |
+| `--retry PATH` | Re-run only the units listed in a `failures.json` from a previous run (see [Fault tolerance & re-runs](#fault-tolerance-and-re-runs)) |
+
+#### Fault tolerance and re-runs
+
+A run is made up of one work unit per `(PJNZ, scenario)` combination. If an individual
+unit fails (for example a single scenario errors for one country), it is **logged and
+skipped** — the run continues and every other unit still completes and is written.
+
+PJNZ **import** failures are the exception: a `.PJNZ` file that cannot be read is treated
+as a fatal data error and aborts the whole run (exit code `1`).
+
+When any unit fails, a summary is printed and a `failures.json` manifest is written to
+`output_dir` (see [Failures manifest JSON](#failures-manifest-json)). The command exits
+with code `2` to signal a partial run. Re-run just the failed units by pointing `--retry`
+at that manifest:
+
+```bash
+goals-scenario run config.json --retry path/to/output/failures.json
+```
+
+Retries reuse the same draws, so the failed units reproduce exactly. Output partitions are
+overwritten in place, and on a fully successful (re-)run the stale `failures.json` is removed.
+
+| Exit code | Meaning |
+|---|---|
+| `0` | Success — every unit completed |
+| `1` | Fatal error — invalid config, PJNZ import failure, or no PJNZ files found |
+| `2` | Partial — some scenario units failed; output produced and `failures.json` written |
 
 #### Typical workflows
 
@@ -495,6 +523,25 @@ The draws file produced by `draw` (or saved automatically by `run`) has this str
 
 Each entry in `simulations` maps intervention slug → sampled parameter values for one
 draw. Categorical parameters (e.g. `vaccine_action_type`) are passed through unchanged.
+
+### Failures manifest JSON
+
+Written to `<output_dir>/failures.json` whenever one or more `(PJNZ, scenario)` units fail.
+Pass it back to `run --retry` to re-run only those units.
+
+```json
+{
+  "failures": [
+    { "pjnz": "Zimbabwe", "scenario_id": "3", "error": "..." }
+  ]
+}
+```
+
+| Field | Description |
+|---|---|
+| `pjnz` | Stem of the PJNZ file whose scenario failed (no `.PJNZ`) |
+| `scenario_id` | Identifier of the scenario that failed for that PJNZ |
+| `error` | Short error message describing the failure |
 
 ## Global options
 

@@ -106,10 +106,11 @@ def test_run_with_progress_exercises_all_callbacks():
     mock_paths = [_mock_pjnz_path("country")]
     mock_scenarios = _make_mock_simulations(1)
 
-    def fake_run(cfg, simulations, callbacks, log_queue=None, pjnz_files=None):
+    def fake_run(cfg, simulations, callbacks, log_queue=None, pjnz_files=None, selected_units=None):
         callbacks.on_pjnz_imported()
         callbacks.on_imports_complete()
         callbacks.on_scenario_complete("country")
+        callbacks.on_scenario_failed("country")
         callbacks.on_run_complete()
 
     with (

@@ -46,7 +46,9 @@ def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_data):
         output_indicators=_INDICATORS,
     )
 
-    out_dir = run_scenario_analysis(config, simulations)
+    result = run_scenario_analysis(config, simulations)
+    assert result.failures == []
+    out_dir = result.output_dir
 
     ## All indicators are output as top-level directories
     indicator_dirs = {p.name for p in out_dir.iterdir() if p.is_dir()}
@@ -99,7 +101,9 @@ def test_every_product_type_runs_end_to_end(tmp_path_factory, test_data):
         output_indicators=_ALL_INDICATORS,
     )
 
-    out_dir = run_scenario_analysis(config, simulations)
+    result = run_scenario_analysis(config, simulations)
+    assert result.failures == []
+    out_dir = result.output_dir
 
     # Every requested indicator is written as a top-level directory.
     indicator_dirs = {p.name for p in out_dir.iterdir() if p.is_dir()}
