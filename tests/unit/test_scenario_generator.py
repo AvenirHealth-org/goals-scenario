@@ -616,3 +616,51 @@ def test_load_proportion_params_have_0_1_bounds(tmp_path):
     for target in iv.targets:
         assert target.target_coverage.min_value == 0.0
         assert target.target_coverage.max_value == 1.0
+
+
+# ---------------------------------------------------------------------------
+# Sampling round-trip for targets without a sex field (Cure neonates, VMM)
+# ---------------------------------------------------------------------------
+
+CURE_NEONATE_INTERVENTION = {
+    "product": "Cure (neonates)",
+    "targets": [{"risk_group": "Neonates", "target_coverage": {"mean": 0.4, "sd": 0.05}}],
+    "parameters": {
+        "target_year": {"mean": 2032, "sd": 2},
+        "effectiveness": {"mean": 0.6, "sd": 0.05},
+    },
+}
+
+VMM_INTERVENTION = {
+    "product": "Vaginal microbiome modification",
+    "targets": [
+        {"risk_group": "Not sexually active", "target_coverage": {"mean": 0.1, "sd": 0.02}},
+        {"risk_group": "High risk heterosexual", "target_coverage": {"mean": 0.4, "sd": 0.05}},
+    ],
+    "parameters": {
+        "target_year": {"mean": 2030, "sd": 2},
+        "effectiveness": {"mean": 0.3, "sd": 0.05},
+    },
+}
+
+
+def test_cure_neonate_sampling_round_trip():
+    definition = ScenarioInput.model_validate({
+        "scenarios": [{"id": "1", "interventions": [CURE_NEONATE_INTERVENTION]}]
+    })
+    output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
+    params = output.scenarios[0].simulations[0]["cure_neonates"].root
+    assert set(params.keys()) == {"target_year", "effectiveness", "target_coverages"}
+    coverages = cast(list[TargetCoverage], params["target_coverages"])
+    assert coverages[0].risk_group == "Neonates"
+    assert coverages[0].sex is None
+
+
+def test_vmm_sampling_round_trip():
+    definition = ScenarioInput.model_validate({"scenarios": [{"id": "1", "interventions": [VMM_INTERVENTION]}]})
+    output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
+    params = output.scenarios[0].simulations[0]["vaginal_microbiome_modification"].root
+    assert set(params.keys()) == {"target_year", "effectiveness", "target_coverages"}
+    coverages = cast(list[TargetCoverage], params["target_coverages"])
+    assert {c.risk_group for c in coverages} == {"Not sexually active", "High risk heterosexual"}
+    assert all(c.sex is None for c in coverages)

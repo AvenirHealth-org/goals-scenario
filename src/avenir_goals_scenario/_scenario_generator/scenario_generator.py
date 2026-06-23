@@ -53,7 +53,7 @@ def _sample_target_coverages(iv, rng: np.random.Generator) -> dict:
     """Sample per-target coverages, returning {"target_coverages": [...]}."""
     coverages = [
         {
-            "sex": target.sex,
+            "sex": getattr(target, "sex", None),
             "risk_group": getattr(target, "risk_group", None),
             "coverage": target.target_coverage.sample(rng),
         }

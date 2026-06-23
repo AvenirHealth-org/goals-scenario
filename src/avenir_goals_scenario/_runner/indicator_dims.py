@@ -231,7 +231,7 @@ _REACHED_INTERVENTIONS: tuple[tuple[int, str], ...] = (
     (43, "AHD treatment"),
     (44, "POC CD4 test"),
     (45, "POC VL test"),
-    (42, "Annual number of VMMC conducted"),
+    (42, "Vaginal microbiome modification"),
 )
 
 # Aggregate cost rows present only in resources_required.
