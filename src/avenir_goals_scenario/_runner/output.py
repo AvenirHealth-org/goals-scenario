@@ -1,3 +1,4 @@
+import shutil
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -100,6 +101,24 @@ def write_scenario_results(
             pjnz_name,
             scenario_id,
         )
+
+
+def remove_scenario_partitions(output_dir: Path, pjnz_name: str, scenario_id: str) -> None:
+    """Best-effort removal of any partition dirs written for one (PJNZ, scenario).
+
+    Mirrors the layout written by :func:`write_scenario_results`
+    (``{output_dir}/{indicator}/pjnz_name={pjnz_name}/scenario_id={scenario_id}``).
+    Called when a work unit fails part-way through writing so a half-written
+    partition does not later trip up :func:`consolidate_metadata`. Missing
+    directories are ignored.
+    """
+    if not output_dir.exists():
+        return
+    for indicator_dir in output_dir.iterdir():
+        if not indicator_dir.is_dir():
+            continue
+        part_dir = indicator_dir / f"pjnz_name={pjnz_name}" / f"scenario_id={scenario_id}"
+        shutil.rmtree(part_dir, ignore_errors=True)
 
 
 def consolidate_metadata(output_dir: Path) -> None:

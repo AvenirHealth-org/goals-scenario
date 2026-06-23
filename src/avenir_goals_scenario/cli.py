@@ -1,3 +1,4 @@
+import json
 import multiprocessing
 import os
 from importlib.metadata import version as pkg_version
@@ -93,6 +94,13 @@ def run(
         Path,
         typer.Argument(help=f"Path to a JSON config file. See {_DOCS_URL} for format."),
     ],
+    retry: Annotated[
+        Path | None,
+        typer.Option(
+            "--retry",
+            help="Re-run only the (PJNZ, scenario) units listed in a failures.json from a previous run.",
+        ),
+    ] = None,
 ) -> None:
     """Run scenario analysis using a JSON config file.
 
@@ -104,6 +112,14 @@ def run(
     - scenario_path only    : loads draws from the file and runs.
     - both (file exists)    : uses existing draws, runs.
     - both (file missing)   : redraws, saves to scenario_path, runs.
+
+    Individual (PJNZ, scenario) units that fail are logged and skipped rather
+    than aborting the run; failures are written to <output_dir>/failures.json.
+    Pass ``--retry <output_dir>/failures.json`` to re-run only those units.
+
+    \b
+    Exit codes: 0 success, 1 fatal error (bad config or PJNZ import failure),
+    2 partial (some scenario units failed but output was produced).
     """
     try:
         config = _load_config(config_path)
@@ -118,12 +134,45 @@ def run(
         logger.error("Config must include definition_path, scenario_path, or both. See {}", _DOCS_URL)
         raise typer.Exit(code=1)
 
+    selected_units = None
+    if retry is not None:
+        try:
+            selected_units = _load_retry_units(retry)
+        except Exception as e:
+            logger.error("Could not read --retry file: {}", _fmt_error(e))
+            raise typer.Exit(code=1) from None
+        logger.info("Retrying {} failed unit(s) from {}", len(selected_units), retry)
+
     try:
         simulations = _prepare_simulations(config)
-        run_with_progress(config, simulations)
+        result = run_with_progress(config, simulations, selected_units=selected_units)
     except Exception as e:
         logger.exception(_fmt_error(e))
         raise typer.Exit(code=1) from None
+
+    if result.failures:
+        raise typer.Exit(code=2)
+
+
+def _load_retry_units(retry_path: Path) -> set[tuple[str, str]]:
+    """Parse a failures.json manifest into a set of (pjnz, scenario_id) pairs.
+
+    Raises:
+        ValueError: If the file is not JSON or is malformed.
+    """
+    if retry_path.suffix.lower() != ".json":
+        err_msg = f"--retry file must be a JSON file (.json), got: {retry_path.suffix or '(no extension)'}"
+        raise ValueError(err_msg)
+
+    with open(retry_path) as f:
+        data = json.load(f)
+
+    failures = data.get("failures") if isinstance(data, dict) else None
+    if not isinstance(failures, list):
+        err_msg = f"--retry file {retry_path} is not a valid failures manifest (missing 'failures' list)."
+        raise ValueError(err_msg)  # noqa: TRY004 - malformed manifest content, not a programmer type error
+
+    return {(f["pjnz"], f["scenario_id"]) for f in failures}
 
 
 def _prepare_simulations(config: RunConfig):

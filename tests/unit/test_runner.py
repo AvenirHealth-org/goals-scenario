@@ -1,3 +1,4 @@
+import json
 import pickle
 from contextlib import ExitStack
 from queue import Queue
@@ -8,9 +9,11 @@ import pytest
 
 from avenir_goals_scenario._runner.pjnz import _import_pjnz_modvars, find_pjnz_files, import_pjnz, modvars_to_numpy
 from avenir_goals_scenario._runner.simulation import _extract_indicators, run_simulation
+from avenir_goals_scenario._runner.utils import RunCallbacks, WorkUnitResult
 from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
 from avenir_goals_scenario.runner import (
     _run_pjnz_scenario,
+    _run_scenario_analysis,
     _scenario_applies,
     _select_pjnz_files,
     _warn_if_output_exists,
@@ -300,7 +303,7 @@ def test_run_scenario_analysis_uses_pool_when_multiple_workers(tmp_path):
     )
 
     mock_pool_instance = MagicMock()
-    mock_pool_instance.imap_unordered.return_value = iter(["country"])
+    mock_pool_instance.imap_unordered.return_value = iter([WorkUnitResult(pjnz="country", scenario_id="1", ok=True)])
 
     with (
         patch("avenir_goals_scenario.runner.import_pjnz", return_value=_fake_modvars()),
@@ -433,6 +436,114 @@ def test_run_skips_pjnz_not_in_scenario_pjnz_names(tmp_path):
 
     assert (config.output_dir / "p_hivpop" / "pjnz_name=Zimbabwe" / "scenario_id=1" / "part-0.parquet").exists()
     assert not (config.output_dir / "p_hivpop" / "pjnz_name=Botswana" / "scenario_id=1" / "part-0.parquet").exists()
+
+
+# ---------------------------------------------------------------------------
+# Fault tolerance: failing scenario units, manifest, retry filter
+# ---------------------------------------------------------------------------
+
+
+def _make_multi_scenario_simulations(scenario_ids, n_simulations=1) -> ScenarioSimulations:
+    """ScenarioSimulations with one scenario per id (all applying to every PJNZ)."""
+    scenarios = []
+    for sid in scenario_ids:
+        scenarios.extend(_make_simulations(scenario_id=sid, n_simulations=n_simulations).scenarios)
+    return ScenarioSimulations(scenarios=scenarios)
+
+
+def _hivpop_part(output_dir, pjnz, scenario_id):
+    return output_dir / "p_hivpop" / f"pjnz_name={pjnz}" / f"scenario_id={scenario_id}" / "part-0.parquet"
+
+
+def test_run_continues_when_one_scenario_fails(tmp_path):
+    pjnz_dir = tmp_path / "pjnz"
+    pjnz_dir.mkdir()
+    (pjnz_dir / "country.PJNZ").touch()
+
+    simulations = _make_multi_scenario_simulations(["1", "2"], n_simulations=1)
+    config = _make_run_config(tmp_path, pjnz_dir, indicators=["p_hivpop"])
+
+    # Serial path: scenario 1 succeeds, scenario 2's simulation raises.
+    with (
+        patch("avenir_goals_scenario.runner.import_pjnz", return_value=_fake_modvars()),
+        patch("avenir_goals_scenario.runner.run_simulation", side_effect=[_SIM_RESULT, RuntimeError("boom")]),
+    ):
+        result = run_scenario_analysis(config, simulations)
+
+    assert _hivpop_part(config.output_dir, "country", "1").exists()
+    assert not _hivpop_part(config.output_dir, "country", "2").exists()
+    assert [(f.pjnz, f.scenario_id) for f in result.failures] == [("country", "2")]
+
+    manifest = json.loads((config.output_dir / "failures.json").read_text())
+    assert manifest["failures"] == [{"pjnz": "country", "scenario_id": "2", "error": "boom"}]
+
+
+def test_run_records_all_failures_for_a_country(tmp_path):
+    pjnz_dir = tmp_path / "pjnz"
+    pjnz_dir.mkdir()
+    (pjnz_dir / "country.PJNZ").touch()
+
+    simulations = _make_multi_scenario_simulations(["1", "2"], n_simulations=1)
+    config = _make_run_config(tmp_path, pjnz_dir, indicators=["p_hivpop"])
+
+    with (
+        patch("avenir_goals_scenario.runner.import_pjnz", return_value=_fake_modvars()),
+        patch("avenir_goals_scenario.runner.run_simulation", side_effect=RuntimeError("boom")),
+    ):
+        result = run_scenario_analysis(config, simulations)
+
+    assert {(f.pjnz, f.scenario_id) for f in result.failures} == {("country", "1"), ("country", "2")}
+    assert (config.output_dir / "failures.json").exists()
+
+
+def test_run_selected_units_restricts_work(tmp_path):
+    pjnz_dir = tmp_path / "pjnz"
+    pjnz_dir.mkdir()
+    (pjnz_dir / "country.PJNZ").touch()
+
+    simulations = _make_multi_scenario_simulations(["1", "2"], n_simulations=1)
+    config = _make_run_config(tmp_path, pjnz_dir, indicators=["p_hivpop"])
+
+    with _integration_patches(_SIM_RESULT):
+        result = _run_scenario_analysis(config, simulations, RunCallbacks(), selected_units={("country", "2")})
+
+    assert not _hivpop_part(config.output_dir, "country", "1").exists()
+    assert _hivpop_part(config.output_dir, "country", "2").exists()
+    assert result.failures == []
+
+
+def test_run_removes_stale_failures_manifest_on_success(tmp_path):
+    pjnz_dir = tmp_path / "pjnz"
+    pjnz_dir.mkdir()
+    (pjnz_dir / "country.PJNZ").touch()
+
+    simulations = _make_simulations(scenario_id=1, n_simulations=1)
+    config = _make_run_config(tmp_path, pjnz_dir, indicators=["p_hivpop"])
+    stale = config.output_dir / "failures.json"
+    stale.write_text('{"failures": [{"pjnz": "old", "scenario_id": "9", "error": "x"}]}')
+
+    with _integration_patches(_SIM_RESULT):
+        result = run_scenario_analysis(config, simulations)
+
+    assert result.failures == []
+    assert not stale.exists()
+
+
+def test_run_pjnz_import_failure_is_fatal(tmp_path):
+    pjnz_dir = tmp_path / "pjnz"
+    pjnz_dir.mkdir()
+    (pjnz_dir / "country.PJNZ").touch()
+
+    simulations = _make_simulations(scenario_id=1, n_simulations=1)
+    config = _make_run_config(tmp_path, pjnz_dir, indicators=["p_hivpop"])
+
+    with (
+        patch("avenir_goals_scenario.runner.import_pjnz", side_effect=ValueError("bad PJNZ")),
+        pytest.raises(ValueError, match="bad PJNZ"),
+    ):
+        run_scenario_analysis(config, simulations)
+
+    assert not (config.output_dir / "failures.json").exists()
 
 
 # ---------------------------------------------------------------------------

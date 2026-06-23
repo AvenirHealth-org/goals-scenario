@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
+from avenir_goals_scenario import RunResult, WorkUnitResult
 from avenir_goals_scenario._runner.indicator_dims import DimSpec, list_indicators
 from avenir_goals_scenario.cli import _fmt_dim, _load_config, app
 from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
@@ -23,6 +24,11 @@ def _make_output_dir(tmp_path) -> Path:
     d = tmp_path / "output"
     d.mkdir(exist_ok=True)
     return d
+
+
+def _ok_run_result(tmp_path) -> RunResult:
+    """A successful (no failures) RunResult for patching run_with_progress."""
+    return RunResult(output_dir=_make_output_dir(tmp_path), failures=[])
 
 
 def _make_scenario_file(tmp_path) -> Path:
@@ -670,13 +676,13 @@ def test_cli_run_with_scenario_only_calls_run_with_progress(tmp_path):
     mock_simulations = MagicMock(spec=ScenarioSimulations)
     with (
         patch("avenir_goals_scenario.cli.read_simulations", return_value=mock_simulations) as mock_read,
-        patch("avenir_goals_scenario.cli.run_with_progress") as mock_run,
+        patch("avenir_goals_scenario.cli.run_with_progress", return_value=_ok_run_result(tmp_path)) as mock_run,
     ):
         result = runner.invoke(app, ["run", str(config_file)])
 
     assert result.exit_code == 0
     mock_read.assert_called_once_with(Path(config["scenario_path"]).resolve())
-    mock_run.assert_called_once_with(mock_run.call_args.args[0], mock_simulations)
+    mock_run.assert_called_once_with(mock_run.call_args.args[0], mock_simulations, selected_units=None)
 
 
 def test_cli_run_with_scenario_only_errors_when_file_missing(tmp_path):
@@ -705,7 +711,7 @@ def test_cli_run_with_definition_only_draws_and_runs(tmp_path):
     with (
         patch("avenir_goals_scenario.cli.draw_simulations", return_value=mock_simulations) as mock_draw,
         patch("avenir_goals_scenario.cli.write_simulations") as mock_write,
-        patch("avenir_goals_scenario.cli.run_with_progress") as mock_run,
+        patch("avenir_goals_scenario.cli.run_with_progress", return_value=_ok_run_result(tmp_path)) as mock_run,
     ):
         result = runner.invoke(app, ["run", str(config_file)])
 
@@ -726,7 +732,7 @@ def test_cli_run_with_definition_only_saves_to_output_dir(tmp_path):
     with (
         patch("avenir_goals_scenario.cli.draw_simulations", return_value=mock_simulations),
         patch("avenir_goals_scenario.cli.write_simulations") as mock_write,
-        patch("avenir_goals_scenario.cli.run_with_progress"),
+        patch("avenir_goals_scenario.cli.run_with_progress", return_value=_ok_run_result(tmp_path)),
     ):
         result = runner.invoke(app, ["run", str(config_file)])
 
@@ -748,7 +754,7 @@ def test_cli_run_with_definition_passes_seed_and_n_simulations(tmp_path):
     with (
         patch("avenir_goals_scenario.cli.draw_simulations", return_value=mock_simulations) as mock_draw,
         patch("avenir_goals_scenario.cli.write_simulations"),
-        patch("avenir_goals_scenario.cli.run_with_progress"),
+        patch("avenir_goals_scenario.cli.run_with_progress", return_value=_ok_run_result(tmp_path)),
     ):
         runner.invoke(app, ["run", str(config_file)])
 
@@ -767,7 +773,7 @@ def test_cli_run_with_definition_passes_base_year(tmp_path):
     with (
         patch("avenir_goals_scenario.cli.draw_simulations", return_value=mock_simulations) as mock_draw,
         patch("avenir_goals_scenario.cli.write_simulations"),
-        patch("avenir_goals_scenario.cli.run_with_progress"),
+        patch("avenir_goals_scenario.cli.run_with_progress", return_value=_ok_run_result(tmp_path)),
     ):
         runner.invoke(app, ["run", str(config_file)])
 
@@ -785,7 +791,7 @@ def test_cli_run_with_both_existing_scenario_uses_existing(tmp_path):
     mock_simulations = MagicMock(spec=ScenarioSimulations)
     with (
         patch("avenir_goals_scenario.cli.read_simulations", return_value=mock_simulations),
-        patch("avenir_goals_scenario.cli.run_with_progress") as mock_run,
+        patch("avenir_goals_scenario.cli.run_with_progress", return_value=_ok_run_result(tmp_path)) as mock_run,
     ):
         result = runner.invoke(app, ["run", str(config_file)])
 
@@ -811,7 +817,7 @@ def test_cli_run_with_both_missing_scenario_redraws_and_saves(tmp_path):
     with (
         patch("avenir_goals_scenario.cli.draw_simulations", return_value=mock_simulations) as mock_draw,
         patch("avenir_goals_scenario.cli.write_simulations") as mock_write,
-        patch("avenir_goals_scenario.cli.run_with_progress") as mock_run,
+        patch("avenir_goals_scenario.cli.run_with_progress", return_value=_ok_run_result(tmp_path)) as mock_run,
     ):
         result = runner.invoke(app, ["run", str(config_file)])
 
@@ -853,3 +859,76 @@ def test_cli_run_handles_errors(tmp_path):
     # Rich may wrap long lines, so check parts independently
     assert "something" in result.output and "went wrong" in result.output
     assert "Traceback" in result.output
+
+
+# --- run: partial failures and --retry ---
+
+
+def test_cli_run_exits_2_on_partial_failure(tmp_path):
+    config = _valid_config_scenario(tmp_path)
+    config_file = tmp_path / "config.json"
+    config_file.write_bytes(orjson.dumps(config))
+
+    partial = RunResult(
+        output_dir=_make_output_dir(tmp_path),
+        failures=[WorkUnitResult(pjnz="country", scenario_id="3", ok=False, error="boom")],
+    )
+    mock_simulations = MagicMock(spec=ScenarioSimulations)
+    with (
+        patch("avenir_goals_scenario.cli.read_simulations", return_value=mock_simulations),
+        patch("avenir_goals_scenario.cli.run_with_progress", return_value=partial),
+    ):
+        result = runner.invoke(app, ["run", str(config_file)])
+
+    assert result.exit_code == 2
+
+
+def test_cli_run_retry_passes_selected_units(tmp_path):
+    config = _valid_config_scenario(tmp_path)
+    config_file = tmp_path / "config.json"
+    config_file.write_bytes(orjson.dumps(config))
+
+    retry_file = tmp_path / "failures.json"
+    retry_file.write_bytes(
+        orjson.dumps({
+            "failures": [
+                {"pjnz": "country_a", "scenario_id": "1", "error": "boom"},
+                {"pjnz": "country_b", "scenario_id": "2", "error": "boom"},
+            ]
+        })
+    )
+
+    mock_simulations = MagicMock(spec=ScenarioSimulations)
+    with (
+        patch("avenir_goals_scenario.cli.read_simulations", return_value=mock_simulations),
+        patch("avenir_goals_scenario.cli.run_with_progress", return_value=_ok_run_result(tmp_path)) as mock_run,
+    ):
+        result = runner.invoke(app, ["run", str(config_file), "--retry", str(retry_file)])
+
+    assert result.exit_code == 0
+    assert mock_run.call_args.kwargs["selected_units"] == {("country_a", "1"), ("country_b", "2")}
+
+
+def test_cli_run_retry_missing_file_exits_1(tmp_path):
+    config = _valid_config_scenario(tmp_path)
+    config_file = tmp_path / "config.json"
+    config_file.write_bytes(orjson.dumps(config))
+
+    result = runner.invoke(app, ["run", str(config_file), "--retry", str(tmp_path / "nope.json")])
+
+    assert result.exit_code == 1
+    assert "retry" in result.output.lower()
+
+
+def test_cli_run_retry_non_json_exits_1(tmp_path):
+    config = _valid_config_scenario(tmp_path)
+    config_file = tmp_path / "config.json"
+    config_file.write_bytes(orjson.dumps(config))
+
+    bad = tmp_path / "failures.txt"
+    bad.write_text("not json")
+
+    result = runner.invoke(app, ["run", str(config_file), "--retry", str(bad)])
+
+    assert result.exit_code == 1
+    assert "retry" in result.output.lower()

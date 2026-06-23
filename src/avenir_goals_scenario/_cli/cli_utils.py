@@ -7,9 +7,9 @@ from rich.console import Console
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TaskID, TextColumn, TimeRemainingColumn
 from rich.traceback import Traceback
 
-from avenir_goals_scenario._runner.utils import RunCallbacks, get_effective_workers
+from avenir_goals_scenario._runner.utils import RunCallbacks, RunResult, get_effective_workers
 from avenir_goals_scenario.models import ScenarioSimulations
-from avenir_goals_scenario.runner import _run_scenario_analysis, _select_pjnz_files
+from avenir_goals_scenario.runner import _run_scenario_analysis, _scenario_applies, _select_pjnz_files
 
 console = Console()
 
@@ -110,7 +110,11 @@ def configure_worker_logging(log_queue: Queue) -> None:
     logger.add(_sink, format="{message}", colorize=False)
 
 
-def run_with_progress(config, simulations: ScenarioSimulations) -> None:
+def run_with_progress(
+    config,
+    simulations: ScenarioSimulations,
+    selected_units: set[tuple[str, str]] | None = None,
+) -> RunResult:
     """Run scenario analysis with Rich progress bars and worker log routing.
 
     This is the CLI entry point. It sets up a shared Progress display,
@@ -120,6 +124,12 @@ def run_with_progress(config, simulations: ScenarioSimulations) -> None:
     Args:
         config: Validated run configuration.
         simulations: Scenario simulations to run.
+        selected_units: Optional set of ``(pjnz_stem, scenario_id)`` pairs to
+            restrict the run to (used by ``--retry``). ``None`` runs every
+            applicable unit.
+
+    Returns:
+        The :class:`RunResult`, whose ``failures`` lists any units that failed.
     """
     pjnz_files = _select_pjnz_files(config.pjnz_dir, simulations)
     n_pjnz = len(pjnz_files)
@@ -156,12 +166,15 @@ def run_with_progress(config, simulations: ScenarioSimulations) -> None:
             import_progress.stop()
             for pjnz_path in pjnz_files:
                 stem = pjnz_path.stem
-                n_applicable = sum(1 for s in simulations.scenarios if s.pjnz_names is None or stem in s.pjnz_names)
+                n_applicable = sum(1 for s in simulations.scenarios if _scenario_applies(s, stem, selected_units))
                 if n_applicable > 0:
                     scenario_tasks[stem] = run_progress.add_task(stem, total=n_applicable)
             run_progress.start()
 
         def on_scenario_complete(stem: str) -> None:
+            run_progress.advance(scenario_tasks[stem])
+
+        def on_scenario_failed(stem: str) -> None:
             run_progress.advance(scenario_tasks[stem])
 
         def on_run_complete() -> None:
@@ -171,10 +184,18 @@ def run_with_progress(config, simulations: ScenarioSimulations) -> None:
             on_pjnz_imported=on_pjnz_imported,
             on_imports_complete=on_imports_complete,
             on_scenario_complete=on_scenario_complete,
+            on_scenario_failed=on_scenario_failed,
             on_run_complete=on_run_complete,
         )
         import_progress.start()
-        _run_scenario_analysis(config, simulations, callbacks, log_queue=log_queue, pjnz_files=pjnz_files)
+        return _run_scenario_analysis(
+            config,
+            simulations,
+            callbacks,
+            log_queue=log_queue,
+            pjnz_files=pjnz_files,
+            selected_units=selected_units,
+        )
     finally:
         # Make sure we call stop on these, in the case that a user
         # hits ctrl+c before we call it in the callbacks above
