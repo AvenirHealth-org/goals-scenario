@@ -448,13 +448,15 @@
         },
         {
           "product": "Long-acting treatment",
-          "targets": [
-            {
-              "risk_group": "Key populations",
-              "sex": "Both"
-            }
-          ],
           "parameters": {
+            "target_year": {
+              "mean": 2030,
+              "sd": 0.0
+            },
+            "target_coverage": {
+              "mean": 0.7,
+              "sd": 0.0
+            },
             "interruption_rate_reduction": {
               "mean": 0.25,
               "sd": 0.0

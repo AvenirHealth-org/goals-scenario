@@ -117,6 +117,15 @@ def _poc_params() -> dict:
     }
 
 
+def _lat_params() -> dict:
+    return {
+        "projection_start_year": _START_YEAR,
+        "long_act_treat_cov": np.zeros(_N_YEARS),
+        "long_act_treat_eff": 0,
+        "art_interrupt_rate": np.zeros(_N_YEARS),
+    }
+
+
 # ---------------------------------------------------------------------------
 # apply_simulation helpers
 # ---------------------------------------------------------------------------
@@ -711,11 +720,13 @@ def test_adult_art_multiple_targets_can_have_different_coverages():
 # ---------------------------------------------------------------------------
 
 
-def test_long_acting_treatment_is_noop():
-    lp = {"projection_start_year": _START_YEAR}
+def test_long_acting_treatment_is_applied_correctly():
+    lp = _lat_params()
     ivs = [InterventionOut(id="long_acting_treatment", product="Long-acting treatment")]
     sim = {
         "long_acting_treatment": InterventionSimulation({
+            "target_year": _TARGET_YEAR,
+            "target_coverage": 0.7,
             "interruption_rate_reduction": 0.25,
             "viral_load_suppression_ratio": 0.80,
         })
@@ -723,7 +734,10 @@ def test_long_acting_treatment_is_noop():
 
     # Should not raise; leaves params untouched (no effect on the model yet).
     apply_simulation(lp, ivs, sim)
-    assert lp == {"projection_start_year": _START_YEAR}
+
+    assert lp["long_act_treat_cov"][_TARGET_YEAR_IDX] == 0.7
+    assert lp["long_act_treat_eff_vls"] == 0.8
+    assert lp["long_act_treat_eff_ltfu"] == 0.25
 
 
 # ---------------------------------------------------------------------------
