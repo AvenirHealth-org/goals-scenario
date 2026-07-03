@@ -30,8 +30,9 @@
 #   - Products with mixed per-target multipliers are split into one intervention
 #     entry per target, each with its own scaled target_coverage.
 #   - Scenario ids are suffixed _A{i} for archetype group i.
-#   - Long-acting treatment has no target_coverage, so market dynamics have no
-#     effect on it (ASSUMPTION B).
+#   - Long-acting treatment's target_coverage lives in "parameters" (like AHD
+#     treatment / POC tests below), so archetype and market-dynamic scaling
+#     apply to it via the same "*" archetype lookup.
 #
 # Market dynamics:
 #   - trigger_products and affected_product use CANONICAL product names (e.g.
@@ -101,8 +102,10 @@ create_dummy_products <- function(path) {
   # IMPORTANT — coverage location (Goals model "coverage fix"):
   #   For products WITH targets (PrEP/PEP, Vaccine, Cure, Adult ART), the
   #   "target_coverage" {mean, sd} now lives INSIDE EACH TARGET, not in
-  #   "parameters". Only the target-less products (AHD treatment, POC tests) keep
-  #   "target_coverage" in "parameters". Long-acting treatment has no coverage at all.
+  #   "parameters". The target-less products (AHD treatment, POC tests,
+  #   Long-acting treatment) keep "target_coverage" (and "target_year") in
+  #   "parameters" instead, and must NOT have a "targets" field at all
+  #   (the Goals schema forbids it for these products).
   #
   # Valid canonical product names:
   #   PrEP:    "Oral PrEP (daily)", "Oral PrEP (monthly)",
@@ -118,16 +121,13 @@ create_dummy_products <- function(path) {
   #   Vaccine / Cure    : {risk_group, sex (optional), target_coverage}
   #                       risk_group may be "PLHIV" (then sex must be "Both" or omitted)
   #   Adult ART         : {sex, target_coverage}            (no risk_group)
-  #   Long-acting tx    : {risk_group, sex (optional)}      (NO target_coverage)
+  #   Long-acting tx    : NO targets list; target_year/target_coverage live in
+  #                       "parameters" (same shape as AHD treatment / POC tests).
   #
   # Risk groups (PrEP / Vaccine / Cure):
   #   "Low risk heterosexual", "Medium risk heterosexual", "High risk heterosexual",
   #   "People who inject drugs", "Men who have sex with men", and (Vaccine/Cure) "PLHIV"
   #   sex: "Male", "Female", "Both"
-  #
-  # LongActingTreatmentTarget risk groups:
-  #   "Key populations", "General population", "Medium risk populations",
-  #   "Not sexually active"; sex: "Male", "Female", "Both" or omit
   #
   # Vaccine parameter Literals:
   #   vaccine_action_type: "Take" | "Degree"
@@ -266,14 +266,14 @@ create_dummy_products <- function(path) {
         duration_of_cure = list(mean = 5.0,  sd = 1.0)
       )
     ),
-    # Long-acting treatment: NO target_coverage anywhere, so archetype and market
-    # multipliers have no effect on it (ASSUMPTION). Included as a single variant.
+    # Long-acting treatment: NO targets field (Goals schema forbids it);
+    # target_year/target_coverage live in parameters, like AHD treatment / POC
+    # tests below. Included as a single variant.
     list(
       product = "Long-acting treatment",
-      targets = list(
-        list(risk_group = "Key populations", sex = "Both")
-      ),
       parameters = list(
+        target_year                  = list(mean = 2030, sd = 2),
+        target_coverage              = list(mean = 0.70, sd = 0.08),
         interruption_rate_reduction  = list(mean = 0.25, sd = 0.05),
         viral_load_suppression_ratio = list(mean = 0.80, sd = 0.05)
       )
@@ -350,8 +350,8 @@ create_dummy_ptrs <- function(path) {
 create_dummy_market_dynamics <- function(path) {
   # trigger_products and affected_product use CANONICAL product names (e.g.
   # "Vaccine"), so a rule fires when any matching variant is present.
-  # NOTE: "Long-acting treatment" carries no target_coverage, so a rule that
-  # *affects* it would be a no-op; it may still appear as a trigger.
+  # "Long-acting treatment" now carries a target_coverage (in parameters), so
+  # it can be used as either a trigger or an affected_product.
   readr::write_csv(tibble::tribble(
     ~trigger_products,                                       ~affected_product,            ~coverage_multiplier, ~type,
     "Vaccine",                                               "Oral PrEP (daily)",          0.50,                 "cannibalization",
@@ -521,9 +521,8 @@ build_intervention <- function(prod_entry) {
 #   - per-target "target_coverage" (PrEP/PEP, Vaccine, Cure, Adult ART):
 #     each target is scaled by archetype_multiplier(archetype, its risk_group)
 #     * md_mult. Targets with no risk_group (Adult ART) use the "*" archetype row.
-#   - parameters$target_coverage (AHD treatment, POC tests): scaled by
-#     archetype_multiplier(archetype, "*") * md_mult.
-# Products with no coverage at all (Long-acting treatment) are left untouched.
+#   - parameters$target_coverage (AHD treatment, POC tests, Long-acting
+#     treatment): scaled by archetype_multiplier(archetype, "*") * md_mult.
 build_intervention_scaled <- function(entry, arch_lookup, archetype, md_mult) {
   if (!is.null(entry$targets) && length(entry$targets) > 0) {
     entry$targets <- lapply(entry$targets, function(t) {

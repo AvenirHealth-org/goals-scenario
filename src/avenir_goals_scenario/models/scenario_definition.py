@@ -113,18 +113,6 @@ class VaccineCureTarget(BaseModel):
         return self
 
 
-class LongActingTreatmentTarget(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    risk_group: Literal[
-        "Key populations",
-        "General population",
-        "Medium risk populations",
-        "Not sexually active",
-    ]
-    sex: SexName | None = None
-
-
 class AdultARTTarget(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -314,11 +302,15 @@ class POCTestParameters(BaseModel):
 class LongActingTreatmentParameters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    target_year: NormalDistParameters
+    target_coverage: NormalDistParameters
     interruption_rate_reduction: NormalDistParameters
     viral_load_suppression_ratio: NormalDistParameters
 
     @model_validator(mode="after")
     def _apply_constraints(self) -> Self:
+        self.target_year = _apply_year_constraint(self.target_year)
+        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
         self.interruption_rate_reduction = _apply_proportion_defaults(self.interruption_rate_reduction)
         self.viral_load_suppression_ratio = _apply_proportion_defaults(self.viral_load_suppression_ratio)
         return self
@@ -438,7 +430,6 @@ class LongActingTreatmentDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     product: Literal["Long-acting treatment"]
-    targets: list[LongActingTreatmentTarget] = Field(min_length=1)
     parameters: LongActingTreatmentParameters
 
 
@@ -472,7 +463,7 @@ AnyInterventionDef = Annotated[
 
 def _intervention_keys(iv: "AnyInterventionDef") -> list[tuple]:
     """Return the uniqueness keys for *iv* used to detect duplicate interventions."""
-    if isinstance(iv, (PrepInterventionDef, VaccineInterventionDef, CureInterventionDef, LongActingTreatmentDef)):
+    if isinstance(iv, (PrepInterventionDef, VaccineInterventionDef, CureInterventionDef)):
         return [(iv.product, t.risk_group, t.sex) for t in iv.targets]
     if isinstance(iv, (CureNeonateInterventionDef, VMMInterventionDef)):
         return [(iv.product, t.risk_group) for t in iv.targets]

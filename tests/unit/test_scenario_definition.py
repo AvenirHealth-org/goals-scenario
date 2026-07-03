@@ -277,9 +277,15 @@ def test_poc_test_parameters_applies_constraints():
 
 def test_lat_parameters_applies_proportion_defaults():
     params = LongActingTreatmentParameters(
+        target_year=NormalDistParameters(mean=2030, sd=0.0),
+        target_coverage=NormalDistParameters(mean=0.7, sd=0.0),
         interruption_rate_reduction=NormalDistParameters(mean=0.95, sd=0.02),
         viral_load_suppression_ratio=NormalDistParameters(mean=0.99, sd=0.01),
     )
+    assert params.target_year.integer is True
+    assert params.target_year.min_value == 1970
+    assert params.target_coverage.min_value == 0.0
+    assert params.target_coverage.max_value == 1.0
     assert params.interruption_rate_reduction.min_value == 0.0
     assert params.interruption_rate_reduction.max_value == 1.0
     assert params.viral_load_suppression_ratio.min_value == 0.0

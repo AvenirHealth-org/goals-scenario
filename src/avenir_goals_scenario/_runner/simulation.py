@@ -16,7 +16,6 @@ from SpectrumCommon.Const.RN import (
     RN_POC_CD4,
     RN_POC_VL,
     RN_VMM,
-    # RN_LongActingTreatment,
     RN_Adherence,
     RN_AHDTreatment,
     RN_AllRisk,
@@ -78,7 +77,6 @@ _interv_map: dict[str, int] = {
     "ahd_treatment": RN_AHDTreatment,
     "poc_cd4_test": RN_POC_CD4_Int,
     "poc_vl_test": RN_POC_VL_Int,
-    # "long_acting_treatment": RN_LongActingTreatment,
 }
 
 
@@ -203,6 +201,13 @@ class _AdultARTDraw(TypedDict):
     target_coverages: list[TargetCoverage]
 
 
+class _LongActingTreatmentDraw(TypedDict):
+    target_year: int
+    target_coverage: float
+    interruption_rate_reduction: float
+    viral_load_suppression_ratio: float
+
+
 _Draw: TypeAlias = (
     _PrepDraw
     | _VaccineDraw
@@ -212,6 +217,7 @@ _Draw: TypeAlias = (
     | _AHDTreatmentDraw
     | _POCTestDraw
     | _AdultARTDraw
+    | _LongActingTreatmentDraw
 )
 
 
@@ -388,15 +394,12 @@ def _apply_adult_art(lp: LeapfrogParams, draw: _AdultARTDraw) -> None:
             lp["art15plus_isperc"][sex_idx, year_idx] = 1
 
 
-def _apply_long_acting_treatment(lp: LeapfrogParams, draw: dict) -> None:
-    """No-op stub for long-acting treatment.
+def _apply_long_acting_treatment(lp: LeapfrogParams, draw: _LongActingTreatmentDraw) -> None:
+    year_idx = _target_year_idx(lp, draw)
 
-    The product is accepted in scenario definitions but has no effect on the
-    Goals model yet: the leapfrog mapping for ``interruption_rate_reduction`` and
-    ``viral_load_suppression_ratio`` is not wired up. This lets scenarios that
-    include long-acting treatment run to completion (it behaves as if absent).
-    TODO: implement the actual model effect.
-    """
+    lp["long_act_treat_cov"][year_idx] = draw["target_coverage"]
+    lp["long_act_treat_eff_vls"] = draw["viral_load_suppression_ratio"]
+    lp["long_act_treat_eff_ltfu"] = draw["interruption_rate_reduction"]
 
 
 def _apply_poc(lp: LeapfrogParams, poc_type: int, draw: _POCTestDraw) -> None:
@@ -424,7 +427,7 @@ def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict) -> None:
         case "poc_cd4_test":
             _apply_poc(lp, RN_POC_CD4_Int, cast(_POCTestDraw, draw))
         case "long_acting_treatment":
-            _apply_long_acting_treatment(lp, draw)
+            _apply_long_acting_treatment(lp, cast(_LongActingTreatmentDraw, draw))
         case "adult_art":
             _apply_adult_art(lp, cast(_AdultARTDraw, draw))
         case _:
