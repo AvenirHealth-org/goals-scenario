@@ -652,7 +652,7 @@ main <- function() {
   scenarios <- build_all_scenarios(products_named, countries_df, archetypes_df, market_df, ptrs_df)
 
   # Baseline: no interventions, runs against all countries, id = "0".
-  baseline <- list(list(id = "0", pjnz = countries_df$Country, interventions = list()))
+  baseline <- list(list(id = "0", pjnz = as.list(countries_df$Country), interventions = list()))
   scenarios <- c(baseline, scenarios)
 
   jsonlite::write_json(list(scenarios = scenarios), OUTPUT_PATH,
