@@ -15,7 +15,7 @@ dependencies = [
     "pandas>=3.0.3",
     "loguru>=0.7.3",
     "avenir-spectrum-common>=0.1.17",
-    "leapfrog-goals>=0.0.10",
+    "leapfrog-goals>=0.0.11",
     "avenir-spectrum-import-pjnz>=0.1.10",
 ]
 classifiers = [

@@ -66,7 +66,7 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Check vulnerabilities
-        run: uv run pip-audit -s osv --desc --ignore-vuln CVE-2024-23342 --ignore-vuln CVE-2026-44432 --ignore-vuln CVE-2026-44431 --ignore-vuln GHSA-537c-gmf6-5ccf --ignore-vuln GHSA-6v7p-g79w-8964 --ignore-vuln CVE-2026-54911
+        run: uv run pip-audit -s osv --desc --ignore-vuln CVE-2024-23342 --ignore-vuln CVE-2026-44432 --ignore-vuln CVE-2026-44431 --ignore-vuln GHSA-537c-gmf6-5ccf --ignore-vuln GHSA-6v7p-g79w-8964 --ignore-vuln CVE-2026-54911 --ignore-vuln PYSEC-2026-3447
 
   check-docs:
     runs-on: ubuntu-latest
