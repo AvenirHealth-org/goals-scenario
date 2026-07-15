@@ -117,11 +117,13 @@ class AdultARTTarget(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     sex: SexName
-    target_coverage: NormalDistParameters
+    # ART entry is modelled as an annual initiation rate (the PJNZ must be in
+    # "initiation rate" mode), bounded like a proportion between 0 and 1.
+    target_initiation_rate: NormalDistParameters
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
-        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
+        self.target_initiation_rate = _apply_proportion_defaults(self.target_initiation_rate)
         return self
 
 

@@ -8,6 +8,16 @@ from leapfrog_goals import get_goals_ss
 from SpectrumCommon.Util.LeapfrogDataMapping import modvars_to_leapfrog
 from Tools.ImportPJNZ.Importer import GB_ImportProjectionFromFile
 
+# ART entry option (leapfrog enum): 0 = number/percent, 1 = initiation rate,
+# 2 = percent by risk group. This tool applies Adult ART as an initiation rate,
+# so an "Adult ART" intervention has no effect unless the PJNZ is in this mode.
+ART_ENTRY_INITIATION_RATE = 1
+
+
+def uses_art_initiation_rate(leapfrog_params: dict) -> bool:
+    """Return True if the PJNZ was read with the ART initiation-rate entry option."""
+    return leapfrog_params.get("art_entry_option") == ART_ENTRY_INITIATION_RATE
+
 
 def find_pjnz_files(pjnz_dir: Path) -> list[Path]:
     """Return a sorted list of PJNZ files in a directory.

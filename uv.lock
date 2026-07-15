@@ -56,7 +56,7 @@ wheels = [
 
 [[package]]
 name = "avenir-goals-scenario"
-version = "0.0.16"
+version = "0.0.17"
 source = { editable = "." }
 dependencies = [
     { name = "avenir-spectrum-common" },
@@ -88,9 +88,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "avenir-spectrum-common", specifier = ">=0.1.16" },
-    { name = "avenir-spectrum-import-pjnz", specifier = ">=0.1.9" },
-    { name = "leapfrog-goals", specifier = ">=0.0.9" },
+    { name = "avenir-spectrum-common", specifier = ">=0.1.17" },
+    { name = "avenir-spectrum-import-pjnz", specifier = ">=0.1.10" },
+    { name = "leapfrog-goals", specifier = ">=0.0.11" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "numpy", specifier = ">=2.4.4" },
     { name = "orjson", specifier = ">=3.11.7" },
@@ -117,7 +117,7 @@ dev = [
 
 [[package]]
 name = "avenir-spectrum-common"
-version = "0.1.16"
+version = "0.1.17"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "avenir-common" },
@@ -129,22 +129,22 @@ dependencies = [
     { name = "requests" },
     { name = "ujson" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/db/30/0004e8987145d8f8d9681d7434fdaf508c1ffdbc20922df78a7907d6b6b6/avenir_spectrum_common-0.1.16.tar.gz", hash = "sha256:34ba30ee8aa31e49b46623a5eb8719e1682d4f4369b87f70b57cb711acbe7f69", size = 651760, upload-time = "2026-06-30T08:56:51.713Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1a/e3/3dd75ddd353c8db06c580d4129573bd3e26dd768276b284d2a4adbb83bee/avenir_spectrum_common-0.1.17.tar.gz", hash = "sha256:0ed644062b7163cfdc9dd675aa3e662749d293a19c344fe82c2667f58994a165", size = 657194, upload-time = "2026-07-14T14:49:16.828Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/86/5a/f9f04f0e4022997d3aa907108c3ab10b66c535a11f2956ba666b6cf0224a/avenir_spectrum_common-0.1.16-py3-none-any.whl", hash = "sha256:cd9a0d628c3bbc84db86d524a7cb1e4b7b874e4bdf511950eec86a08aa479e99", size = 731426, upload-time = "2026-06-30T08:56:53.329Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/ff/80c945e4f08e7e5305cd6e0f7e5b5501050de43799349c726f49a317e81a/avenir_spectrum_common-0.1.17-py3-none-any.whl", hash = "sha256:26c41ca80d2723e003c942449637a5b2c7385cb657289496d565cb9cd77fc8e2", size = 735489, upload-time = "2026-07-14T14:49:15.205Z" },
 ]
 
 [[package]]
 name = "avenir-spectrum-import-pjnz"
-version = "0.1.9"
+version = "0.1.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "avenir-common" },
     { name = "avenir-spectrum-common" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f6/d8/97265449c7561b4cc3db914398810cf7f1e428a92de3fc491cdd85cca5ae/avenir_spectrum_import_pjnz-0.1.9.tar.gz", hash = "sha256:405d0d835ff03b2603230dd30a85057a38da31a8b6b776b0868b7c03f4a4984d", size = 46568, upload-time = "2026-06-25T13:15:32.033Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/12/25/b335a8783ab071f2418a961028c6a5ab783211efd1647c8dce21b76d26be/avenir_spectrum_import_pjnz-0.1.10.tar.gz", hash = "sha256:8f17b1b5f595788ad33fb6a64dfdd4b5bf0370c2182c16169e3ce50ce1d22530", size = 46314, upload-time = "2026-07-14T14:49:00.964Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/83/5a/be6a66f3591d31b9fc003d5eaa3a0462b09c7b50453460df069050b27c2d/avenir_spectrum_import_pjnz-0.1.9-py3-none-any.whl", hash = "sha256:c076814370021ea3ea35b065d2e8312737b9e28d2ff1b267a1ae05d4abd8b851", size = 49362, upload-time = "2026-06-25T13:15:30.639Z" },
+    { url = "https://files.pythonhosted.org/packages/12/61/f0db6cb995f7436b1ed9db1d61e31ebea93fc3bab44f4d9745df0543bb6d/avenir_spectrum_import_pjnz-0.1.10-py3-none-any.whl", hash = "sha256:b99abebbe2ee722b832a8392c69154a992bad00c28a4f9fd41fbaf6dc52397db", size = 49038, upload-time = "2026-07-14T14:49:02.064Z" },
 ]
 
 [[package]]
@@ -768,44 +768,44 @@ wheels = [
 
 [[package]]
 name = "leapfrog-goals"
-version = "0.0.9"
+version = "0.0.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "h5py" },
     { name = "numpy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/99/17/93d3cc9e9aca229fbea6f4487706ec7f3ce21f3ed7b4eaab4f753a4e7e2f/leapfrog_goals-0.0.9.tar.gz", hash = "sha256:dbe1062c2e4b6bdf0617d0b7774840cbc72282d22765f1d27b0146d4e3c33ec2", size = 1663736, upload-time = "2026-07-02T14:12:10.063Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/91/b8/f6cf2e7d4cfc16d29fc0c470106c60a2557a85b96ce9e2e5ece37e1c73e2/leapfrog_goals-0.0.11.tar.gz", hash = "sha256:7c47e76972e1616087454e30c61b5b1c466aac3d193d380de596013cfaf0d047", size = 1663738, upload-time = "2026-07-15T14:33:54.101Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/35/1f/86e1775c46baa9973653e18270dfe875f37fa9e8b6fbaa0e35cfb24e406b/leapfrog_goals-0.0.9-cp311-cp311-macosx_10_14_x86_64.whl", hash = "sha256:de59abc7f6f0c8bcd02c5bff43642c3d5c4c300e36ef945acd25d904fcc6808f", size = 170689, upload-time = "2026-07-02T14:11:25.484Z" },
-    { url = "https://files.pythonhosted.org/packages/19/b7/bcc868bc2b35f77c264798fb8cbf4dfbcfcfa978ff090ced24aaff99a5fc/leapfrog_goals-0.0.9-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:36e812c072388064ace8a9dd86e92b18053889a3d43cc47e6045c5023d371d3d", size = 168900, upload-time = "2026-07-02T14:11:27.122Z" },
-    { url = "https://files.pythonhosted.org/packages/59/e2/ef4a13e20c41b0652336d6d4bb2eb0b4ca2590114b2dfbca0a39135cc38f/leapfrog_goals-0.0.9-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:e9c8fd12d2de5fe2f6dee8e58bfc89675aa3c2d7fb858ad2d43a200d97221efc", size = 197077, upload-time = "2026-07-02T14:11:28.573Z" },
-    { url = "https://files.pythonhosted.org/packages/33/70/27da725d96df85eb8166d102de90c1357f8e271bfd11f60b370d8662137d/leapfrog_goals-0.0.9-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:c38dd4a56c0edebf676b0544dd24e8cb2e0ea5df13b06aaea2b1e8352bc4192d", size = 643017, upload-time = "2026-07-02T14:11:30.1Z" },
-    { url = "https://files.pythonhosted.org/packages/7b/ab/856507e1a5c5f88c976e1e8677d2d6dc8037d789eae28e78e58c3787993f/leapfrog_goals-0.0.9-cp311-cp311-win32.whl", hash = "sha256:925785172254291c7f6797760cade46bb124344903b3a5ec012e005a031fa475", size = 151446, upload-time = "2026-07-02T14:11:31.637Z" },
-    { url = "https://files.pythonhosted.org/packages/38/5b/c8e22f5e198d02857549ba6f04323bb8bac59192be6b412127d2b6db3264/leapfrog_goals-0.0.9-cp311-cp311-win_amd64.whl", hash = "sha256:1e198fbb003571491d2c740916336cf362ec7c8e92e443c68dca83442f720b28", size = 167020, upload-time = "2026-07-02T14:11:33.094Z" },
-    { url = "https://files.pythonhosted.org/packages/f0/42/f3076f2b6a5c7958cd293479b0a08a5305655dcbb54b98915ca1e4527b47/leapfrog_goals-0.0.9-cp312-cp312-macosx_10_14_x86_64.whl", hash = "sha256:4c35c1e1e540bc43717506156715f0dd4fcf1a77b42260575a6e145085fc6767", size = 169863, upload-time = "2026-07-02T14:11:34.619Z" },
-    { url = "https://files.pythonhosted.org/packages/a0/85/cd814ac3e421c70f10553aba028ce399f3ef2984deb27b529815820251c1/leapfrog_goals-0.0.9-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:c4fa997f69731d14e05c171b9151266d121b0f795ee057f8c56ead274ead25b4", size = 167417, upload-time = "2026-07-02T14:11:36.032Z" },
-    { url = "https://files.pythonhosted.org/packages/a1/68/ff7d1ae24499bb12ffab0f5361f558c05694c9bd27acb014fc771c701f29/leapfrog_goals-0.0.9-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:386c86f5cc681dd13f764a195061875ae48df118840f5fa52f065eba71fb2bc1", size = 195813, upload-time = "2026-07-02T14:11:37.503Z" },
-    { url = "https://files.pythonhosted.org/packages/49/0d/e1cde9b52d372cf5479f125635e74a6e1ed635cd75dd265ba9a22b0552fb/leapfrog_goals-0.0.9-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:8318137898e953a4a2b2b493fc7e6e863b257a4c9007dffd24a4d41945a0d17b", size = 642007, upload-time = "2026-07-02T14:11:38.992Z" },
-    { url = "https://files.pythonhosted.org/packages/5c/be/24c1cd66f3fbda624d919bb3929d885cfca62fc9fbedf74fd5ffe839ea5c/leapfrog_goals-0.0.9-cp312-cp312-win32.whl", hash = "sha256:46516e24f39bd5421586896c886c640d7298cdccca71785cf377aa60b0af8556", size = 150769, upload-time = "2026-07-02T14:11:40.401Z" },
-    { url = "https://files.pythonhosted.org/packages/9c/dc/c4eced52d754e684a4a7f964a05bbf6a973d3a3fcd8812337337eb9170f0/leapfrog_goals-0.0.9-cp312-cp312-win_amd64.whl", hash = "sha256:0f02c0076b76232b7166b91bd154390d61f5847f60e4c32cfe06564f6e17dbd5", size = 166350, upload-time = "2026-07-02T14:11:41.826Z" },
-    { url = "https://files.pythonhosted.org/packages/21/b4/d089a4009ab3f76641347685588ea121a973a5d46c799480596e6b2d8fe8/leapfrog_goals-0.0.9-cp313-cp313-macosx_10_14_x86_64.whl", hash = "sha256:49acbf485a0c71f2977b5f80ca8e6ab9f0c2130bec1c2f1918474c5583ee0968", size = 169865, upload-time = "2026-07-02T14:11:43.2Z" },
-    { url = "https://files.pythonhosted.org/packages/5e/d7/4b4e999a81812411dae2b3d5b5c53ccf9bb8929d108a67e1346c44701389/leapfrog_goals-0.0.9-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:e8fc8f11fee54f0f26072ef9ecaa26599599a91205cad0a54a954b350c4c0f64", size = 167410, upload-time = "2026-07-02T14:11:44.645Z" },
-    { url = "https://files.pythonhosted.org/packages/53/7b/42843c80d79054d5f7df8dbca24e8e72568496aacaccf0a54343b6295a52/leapfrog_goals-0.0.9-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:3c93f92abd73ab33194fb944d583699d633299a742846235417f65eb29b1274c", size = 195815, upload-time = "2026-07-02T14:11:46.045Z" },
-    { url = "https://files.pythonhosted.org/packages/91/12/7d61944ff6d5590e36d6ddce1f95e543138bb581da23a621796ba4436122/leapfrog_goals-0.0.9-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:b4a9b4441f4202add6d7529b4c1e1d589f413da23b445566795fd744d1655654", size = 642071, upload-time = "2026-07-02T14:11:47.552Z" },
-    { url = "https://files.pythonhosted.org/packages/97/8c/0627620c233e5678b9e3a2269badc8d9f0d7805f2152f7053cff063404f6/leapfrog_goals-0.0.9-cp313-cp313-win32.whl", hash = "sha256:0f6cc6bdfb0af6710b28ff95d45128ef09ad5bdf27369a96dec0954ae28097de", size = 150753, upload-time = "2026-07-02T14:11:48.962Z" },
-    { url = "https://files.pythonhosted.org/packages/8f/88/072a1150491d85e5d14385d37b376e2638708d2de862afa0100dbafe9390/leapfrog_goals-0.0.9-cp313-cp313-win_amd64.whl", hash = "sha256:c34dbd4e462d00a24cf0f19c238bc655c2d4be5cfb0c5389f646c3797f3367d8", size = 166346, upload-time = "2026-07-02T14:11:50.333Z" },
-    { url = "https://files.pythonhosted.org/packages/49/dc/0f6ed45068590c9da86ac6017277b81be27450bef3e3cf887bfe7afc4c91/leapfrog_goals-0.0.9-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:8b377dbdf32b321293c6cf89ebbc17b6655b74d011d403be6ef78463279f39e0", size = 170033, upload-time = "2026-07-02T14:11:51.811Z" },
-    { url = "https://files.pythonhosted.org/packages/92/8d/0b28c2faed16c60e5ad602c4d621758187b57a658c89b32695bec5fee9a9/leapfrog_goals-0.0.9-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:4c3ae61c888f9afdf1a415d0f1a4f64ebc68511301397259fc02a56b1f2c9a7c", size = 167516, upload-time = "2026-07-02T14:11:53.173Z" },
-    { url = "https://files.pythonhosted.org/packages/fc/69/b1451c53b2beac6e1cc879dfef7677747d3ff0248ad6006002bd5a68a523/leapfrog_goals-0.0.9-cp314-cp314-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:5b5e6d9cc8221bf057a3dd1acce2f3750c56ea9c83f93fa1d81e452f76e93139", size = 195846, upload-time = "2026-07-02T14:11:54.667Z" },
-    { url = "https://files.pythonhosted.org/packages/a5/bd/e511badf3882e0e95a443afbd568f90b262464131f48f37330de8b0725f1/leapfrog_goals-0.0.9-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:aceb9ef7caab8277aac67a059ce2695239d0c293df4659d525a2fec8bfda4bfb", size = 641990, upload-time = "2026-07-02T14:11:56.272Z" },
-    { url = "https://files.pythonhosted.org/packages/9f/36/dd4f04da0e47db06fd999e4bddd5ce7fc9d30542bc182f6e767ea4cb082e/leapfrog_goals-0.0.9-cp314-cp314-win32.whl", hash = "sha256:576906dbd0e3b14ff42de710e359a4b16bb929a974bf15265e336163b9d103e0", size = 155799, upload-time = "2026-07-02T14:11:57.896Z" },
-    { url = "https://files.pythonhosted.org/packages/98/22/13d9ee91148c9dce1bb0ae043f68abce6c07530388462fce52f200f7cf87/leapfrog_goals-0.0.9-cp314-cp314-win_amd64.whl", hash = "sha256:68fad0c912c1292e557a829b97a9ef70ee849e301632be3ce2161e4530c7a123", size = 171962, upload-time = "2026-07-02T14:11:59.359Z" },
-    { url = "https://files.pythonhosted.org/packages/4d/69/6221e9bd15943057f04a6ae8fee9a2fe6650767dfd13316c6b9552c9009e/leapfrog_goals-0.0.9-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:1339ece1d1f8f19b0e46f966e550d47bc5c547dfdf73b5a599591805e68281d0", size = 171487, upload-time = "2026-07-02T14:12:00.696Z" },
-    { url = "https://files.pythonhosted.org/packages/70/88/9eb9099ae94c452ab3de94a23d4ea7de1c47f4aa7e5a83b4c1e755c45ffb/leapfrog_goals-0.0.9-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:93a3597d4d6feda8b238dca18d944c153119afa19433abff9b9a63619a62c148", size = 169606, upload-time = "2026-07-02T14:12:02.263Z" },
-    { url = "https://files.pythonhosted.org/packages/66/a3/ddad68e041857bd3c08746306c769bec38ea3e9e156e7f68308cba877427/leapfrog_goals-0.0.9-cp314-cp314t-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d5ff48af792012a4506aeee55072db0f8d41986596163f325cadbf276cadc0dc", size = 198036, upload-time = "2026-07-02T14:12:03.717Z" },
-    { url = "https://files.pythonhosted.org/packages/63/68/a4fd24366ead6828125e522f39cc744f5e35c69e8563814513af8c5505e9/leapfrog_goals-0.0.9-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:ce81174d1c71ec583ff530bb67a1860658a5374dd84ee40e2cd7b89902c1f6d1", size = 643970, upload-time = "2026-07-02T14:12:05.42Z" },
-    { url = "https://files.pythonhosted.org/packages/b8/dd/8aeb571a21a63ccc36d135f7bc65adae41678b069aae57664d44520ca360/leapfrog_goals-0.0.9-cp314-cp314t-win32.whl", hash = "sha256:818b6f593227495c8cefc02a3d506a5f9aac194cbee64fa9a5895af72d41fc22", size = 157228, upload-time = "2026-07-02T14:12:07.045Z" },
-    { url = "https://files.pythonhosted.org/packages/7b/71/2f9be99c5544c14c6f8e7e50b72b0b59ff944093ee7f53560cefd82d6990/leapfrog_goals-0.0.9-cp314-cp314t-win_amd64.whl", hash = "sha256:e552823e8ce974589648d49e4632bf487299c0e6d0a0cf8ac5268b123132844b", size = 174958, upload-time = "2026-07-02T14:12:08.448Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/9b/a10119aea0d25e45025aedd9fe1283d75cfe4af777300edea98a4854e4f2/leapfrog_goals-0.0.11-cp311-cp311-macosx_10_14_x86_64.whl", hash = "sha256:73fb6504e382c51b8d52a0318197e7a6874d83cf4c28aee39ddfbc905a4d84f9", size = 170912, upload-time = "2026-07-15T14:33:16.507Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/a9/e0f4b4a06f15e97198f965ee2f23e7c8cbb5adc9d2d450bdeb201c2dc2c6/leapfrog_goals-0.0.11-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:2aae8fd5d152db745df5e9fe94aa9d38aa7920fb90ff59b4fa5be0d15df037e7", size = 168801, upload-time = "2026-07-15T14:33:17.668Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/d1/4874665403d34978bb7c86548995a65482d13bb5d9daf824891d3cf623ef/leapfrog_goals-0.0.11-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:3419367ef5d0b167056fcbbaaa1ba949d95acb7f4e80ecbbd94a997775ddd480", size = 197539, upload-time = "2026-07-15T14:33:18.875Z" },
+    { url = "https://files.pythonhosted.org/packages/56/bc/7b10d3287d4078765cc4309026882ffc20a5ba8e8f1143b89bcdf943bd94/leapfrog_goals-0.0.11-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:2a9ba7ed95b21f0d246190a331b18c85a1ae1ff2dfeabaf93ee919cad167fd16", size = 643519, upload-time = "2026-07-15T14:33:20.148Z" },
+    { url = "https://files.pythonhosted.org/packages/ba/74/ea687e72a9534b9c46008484ef16404a78e75526baa0963f1b34dc9eac40/leapfrog_goals-0.0.11-cp311-cp311-win32.whl", hash = "sha256:5936910162b6d0f282001805e0612df98ae9f85eb0d8a2dd1446fc8c760d4d67", size = 151757, upload-time = "2026-07-15T14:33:21.325Z" },
+    { url = "https://files.pythonhosted.org/packages/18/93/ffddb058d5845e6e7dcdb86f71ab5b45b8c1a62cd6dc439bafefa21fe5cc/leapfrog_goals-0.0.11-cp311-cp311-win_amd64.whl", hash = "sha256:409c0ca475e66350fe61cbfc2d956f8cd4b0cf962838a2282ccb7d2fbdc19872", size = 167240, upload-time = "2026-07-15T14:33:22.352Z" },
+    { url = "https://files.pythonhosted.org/packages/31/37/38f697fe893373b01b29c8f18054cfa58d27095d5a0cdb3a3c44580b8be6/leapfrog_goals-0.0.11-cp312-cp312-macosx_10_14_x86_64.whl", hash = "sha256:31d93befffccb8bd0363f859851ca0447e72f05ba291aa807c67274bee97f0f0", size = 169995, upload-time = "2026-07-15T14:33:23.615Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/30/5542c56b48adc22f3896061339b2286b52b2701dbbbca06e4f4b2a886d01/leapfrog_goals-0.0.11-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:71c1560f3ca6a709729296528bbb528ead20fa331a91ac73293b8ec4c7e2cf3c", size = 167695, upload-time = "2026-07-15T14:33:24.777Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/5c/267f1e6eb6646ce345b724a4b5b4560c04f50f4ab229c0a9fc9dbfc79cc5/leapfrog_goals-0.0.11-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b7db34dd7cd115bd157d2b7bdaf5bbb07bc3d6e23d112874b4699beed89b70bd", size = 196336, upload-time = "2026-07-15T14:33:26.11Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/13/e4c025263b5c9dcb977fda208b9e09208c329643be2629c959bb8ca639f6/leapfrog_goals-0.0.11-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:7090f18d9585cad7463c75ccd3b8dd8ccacc81c921e457b5e1d710e9472f014e", size = 642429, upload-time = "2026-07-15T14:33:27.473Z" },
+    { url = "https://files.pythonhosted.org/packages/00/b8/013b6a950c59eab3024ee64738639c2eba15a816447583a7ebd4195c208f/leapfrog_goals-0.0.11-cp312-cp312-win32.whl", hash = "sha256:b9176364cbf329c5b76415a2c23fa631bd31f33163cb2c61309086d46b2c2371", size = 151092, upload-time = "2026-07-15T14:33:28.84Z" },
+    { url = "https://files.pythonhosted.org/packages/ba/35/290da6e499045d677cf16c90717446d9232627805cfa13af823a99f3de23/leapfrog_goals-0.0.11-cp312-cp312-win_amd64.whl", hash = "sha256:1d062196b4f6f168d777d344469ea09d364c586ec97de2d5aa03403a3cb43cf0", size = 166479, upload-time = "2026-07-15T14:33:30.058Z" },
+    { url = "https://files.pythonhosted.org/packages/11/6d/d8529dc28ab0277a24b25b9baf8573c4d7ef5e74f0f8fe0b11ef61e08760/leapfrog_goals-0.0.11-cp313-cp313-macosx_10_14_x86_64.whl", hash = "sha256:16b200bc3a1265b16580862cc56f461f5dec3bb63b677534f3c30d5008dcb3c3", size = 170038, upload-time = "2026-07-15T14:33:31.275Z" },
+    { url = "https://files.pythonhosted.org/packages/fd/08/d25fe413ee6619a5d93062c39147149d87b13e48cb3584883127012825ea/leapfrog_goals-0.0.11-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:283d73f1c1ba56b98f7a66c157d41e68eaa404eab8ca4c2f8bc863fe7fe8f355", size = 167702, upload-time = "2026-07-15T14:33:32.312Z" },
+    { url = "https://files.pythonhosted.org/packages/27/e6/a4533a6d2b45dc3b86a83a90fb42d1531698899234f4ee7d3c381045fd39/leapfrog_goals-0.0.11-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:ec1b482054a7a38c9efced3853f131bc117b61eba84e3ddfa8997b616062bc2f", size = 196341, upload-time = "2026-07-15T14:33:33.508Z" },
+    { url = "https://files.pythonhosted.org/packages/a8/66/918f1a1f8a241863b7687a6dbf0bdae51f4b5a1fba625881d1a67d960a2b/leapfrog_goals-0.0.11-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:969971ca68707c3c2b3e92f1f21bdb1ce1686a2d33f9054f91c86a08ea185ede", size = 642445, upload-time = "2026-07-15T14:33:34.675Z" },
+    { url = "https://files.pythonhosted.org/packages/0f/11/8a9260629525f9c662c5d253a6f3596fac90dddc16a6176f519236116383/leapfrog_goals-0.0.11-cp313-cp313-win32.whl", hash = "sha256:eb366e7e7f24f1fbe740b4ebcd7fd3eb519da0602c44df2816204bc5ef80bd6c", size = 151104, upload-time = "2026-07-15T14:33:35.956Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/aa/fac7bf665439b01bcfc62dc826444315c4beb44182e36186944a7ba9ed5a/leapfrog_goals-0.0.11-cp313-cp313-win_amd64.whl", hash = "sha256:4ee33fe29f2028550889deb331e71cabe49c05edc36e106a5bb04665099569a7", size = 166462, upload-time = "2026-07-15T14:33:37.103Z" },
+    { url = "https://files.pythonhosted.org/packages/03/2e/be0a0990fdf1d374308ec8c9ebbbc6ec71fa73f5d059a26968ad4de1e2e4/leapfrog_goals-0.0.11-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:d21b1969f37ff7eaa772fcc29849e4c7d631c81dee82d6dfbee428af6a47b325", size = 170178, upload-time = "2026-07-15T14:33:38.236Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/d4/af4d426284e4e7186e881a5b1c09492a3a6c517083f123cd45bde1eeab48/leapfrog_goals-0.0.11-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:fb2cf41ba88e286a3b293a733ad1858b40c988e0fb1e51f129ee703c60034c75", size = 167773, upload-time = "2026-07-15T14:33:40.482Z" },
+    { url = "https://files.pythonhosted.org/packages/4a/5c/3a8fc6a6a3ec3f7b0cf20a0c6fab665195d399ce201981b653c1dd33ee5f/leapfrog_goals-0.0.11-cp314-cp314-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:564f6770bbb90c8057d84c77f6f075f2e2d0b7e9968b842785b72a88e76a1b0e", size = 196319, upload-time = "2026-07-15T14:33:41.63Z" },
+    { url = "https://files.pythonhosted.org/packages/05/62/f9f2b7b9b059b9ee4f10d8e29c8bdde919f3673b53d4ffdbe1ceb6b96dac/leapfrog_goals-0.0.11-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:75d4c2c88afbe634ea9300b2fce01921151082a87e1966091c64859ae903c9f5", size = 642451, upload-time = "2026-07-15T14:33:43.063Z" },
+    { url = "https://files.pythonhosted.org/packages/4b/4e/38bbd5e10482a76d3f6e98b98a21599a2fa90deb912951f339a0c675e711/leapfrog_goals-0.0.11-cp314-cp314-win32.whl", hash = "sha256:ffd5c24e1b79bb4e0dccead19bac92b7667d4bcc34021ba2ac60d8ec9f2529a0", size = 155960, upload-time = "2026-07-15T14:33:44.392Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/81/a060303ccf7a6b33d5cbe97f29a4317c1d7e03567e46e9121d39b057bb99/leapfrog_goals-0.0.11-cp314-cp314-win_amd64.whl", hash = "sha256:750e6d72a9c679151904fe6c3b71e7a8dbe9e65014cd69ec8d07e70c79312d12", size = 172174, upload-time = "2026-07-15T14:33:45.506Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/d9/11c21410025edd720bd7de031ffd909b60b872273fed94388819d4d2f859/leapfrog_goals-0.0.11-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:a9013dc4122636da8810f7e7d70a05b1b788c8527d4d1f7df3a88feca3f96a42", size = 171652, upload-time = "2026-07-15T14:33:46.689Z" },
+    { url = "https://files.pythonhosted.org/packages/5a/ef/bbc889a366a22e44e5e8dc519396906e5edb98ca5aa81b769f87ad0afe28/leapfrog_goals-0.0.11-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:d4caf90a599716d9e8976e0b6632acdb05b40a403c2406e20a941bf2603570e0", size = 169784, upload-time = "2026-07-15T14:33:47.934Z" },
+    { url = "https://files.pythonhosted.org/packages/bd/3c/210b4a92aa8c4fbbff41aef4744c0a0364ad5918dccc8fc170d4369427c1/leapfrog_goals-0.0.11-cp314-cp314t-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7479cff05ac17005b7a92a018ce1c1d1021320209b2cb8a47a95e246ff04ef4b", size = 198433, upload-time = "2026-07-15T14:33:49.195Z" },
+    { url = "https://files.pythonhosted.org/packages/ac/b4/829af5339fb20f2a5de853ba937244deea8a27455344bf4f33f5b8f49406/leapfrog_goals-0.0.11-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:6405493608ecd36e00b63c5f2fbcaf8eccc984c65154ce776170d2abcd09d7de", size = 644297, upload-time = "2026-07-15T14:33:50.359Z" },
+    { url = "https://files.pythonhosted.org/packages/fd/a5/1c3c12116994cdf66f63a612fd3eed720534b1c59554af63d6d991ec2f75/leapfrog_goals-0.0.11-cp314-cp314t-win32.whl", hash = "sha256:5ca4d27df3ccd90ebc2732ab4177e72e44d0f6f0b545c70116435700b319c200", size = 157486, upload-time = "2026-07-15T14:33:51.56Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/d3/2654b81de7c922f6fd355012380a562b477e389432cb2c8b22bbd20e544c/leapfrog_goals-0.0.11-cp314-cp314t-win_amd64.whl", hash = "sha256:4bc334f33f6ed5e6595bf4e063f1ddbd60fcf48f86af80695f47924b76aec761", size = 175186, upload-time = "2026-07-15T14:33:52.762Z" },
 ]
 
 [[package]]
