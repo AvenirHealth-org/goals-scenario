@@ -169,7 +169,7 @@ def test_prep_sets_effectiveness_and_coverage(pid, product, offset):
         target_coverages=[{"sex": "Female", "risk_group": "High risk heterosexual", "coverage": 0.30}],
     )
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     eff = lp["prep_effectiveness"]
     assert eff[offset, RN_Effectiveness] == pytest.approx(0.95)
@@ -192,7 +192,7 @@ def test_prep_multiple_targets_writes_each_population():
         ],
     )
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["prep_cov"][1, RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.20)
     assert lp["prep_cov"][0, RN_MSM, _TARGET_YEAR_IDX] == pytest.approx(0.15)
@@ -210,7 +210,7 @@ def test_prep_does_not_write_other_products():
         target_coverages=[{"sex": "Female", "risk_group": "High risk heterosexual", "coverage": 0.20}],
     )
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     daily_offset = 0  # RN_PrEPOralDaily - RN_PrEPOralDaily
     for i in range(_N_PREP):
@@ -231,7 +231,7 @@ def test_prep_substitution_maps_for_oral_contraceptive():
         target_coverages=[{"sex": "Female", "risk_group": "High risk heterosexual", "coverage": 0.20}],
     )
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["prep_effectiveness"][offset, RN_Substitution] == pytest.approx(0.4)
 
@@ -248,7 +248,7 @@ def test_prep_duration_maps_for_implantable():
         target_coverages=[{"sex": "Female", "risk_group": "High risk heterosexual", "coverage": 0.20}],
     )
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["prep_effectiveness"][offset, RN_Duration] == pytest.approx(12.0)
 
@@ -263,7 +263,7 @@ def test_prep_leaves_substitution_and_duration_default_when_unset():
         target_coverages=[{"sex": "Female", "risk_group": "High risk heterosexual", "coverage": 0.20}],
     )
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["prep_effectiveness"][0, RN_Substitution] == 0.0
     assert lp["prep_effectiveness"][0, RN_Duration] == 0.0
@@ -291,7 +291,7 @@ def test_prep_multi_product_aggregates_cov_and_sets_method_mix():
         }),
     }
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["prep_cov"][1, RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.50)
     # daily (offset 0): 0.30 / 0.50 = 0.6
@@ -327,7 +327,7 @@ def test_prep_coverage_over_1_clamps_to_1():
         }),
     }
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["prep_cov"][1, RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(1.0)
     assert lp["prep_method_mix"][1, RN_HRH, 0, _TARGET_YEAR_IDX] == pytest.approx(0.70 / 1.20)
@@ -346,7 +346,7 @@ def test_prep_zero_coverage_does_not_raise():
             "target_coverages": [TargetCoverage(sex="Female", risk_group="High risk heterosexual", coverage=0.0)],
         }),
     }
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
     assert lp["prep_cov"][1, RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.0)
 
 
@@ -370,7 +370,7 @@ def test_vaccine_plhiv_target_writes_all_risk():
     ivs = _iv("vaccine", "Vaccine")
     sim = _sim("vaccine", target_coverages=[{"sex": "Both", "risk_group": "PLHIV", "coverage": 0.50}], **_VAC_SIM_BASE)
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_vac_cov_type"] == RN_Single
     assert lp["rn_vac_coverage_rg"][RN_AllRisk, _TARGET_YEAR_IDX] == pytest.approx(0.50)
@@ -386,7 +386,7 @@ def test_vaccine_plhiv_target_sex_none_writes_all_risk():
     ivs = _iv("vaccine", "Vaccine")
     sim = _sim("vaccine", target_coverages=[{"sex": None, "risk_group": "PLHIV", "coverage": 0.45}], **_VAC_SIM_BASE)
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_vac_cov_type"] == RN_Single
     assert lp["rn_vac_coverage_rg"][RN_AllRisk, _TARGET_YEAR_IDX] == pytest.approx(0.45)
@@ -401,7 +401,7 @@ def test_vaccine_risk_group_female_writes_female_index():
         **{**_VAC_SIM_BASE, "vaccine_action_type": "Degree", "targeting": "Vaccinate only HIV-negative individuals"},
     )
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_vac_cov_type"] == RN_Diff
     assert lp["rn_vac_coverage_rg"][RN_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.40)
@@ -417,7 +417,7 @@ def test_vaccine_risk_group_both_writes_male_and_female():
         **_VAC_SIM_BASE,
     )
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_vac_cov_type"] == RN_Diff
     assert lp["rn_vac_coverage_rg"][RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.35)
@@ -433,7 +433,7 @@ def test_vaccine_action_type_is_mapped():
         **{**_VAC_SIM_BASE, "vaccine_action_type": "Take"},
     )
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_vac_params"][RN_Type] == 0
 
@@ -443,7 +443,7 @@ def test_vaccine_action_type_is_mapped():
         **{**_VAC_SIM_BASE, "vaccine_action_type": "Degree"},
     )
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_vac_params"][RN_Type] == 1
 
@@ -458,7 +458,7 @@ def test_vaccine_invalid_action_type_raises():
     )
 
     with pytest.raises(ValueError, match="vaccine_action_type"):
-        apply_simulation(lp, ivs, sim)
+        apply_simulation(lp, ivs, sim, _START_YEAR)
 
 
 def test_vaccine_invalid_targeting_raises():
@@ -471,7 +471,7 @@ def test_vaccine_invalid_targeting_raises():
     )
 
     with pytest.raises(ValueError, match="targeting"):
-        apply_simulation(lp, ivs, sim)
+        apply_simulation(lp, ivs, sim, _START_YEAR)
 
 
 # ---------------------------------------------------------------------------
@@ -489,7 +489,7 @@ def test_cure_plhiv_target_writes_all_risk():
         duration_of_cure=5.0,
     )
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_cure_coverage_type"] == RN_Single
     assert lp["rn_cure_coverage_rg"][RN_AllRisk, _TARGET_YEAR_IDX] == pytest.approx(0.30)
@@ -507,7 +507,7 @@ def test_cure_risk_group_female_writes_female_index():
         duration_of_cure=3.0,
     )
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_cure_coverage_type"] == RN_Diff
     assert lp["rn_cure_coverage_rg"][RN_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.25)
@@ -525,7 +525,7 @@ def test_cure_risk_group_both_writes_male_and_female():
         duration_of_cure=4.0,
     )
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_cure_coverage_type"] == RN_Diff
     assert lp["rn_cure_coverage_rg"][RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.20)
@@ -546,7 +546,7 @@ def test_cure_neonates_writes_coverage_and_effect():
         effectiveness=0.65,
     )
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_cure_coverage_neonates"][_TARGET_YEAR_IDX] == pytest.approx(0.40)
     assert lp["rn_cure_effect_neonates"] == pytest.approx(0.65)
@@ -566,7 +566,7 @@ def test_vmm_percent_of_women_writes_coverage_all():
         effectiveness=0.30,
     )
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_vmm_coverage_type"] == 0  # _VMM_COV_ALLRISK
     assert lp["rn_vmm_coverage_all"][_TARGET_YEAR_IDX] == pytest.approx(0.55)
@@ -587,7 +587,7 @@ def test_vmm_risk_groups_write_coverage_rg():
         effectiveness=0.50,
     )
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_vmm_coverage_type"] == 1  # _VMM_COV_SINGLE
     assert lp["rn_vmm_coverage_rg"][0, _TARGET_YEAR_IDX] == pytest.approx(0.10)
@@ -607,7 +607,7 @@ def test_ahd_treatment_writes_coverage_and_mortality_reduction():
     ivs = _iv("ahd_treatment", "AHD treatment")
     sim = _sim("ahd_treatment", target_coverage=0.80, reduction_in_mortality=0.60)
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_ahd_treat_cov"][_TARGET_YEAR_IDX] == pytest.approx(0.80)
     assert lp["rn_ahd_treat_reduc_mort"] == pytest.approx(0.60)
@@ -623,7 +623,7 @@ def test_poc_viral_load_writes_coverage_and_effect():
     ivs = _iv("poc_vl_test", "POC VL test")
     sim = _sim("poc_vl_test", target_coverage=0.70, effect=0.12)
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_poc_cov"][RN_POC_VL, _TARGET_YEAR_IDX] == pytest.approx(0.70)
     assert lp["rn_poc_effect"][RN_POC_VL] == pytest.approx(0.12)
@@ -634,7 +634,7 @@ def test_poc_cd4_writes_coverage_and_effect():
     ivs = _iv("poc_cd4_test", "POC CD4 test")
     sim = _sim("poc_cd4_test", target_coverage=0.65, effect=0.25)
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_poc_cov"][RN_POC_CD4, _TARGET_YEAR_IDX] == pytest.approx(0.65)
     assert lp["rn_poc_effect"][RN_POC_CD4] == pytest.approx(0.25)
@@ -647,12 +647,17 @@ def test_poc_cd4_writes_coverage_and_effect():
 _N_SEXES_ART = 2
 _N_YEARS_ART = 20
 
+# Adult ART is applied as an initiation rate; the per-target "coverage" transport
+# field carries the sampled rate. It is only applied when the PJNZ is in
+# initiation-rate mode (art_entry_option == 1); otherwise it is skipped.
+_ART_ENTRY_INITIATION_RATE = 1
 
-def _adult_art_params() -> dict:
+
+def _adult_art_params(art_entry_option: int = _ART_ENTRY_INITIATION_RATE) -> dict:
     return {
         "projection_start_year": _START_YEAR,
-        "art15plus_num": np.zeros((_N_SEXES_ART, _N_YEARS_ART)),
-        "art15plus_isperc": np.zeros((_N_SEXES_ART, _N_YEARS_ART)),
+        "art_entry_option": art_entry_option,
+        "art_initiation_rate": np.zeros((_N_SEXES_ART, _N_YEARS_ART)),
     }
 
 
@@ -661,12 +666,10 @@ def test_adult_art_male_writes_male_index():
     ivs = _iv("adult_art", "Adult ART")
     sim = _sim("adult_art", target_coverages=[{"sex": "Male", "risk_group": None, "coverage": 0.75}])
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
-    assert lp["art15plus_num"][0, _TARGET_YEAR_IDX] == pytest.approx(0.75)
-    assert lp["art15plus_num"][1, _TARGET_YEAR_IDX] == 0.0
-    assert lp["art15plus_isperc"][0, _TARGET_YEAR_IDX] == 1
-    assert lp["art15plus_isperc"][1, _TARGET_YEAR_IDX] == 0
+    assert lp["art_initiation_rate"][0, _TARGET_YEAR_IDX] == pytest.approx(0.75)
+    assert lp["art_initiation_rate"][1, _TARGET_YEAR_IDX] == 0.0
 
 
 def test_adult_art_female_writes_female_index():
@@ -674,12 +677,10 @@ def test_adult_art_female_writes_female_index():
     ivs = _iv("adult_art", "Adult ART")
     sim = _sim("adult_art", target_coverages=[{"sex": "Female", "risk_group": None, "coverage": 0.60}])
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
-    assert lp["art15plus_num"][0, _TARGET_YEAR_IDX] == 0.0
-    assert lp["art15plus_num"][1, _TARGET_YEAR_IDX] == pytest.approx(0.60)
-    assert lp["art15plus_isperc"][0, _TARGET_YEAR_IDX] == 0
-    assert lp["art15plus_isperc"][1, _TARGET_YEAR_IDX] == 1
+    assert lp["art_initiation_rate"][0, _TARGET_YEAR_IDX] == 0.0
+    assert lp["art_initiation_rate"][1, _TARGET_YEAR_IDX] == pytest.approx(0.60)
 
 
 def test_adult_art_both_writes_male_and_female():
@@ -687,15 +688,13 @@ def test_adult_art_both_writes_male_and_female():
     ivs = _iv("adult_art", "Adult ART")
     sim = _sim("adult_art", target_coverages=[{"sex": "Both", "risk_group": None, "coverage": 0.80}])
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
-    assert lp["art15plus_num"][0, _TARGET_YEAR_IDX] == pytest.approx(0.80)
-    assert lp["art15plus_num"][1, _TARGET_YEAR_IDX] == pytest.approx(0.80)
-    assert lp["art15plus_isperc"][0, _TARGET_YEAR_IDX] == 1
-    assert lp["art15plus_isperc"][1, _TARGET_YEAR_IDX] == 1
+    assert lp["art_initiation_rate"][0, _TARGET_YEAR_IDX] == pytest.approx(0.80)
+    assert lp["art_initiation_rate"][1, _TARGET_YEAR_IDX] == pytest.approx(0.80)
 
 
-def test_adult_art_multiple_targets_can_have_different_coverages():
+def test_adult_art_multiple_targets_can_have_different_rates():
     lp = _adult_art_params()
     ivs = _iv("adult_art", "Adult ART")
     sim = _sim(
@@ -706,17 +705,39 @@ def test_adult_art_multiple_targets_can_have_different_coverages():
         ],
     )
 
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
-    assert lp["art15plus_num"][0, _TARGET_YEAR_IDX] == pytest.approx(0.75)
-    assert lp["art15plus_num"][1, _TARGET_YEAR_IDX] == pytest.approx(0.60)
-    assert lp["art15plus_isperc"][0, _TARGET_YEAR_IDX] == 1
-    assert lp["art15plus_isperc"][1, _TARGET_YEAR_IDX] == 1
+    assert lp["art_initiation_rate"][0, _TARGET_YEAR_IDX] == pytest.approx(0.75)
+    assert lp["art_initiation_rate"][1, _TARGET_YEAR_IDX] == pytest.approx(0.60)
+
+
+def test_adult_art_initiation_rate_interpolates_from_base_year():
+    lp = _adult_art_params()
+    lp["art_initiation_rate"][1, _BASE_YEAR_IDX] = 0.20  # existing base-year rate
+    ivs = _iv("adult_art", "Adult ART")
+    sim = _sim("adult_art", target_coverages=[{"sex": "Female", "risk_group": None, "coverage": 0.60}])
+
+    apply_simulation(lp, ivs, sim, _BASE_YEAR)
+
+    rate = lp["art_initiation_rate"][1]
+    np.testing.assert_allclose(rate[_BASE_YEAR_IDX : _TARGET_YEAR_IDX + 1], [0.2, 0.3, 0.4, 0.5, 0.6])
+    np.testing.assert_allclose(rate[_TARGET_YEAR_IDX:], 0.6)
+
+
+@pytest.mark.parametrize("bad_option", [0, 2])
+def test_adult_art_skipped_when_not_initiation_rate_mode(bad_option):
+    lp = _adult_art_params(art_entry_option=bad_option)
+    ivs = _iv("adult_art", "Adult ART")
+    sim = _sim("adult_art", target_coverages=[{"sex": "Both", "risk_group": None, "coverage": 0.80}])
+
+    apply_simulation(lp, ivs, sim, _START_YEAR)
+
+    # Not in initiation-rate mode: the rate array is left untouched.
+    assert np.all(lp["art_initiation_rate"] == 0.0)
 
 
 # ---------------------------------------------------------------------------
-# Long-acting treatment — accepted but currently a no-op (not yet wired to the
-# Goals model). It must not raise and must not modify params.
+# Long-acting treatment
 # ---------------------------------------------------------------------------
 
 
@@ -732,12 +753,127 @@ def test_long_acting_treatment_is_applied_correctly():
         })
     }
 
-    # Should not raise; leaves params untouched (no effect on the model yet).
-    apply_simulation(lp, ivs, sim)
+    apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["long_act_treat_cov"][_TARGET_YEAR_IDX] == 0.7
     assert lp["long_act_treat_eff_vls"] == 0.8
     assert lp["long_act_treat_eff_ltfu"] == 0.25
+
+
+# ---------------------------------------------------------------------------
+# Coverage interpolation from base year to target year
+# ---------------------------------------------------------------------------
+
+# Base year one year into the projection: ramps run over indices 1..5.
+_BASE_YEAR = _START_YEAR + 1
+_BASE_YEAR_IDX = _BASE_YEAR - _START_YEAR  # 1
+
+
+def test_vaccine_coverage_interpolates_linearly_and_holds_at_target():
+    lp = _vaccine_params()
+    ivs = _iv("vaccine", "Vaccine")
+    sim = _sim("vaccine", target_coverages=[{"sex": "Both", "risk_group": "PLHIV", "coverage": 0.40}], **_VAC_SIM_BASE)
+
+    apply_simulation(lp, ivs, sim, _BASE_YEAR)
+
+    cov = lp["rn_vac_coverage_rg"][RN_AllRisk]
+    # Before the base year: untouched.
+    assert cov[0] == 0.0
+    # Linear ramp 0 → 0.40 over indices 1..5.
+    np.testing.assert_allclose(cov[_BASE_YEAR_IDX : _TARGET_YEAR_IDX + 1], [0.0, 0.1, 0.2, 0.3, 0.4])
+    # Held at the target for all subsequent years.
+    np.testing.assert_allclose(cov[_TARGET_YEAR_IDX:], 0.4)
+
+
+def test_ahd_coverage_interpolates_down_from_higher_base_value():
+    lp = _ahd_params()
+    lp["rn_ahd_treat_cov"][:] = 0.9  # pre-existing coverage above the target
+    ivs = _iv("ahd_treatment", "AHD treatment")
+    sim = _sim("ahd_treatment", target_coverage=0.50, reduction_in_mortality=0.60)
+
+    apply_simulation(lp, ivs, sim, _BASE_YEAR)
+
+    cov = lp["rn_ahd_treat_cov"]
+    assert cov[0] == pytest.approx(0.9)
+    np.testing.assert_allclose(cov[_BASE_YEAR_IDX : _TARGET_YEAR_IDX + 1], [0.9, 0.8, 0.7, 0.6, 0.5])
+    np.testing.assert_allclose(cov[_TARGET_YEAR_IDX:], 0.5)
+
+
+def test_long_acting_treatment_coverage_interpolates():
+    lp = _lat_params()
+    ivs = [InterventionOut(id="long_acting_treatment", product="Long-acting treatment")]
+    sim = {
+        "long_acting_treatment": InterventionSimulation({
+            "target_year": _TARGET_YEAR,
+            "target_coverage": 0.8,
+            "interruption_rate_reduction": 0.25,
+            "viral_load_suppression_ratio": 0.80,
+        })
+    }
+
+    apply_simulation(lp, ivs, sim, _BASE_YEAR)
+
+    cov = lp["long_act_treat_cov"]
+    assert cov[0] == 0.0
+    np.testing.assert_allclose(cov[_BASE_YEAR_IDX : _TARGET_YEAR_IDX + 1], [0.0, 0.2, 0.4, 0.6, 0.8])
+    np.testing.assert_allclose(cov[_TARGET_YEAR_IDX:], 0.8)
+
+
+def test_prep_coverage_interpolates_and_mix_constant_for_single_product():
+    lp = _prep_params()
+    ivs = _iv("oral_prep_daily", "Oral PrEP (daily)")
+    sim = _sim(
+        "oral_prep_daily",
+        efficacy=0.9,
+        adherence=0.8,
+        target_coverages=[{"sex": "Female", "risk_group": "High risk heterosexual", "coverage": 0.20}],
+    )
+
+    apply_simulation(lp, ivs, sim, _BASE_YEAR)
+
+    cov = lp["prep_cov"][1, RN_HRH]
+    assert cov[0] == 0.0
+    np.testing.assert_allclose(cov[_BASE_YEAR_IDX : _TARGET_YEAR_IDX + 1], [0.0, 0.05, 0.10, 0.15, 0.20])
+    np.testing.assert_allclose(cov[_TARGET_YEAR_IDX:], 0.20)
+    # Sole product: 100% of the mix in every year with nonzero coverage.
+    mix = lp["prep_method_mix"][1, RN_HRH, 0]
+    np.testing.assert_allclose(mix[_BASE_YEAR_IDX + 1 :], 1.0)
+
+
+def test_prep_products_with_different_target_years_ramp_independently():
+    lp = _prep_params()
+    ivs = [
+        InterventionOut(id="oral_prep_daily", product="Oral PrEP (daily)"),
+        InterventionOut(id="injectable_prep_2_month", product="Injectable PrEP (2 month)"),
+    ]
+    late_target = _TARGET_YEAR + 4  # idx 9
+    sim = {
+        "oral_prep_daily": InterventionSimulation({
+            "target_year": _TARGET_YEAR,
+            "efficacy": 0.9,
+            "adherence": 0.8,
+            "target_coverages": [TargetCoverage(sex="Female", risk_group="High risk heterosexual", coverage=0.20)],
+        }),
+        "injectable_prep_2_month": InterventionSimulation({
+            "target_year": late_target,
+            "efficacy": 0.85,
+            "adherence": 0.75,
+            "target_coverages": [TargetCoverage(sex="Female", risk_group="High risk heterosexual", coverage=0.40)],
+        }),
+    }
+
+    apply_simulation(lp, ivs, sim, _BASE_YEAR)
+
+    late_idx = late_target - _START_YEAR
+    # Daily product done ramping at its own target year, injectable still going.
+    daily_at_target = 0.20
+    injectable_at_target = 0.40 * (_TARGET_YEAR_IDX - _BASE_YEAR_IDX) / (late_idx - _BASE_YEAR_IDX)
+    assert lp["prep_cov"][1, RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(daily_at_target + injectable_at_target)
+    assert lp["prep_cov"][1, RN_HRH, late_idx] == pytest.approx(0.60)
+    # Mix reflects each product's per-year share.
+    total = daily_at_target + injectable_at_target
+    assert lp["prep_method_mix"][1, RN_HRH, 0, _TARGET_YEAR_IDX] == pytest.approx(daily_at_target / total)
+    assert lp["prep_method_mix"][1, RN_HRH, 4, _TARGET_YEAR_IDX] == pytest.approx(injectable_at_target / total)
 
 
 # ---------------------------------------------------------------------------
@@ -751,4 +887,4 @@ def test_unknown_intervention_raises_value_error():
     sim = {"not_a_real_intervention": InterventionSimulation({"target_year": _TARGET_YEAR})}
 
     with pytest.raises(ValueError, match="Unknown intervention"):
-        apply_simulation(lp, ivs, sim)
+        apply_simulation(lp, ivs, sim, _START_YEAR)

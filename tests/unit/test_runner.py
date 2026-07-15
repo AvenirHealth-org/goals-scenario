@@ -7,7 +7,13 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from avenir_goals_scenario._runner.pjnz import _import_pjnz_modvars, find_pjnz_files, import_pjnz, modvars_to_numpy
+from avenir_goals_scenario._runner.pjnz import (
+    _import_pjnz_modvars,
+    find_pjnz_files,
+    import_pjnz,
+    modvars_to_numpy,
+    uses_art_initiation_rate,
+)
 from avenir_goals_scenario._runner.simulation import _extract_indicators, run_simulation
 from avenir_goals_scenario._runner.utils import RunCallbacks, WorkUnitResult
 from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
@@ -130,6 +136,97 @@ def test_import_pjnz_raises_when_modvars_is_none(tmp_path):
         pytest.raises(ValueError, match="Failed to import PJNZ file"),
     ):
         import_pjnz(pjnz_path)
+
+
+def test_uses_art_initiation_rate_true_for_option_1():
+    assert uses_art_initiation_rate({"art_entry_option": 1}) is True
+
+
+@pytest.mark.parametrize("option", [0, 2, None])
+def test_uses_art_initiation_rate_false_for_other_modes(option):
+    assert uses_art_initiation_rate({"art_entry_option": option}) is False
+
+
+def test_import_pjnz_does_not_raise_for_non_initiation_rate_mode(tmp_path):
+    # A non-initiation-rate PJNZ imports fine; Adult ART is skipped later, not rejected here.
+    pjnz_path = tmp_path / "NumberMode.PJNZ"
+    pjnz_path.touch()
+    fake_ss = {"pAG": 17, "NS": 2}
+    fake_leapfrog = {"projection_end_year": 2024, "art_entry_option": 0}
+
+    with (
+        patch("avenir_goals_scenario._runner.pjnz._import_pjnz_modvars", return_value={}),
+        patch("avenir_goals_scenario._runner.pjnz.get_goals_ss", return_value=fake_ss),
+        patch("avenir_goals_scenario._runner.pjnz.modvars_to_leapfrog", return_value=fake_leapfrog),
+    ):
+        result = import_pjnz(pjnz_path)
+
+    assert result["art_entry_option"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Adult ART entry-mode warning
+# ---------------------------------------------------------------------------
+
+
+def _adult_art_simulations() -> ScenarioSimulations:
+    from avenir_goals_scenario.models import InterventionOut, InterventionSimulation, ScenarioSimulation
+
+    iv = InterventionOut(id="adult_art", product="Adult ART")
+    sim = {"adult_art": InterventionSimulation({"target_year": 2030, "target_coverages": []})}
+    scenario = ScenarioSimulation(id="1", interventions=[iv], simulations=[sim])
+    return ScenarioSimulations(scenarios=[scenario])
+
+
+def test_scenarios_use_adult_art_detects_intervention():
+    from avenir_goals_scenario.runner import _scenarios_use_adult_art
+
+    assert _scenarios_use_adult_art(_adult_art_simulations()) is True
+    assert _scenarios_use_adult_art(_make_simulations()) is False  # PrEP-only
+
+
+def test_dump_pjnz_warns_when_adult_art_and_pjnz_not_initiation_rate(tmp_path):
+    from avenir_goals_scenario.runner import _dump_pjnz_files
+
+    pjnz = tmp_path / "NumberMode.PJNZ"
+    fake = {"projection_end_year": 2024, "art_entry_option": 0}
+    with (
+        patch("avenir_goals_scenario.runner.import_pjnz", return_value=fake),
+        patch("avenir_goals_scenario.runner.logger") as mock_logger,
+    ):
+        _dump_pjnz_files([pjnz], str(tmp_path), RunCallbacks(), warn_adult_art=True)
+
+    assert mock_logger.warning.called
+    # loguru: logger.warning("...{}...", name, const) — name is the first arg after fmt.
+    assert mock_logger.warning.call_args[0][1] == "NumberMode.PJNZ"
+
+
+def test_dump_pjnz_no_warn_when_pjnz_in_initiation_rate_mode(tmp_path):
+    from avenir_goals_scenario.runner import _dump_pjnz_files
+
+    pjnz = tmp_path / "RateMode.PJNZ"
+    fake = {"projection_end_year": 2024, "art_entry_option": 1}
+    with (
+        patch("avenir_goals_scenario.runner.import_pjnz", return_value=fake),
+        patch("avenir_goals_scenario.runner.logger") as mock_logger,
+    ):
+        _dump_pjnz_files([pjnz], str(tmp_path), RunCallbacks(), warn_adult_art=True)
+
+    mock_logger.warning.assert_not_called()
+
+
+def test_dump_pjnz_no_warn_when_no_adult_art_scenario(tmp_path):
+    from avenir_goals_scenario.runner import _dump_pjnz_files
+
+    pjnz = tmp_path / "NumberMode.PJNZ"
+    fake = {"projection_end_year": 2024, "art_entry_option": 0}
+    with (
+        patch("avenir_goals_scenario.runner.import_pjnz", return_value=fake),
+        patch("avenir_goals_scenario.runner.logger") as mock_logger,
+    ):
+        _dump_pjnz_files([pjnz], str(tmp_path), RunCallbacks(), warn_adult_art=False)
+
+    mock_logger.warning.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -368,7 +465,7 @@ def test_import_pjnz_returns_leapfrog_params_with_ex_input(tmp_path):
     pjnz_path = tmp_path / "good.PJNZ"
     pjnz_path.touch()
     fake_ss = {"pAG": 17, "NS": 2}
-    fake_leapfrog = {"projection_end_year": 2024}
+    fake_leapfrog = {"projection_end_year": 2024, "art_entry_option": 1}
 
     with (
         patch("avenir_goals_scenario._runner.pjnz._import_pjnz_modvars", return_value={}),

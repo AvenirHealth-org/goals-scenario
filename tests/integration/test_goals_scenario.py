@@ -40,7 +40,7 @@ def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_data):
     )
 
     config = RunConfig(
-        pjnz_dir=test_data / "pjnz" / "goals",
+        pjnz_dir=test_data / "pjnz" / "goals" / "goals-scenario",
         output_dir=tmp / "output",
         base_year=_BASE_YEAR,
         output_indicators=_INDICATORS,
@@ -72,7 +72,7 @@ def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_data):
         assert "simulation" in table.schema.names
         assert "value" in table.schema.names
 
-        params = import_pjnz(test_data / "pjnz" / "goals" / f"{pjnz_name}.PJNZ")
+        params = import_pjnz(test_data / "pjnz" / "goals" / "goals-scenario" / f"{pjnz_name}.PJNZ")
         expected_n_years = params["projection_end_year"] - _BASE_YEAR + 1
         expected_rows = _N_SIMULATIONS * 81 * 2 * expected_n_years
         assert len(table) == expected_rows
@@ -95,7 +95,7 @@ def test_every_product_type_runs_end_to_end(tmp_path_factory, test_data):
     )
 
     config = RunConfig(
-        pjnz_dir=test_data / "pjnz" / "goals",
+        pjnz_dir=test_data / "pjnz" / "goals" / "goals-scenario",
         output_dir=tmp / "output",
         base_year=_BASE_YEAR,
         output_indicators=_ALL_INDICATORS,

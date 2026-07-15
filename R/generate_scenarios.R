@@ -25,10 +25,11 @@
 # Country archetypes:
 #   - Countries are grouped by archetype profile (the set of coverage multipliers
 #     across all target populations). Each branch produces one scenario per profile
-#     group, with pjnz_names listing that group's countries and target_coverage
-#     scaled by the archetype multiplier for each target population.
+#     group, with pjnz_names listing that group's countries and each target's value
+#     (target_coverage, or target_initiation_rate for Adult ART) scaled by the
+#     archetype multiplier for that target population.
 #   - Products with mixed per-target multipliers are split into one intervention
-#     entry per target, each with its own scaled target_coverage.
+#     entry per target, each with its own scaled value.
 #   - Scenario ids are suffixed _A{i} for archetype group i.
 #   - Long-acting treatment's target_coverage lives in "parameters" (like AHD
 #     treatment / POC tests below), so archetype and market-dynamic scaling
@@ -101,11 +102,12 @@ create_dummy_products <- function(path) {
   #
   # IMPORTANT — coverage location (Goals model "coverage fix"):
   #   For products WITH targets (PrEP/PEP, Vaccine, Cure, Adult ART), the
-  #   "target_coverage" {mean, sd} now lives INSIDE EACH TARGET, not in
-  #   "parameters". The target-less products (AHD treatment, POC tests,
-  #   Long-acting treatment) keep "target_coverage" (and "target_year") in
-  #   "parameters" instead, and must NOT have a "targets" field at all
-  #   (the Goals schema forbids it for these products).
+  #   per-target value {mean, sd} now lives INSIDE EACH TARGET, not in
+  #   "parameters". This is "target_coverage" for every product except Adult ART,
+  #   which uses "target_initiation_rate" (an annual ART initiation rate). The
+  #   target-less products (AHD treatment, POC tests, Long-acting treatment) keep
+  #   "target_coverage" (and "target_year") in "parameters" instead, and must NOT
+  #   have a "targets" field at all (the Goals schema forbids it for these).
   #
   # Valid canonical product names:
   #   PrEP:    "Oral PrEP (daily)", "Oral PrEP (monthly)",
@@ -120,7 +122,7 @@ create_dummy_products <- function(path) {
   #   PrEP / PEP        : {risk_group, sex, target_coverage}
   #   Vaccine / Cure    : {risk_group, sex (optional), target_coverage}
   #                       risk_group may be "PLHIV" (then sex must be "Both" or omitted)
-  #   Adult ART         : {sex, target_coverage}            (no risk_group)
+  #   Adult ART         : {sex, target_initiation_rate}     (no risk_group)
   #   Long-acting tx    : NO targets list; target_year/target_coverage live in
   #                       "parameters" (same shape as AHD treatment / POC tests).
   #
@@ -166,12 +168,13 @@ create_dummy_products <- function(path) {
       )
     ),
     # Adult ART: standard-of-care treatment backbone. Targets are by sex only
-    # (no risk_group); parameters carry only target_year.
+    # (no risk_group); parameters carry only target_year. ART entry is an annual
+    # initiation rate (the PJNZ must be in "initiation rate" mode), not coverage.
     list(
       product = "Adult ART",
       targets = list(
-        list(sex = "Female", target_coverage = list(mean = 0.85, sd = 0.05)),
-        list(sex = "Male",   target_coverage = list(mean = 0.85, sd = 0.05))
+        list(sex = "Female", target_initiation_rate = list(mean = 0.85, sd = 0.05)),
+        list(sex = "Male",   target_initiation_rate = list(mean = 0.85, sd = 0.05))
       ),
       parameters = list(
         target_year = list(mean = 2030, sd = 2)
@@ -514,22 +517,31 @@ build_intervention <- function(prod_entry) {
   }
 }
 
-# Build a single intervention for one product entry, scaling coverage by both the
-# per-target archetype multiplier and the product-level market-dynamic multiplier.
+# Per-target value fields scaled by archetype/market multipliers. Adult ART uses
+# "target_initiation_rate" (an annual ART initiation rate); every other product
+# with targets uses "target_coverage". Both are scaled identically.
+TARGET_VALUE_FIELDS <- c("target_coverage", "target_initiation_rate")
+
+# Build a single intervention for one product entry, scaling its target value by
+# both the per-target archetype multiplier and the product-level market-dynamic
+# multiplier.
 #
-# Coverage lives in one of two places (see create_dummy_products):
-#   - per-target "target_coverage" (PrEP/PEP, Vaccine, Cure, Adult ART):
-#     each target is scaled by archetype_multiplier(archetype, its risk_group)
-#     * md_mult. Targets with no risk_group (Adult ART) use the "*" archetype row.
+# The scaled value lives in one of two places (see create_dummy_products):
+#   - per-target field (PrEP/PEP, Vaccine, Cure -> "target_coverage";
+#     Adult ART -> "target_initiation_rate"): each target is scaled by
+#     archetype_multiplier(archetype, its risk_group) * md_mult. Targets with no
+#     risk_group (Adult ART) use the "*" archetype row.
 #   - parameters$target_coverage (AHD treatment, POC tests, Long-acting
 #     treatment): scaled by archetype_multiplier(archetype, "*") * md_mult.
 build_intervention_scaled <- function(entry, arch_lookup, archetype, md_mult) {
   if (!is.null(entry$targets) && length(entry$targets) > 0) {
     entry$targets <- lapply(entry$targets, function(t) {
-      if (!is.null(t$target_coverage)) {
-        pop <- if (!is.null(t$risk_group)) t$risk_group else "*"
-        am  <- archetype_multiplier(arch_lookup, archetype, pop)
-        t$target_coverage$mean <- t$target_coverage$mean * am * md_mult
+      pop <- if (!is.null(t$risk_group)) t$risk_group else "*"
+      am  <- archetype_multiplier(arch_lookup, archetype, pop)
+      for (field in TARGET_VALUE_FIELDS) {
+        if (!is.null(t[[field]])) {
+          t[[field]]$mean <- t[[field]]$mean * am * md_mult
+        }
       }
       t
     })

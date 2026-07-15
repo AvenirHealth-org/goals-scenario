@@ -420,31 +420,35 @@ Same structure as POC VL test.
 
 `product`: `"Adult ART"`
 
-`targets`: one or more entries, each specifying a sex.
+`targets`: one or more entries, each specifying a sex and its target ART
+initiation rate.
 
 | Field | Values |
 |---|---|
 | `sex` | `"Male"`, `"Female"`, `"Both"` |
+| `target_initiation_rate` | Distribution for the target annual ART initiation rate (proportion, 0–1) |
 
 `parameters`:
 
 | Parameter | Description |
 |---|---|
-| `target_coverage` | Target ART coverage as a proportion (0–1) |
 | `target_year` | Target implementation year (integer ≥ 1970) |
 
-Coverage values are interpreted as proportions (ratio between 0 and 1). `adults_on_art_is_percent` is automatically set to 1 for the targeted sex and year.
+ART is modelled as an annual initiation rate (leapfrog `art_initiation_rate`),
+which ramps linearly from its base-year value to `target_initiation_rate` at
+`target_year` and is held thereafter. The input PJNZ **must** be in initiation-rate
+mode (`art_entry_option == 1`); a PJNZ using number/percent (0) or percent by risk
+group (2) is rejected on read, naming the offending file.
 
 ```json
 {
   "product": "Adult ART",
   "targets": [
-    {"sex": "Female"},
-    {"sex": "Male"}
+    {"sex": "Female", "target_initiation_rate": {"mean": 0.85, "sd": 0.05}},
+    {"sex": "Male",   "target_initiation_rate": {"mean": 0.85, "sd": 0.05}}
   ],
   "parameters": {
-    "target_coverage": {"mean": 0.85, "sd": 0.05},
-    "target_year":     {"mean": 2028, "sd": 2}
+    "target_year": {"mean": 2028, "sd": 2}
   }
 }
 ```

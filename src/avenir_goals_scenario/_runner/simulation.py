@@ -48,6 +48,7 @@ from SpectrumCommon.Const.RN import (
 )
 
 from avenir_goals_scenario._runner.indicator_dims import CALCULATED_INDICATORS, RESOURCE_INDICATOR_ROWS
+from avenir_goals_scenario._runner.pjnz import uses_art_initiation_rate
 from avenir_goals_scenario._scenario_generator.scenario_generator import _product_to_id
 from avenir_goals_scenario.models.scenario_definition import (
     PrepProduct,
@@ -226,6 +227,47 @@ def _target_year_idx(lp: LeapfrogParams, draw: _Draw) -> int:
     return int(draw["target_year"]) - lp["projection_start_year"]
 
 
+def _base_year_idx(lp: LeapfrogParams, base_year: int) -> int:
+    """Zero-based index of the scale-up start year, clamped to the projection start."""
+    return max(0, int(base_year) - lp["projection_start_year"])
+
+
+def _coverage_ramp(base_value: float, target: float, base_idx: int, target_idx: int, n_years: int) -> np.ndarray:
+    """Per-year coverage series covering ``[base_idx, n_years)``.
+
+    Linear from *base_value* at *base_idx* to *target* at *target_idx*, held at
+    *target* for all subsequent years. A target year beyond the projection end
+    truncates the ramp mid-scale-up.
+    """
+    ramp = np.linspace(base_value, target, max(target_idx - base_idx, 0) + 1)
+    series = np.full(max(n_years - base_idx, 0), target)
+    n = min(ramp.size, series.size)
+    series[:n] = ramp[:n]
+    return series
+
+
+def _ramp_to_target(
+    series: np.ndarray,
+    base_idx: int,
+    target_idx: int,
+    target: float,
+    base_value: float | None = None,
+) -> None:
+    """Write a linear coverage scale-up into the per-year array *series* in place.
+
+    Coverage runs linearly from the base-year value (the existing value at
+    *base_idx*, unless *base_value* overrides it) to *target* at *target_idx*,
+    then stays at *target* to the end of the projection. Interpolates downwards
+    when the base-year value exceeds the target. Years before *base_idx* are
+    left untouched.
+    """
+    if base_idx >= series.size:
+        return
+    if base_value is None:
+        base_value = float(series[base_idx])
+    series[base_idx:] = _coverage_ramp(base_value, target, base_idx, target_idx, series.size)
+
+
 # ---------------------------------------------------------------------------
 # Per-intervention application functions
 # ---------------------------------------------------------------------------
@@ -234,18 +276,26 @@ def _target_year_idx(lp: LeapfrogParams, draw: _Draw) -> int:
 def _apply_all_prep(
     lp: LeapfrogParams,
     prep_draws: list[tuple[str, dict]],
+    base_year: int,
 ) -> None:
     """Apply all PrEP products together, computing prep_cov and prep_method_mix.
 
-    Coverage for each (sex, risk_group, year) is the sum across all products targeting
-    that population. prep_method_mix holds each product's share of that total.
+    Each product's coverage scales up linearly from its base-year share of
+    prep_cov to its target coverage at its target year, then holds at the
+    target. Coverage for each (sex, risk_group, year) is the sum across all
+    products targeting that population. prep_method_mix holds each product's
+    share of that total.
     """
-    # (sex_idx, rg_idx, method_offset, year_idx) → coverage
-    coverage_by_method: dict[tuple[int, int, int, int], float] = {}
+    base_idx = _base_year_idx(lp, base_year)
+    n_years = lp["prep_cov"].shape[2]
+
+    # (sex_idx, rg_idx, method_offset) → summed target coverage
+    targets: dict[tuple[int, int, int], float] = {}
+    target_idx_by_method: dict[int, int] = {}
 
     for iv_id, draw in prep_draws:
         method_offset = _interv_map[iv_id] - RN_PrEPOralDaily
-        year_idx = int(draw["target_year"]) - lp["projection_start_year"]
+        target_idx_by_method[method_offset] = int(draw["target_year"]) - lp["projection_start_year"]
         lp["prep_effectiveness"][method_offset, RN_Effectiveness] = draw["efficacy"]
         lp["prep_effectiveness"][method_offset, RN_Adherence] = draw["adherence"]
         # Product-specific parameters; validation guarantees these are only set
@@ -259,45 +309,63 @@ def _apply_all_prep(
                 _sex_idx(cast(SexName, tc.sex)),
                 _risk_group_idx(cast(RiskGroupNames, tc.risk_group)),
                 method_offset,
-                year_idx,
             )
-            coverage_by_method[key] = coverage_by_method.get(key, 0.0) + tc.coverage
+            targets[key] = targets.get(key, 0.0) + tc.coverage
 
-    # Sum per (sex, rg, year)
-    totals: dict[tuple[int, int, int], float] = {}
-    for (sex_idx, rg_idx, _, year_idx), cov in coverage_by_method.items():
-        k = (sex_idx, rg_idx, year_idx)
-        totals[k] = totals.get(k, 0.0) + cov
+    # Per-method scale-up series over [base_idx, n_years). The base-year value of
+    # each method is its share of total base-year coverage per the method mix.
+    series_by_method: dict[tuple[int, int, int], np.ndarray] = {}
+    for (sex_idx, rg_idx, method_offset), target_cov in targets.items():
+        base_value = float(
+            lp["prep_cov"][sex_idx, rg_idx, base_idx] * lp["prep_method_mix"][sex_idx, rg_idx, method_offset, base_idx]
+        )
+        series_by_method[(sex_idx, rg_idx, method_offset)] = _coverage_ramp(
+            base_value, target_cov, base_idx, target_idx_by_method[method_offset], n_years
+        )
 
-    for (sex_idx, rg_idx, year_idx), total in totals.items():
-        lp["prep_cov"][sex_idx, rg_idx, year_idx] = min(total, 1.0)
-        lp["prep_method_mix"][sex_idx, rg_idx, :, year_idx] = 0.0
+    # Sum per (sex, rg) per year
+    totals: dict[tuple[int, int], np.ndarray] = {}
+    for (sex_idx, rg_idx, _), series in series_by_method.items():
+        k = (sex_idx, rg_idx)
+        totals[k] = series.copy() if k not in totals else totals[k] + series
 
-    for (sex_idx, rg_idx, method_offset, year_idx), cov in coverage_by_method.items():
-        total = totals[(sex_idx, rg_idx, year_idx)]
-        if total > 0:
-            lp["prep_method_mix"][sex_idx, rg_idx, method_offset, year_idx] = cov / total
+    for (sex_idx, rg_idx), total in totals.items():
+        lp["prep_cov"][sex_idx, rg_idx, base_idx:] = np.minimum(total, 1.0)
+        lp["prep_method_mix"][sex_idx, rg_idx, :, base_idx:] = 0.0
+
+    for (sex_idx, rg_idx, method_offset), series in series_by_method.items():
+        total = totals[(sex_idx, rg_idx)]
+        lp["prep_method_mix"][sex_idx, rg_idx, method_offset, base_idx:] = np.divide(
+            series, total, out=np.zeros_like(series), where=total > 0
+        )
 
 
-def _apply_vaccine(lp: LeapfrogParams, draw: _VaccineDraw) -> None:
-    year_idx = _target_year_idx(lp, draw)
+def _apply_vaccine(lp: LeapfrogParams, draw: _VaccineDraw, base_year: int) -> None:
+    base_idx = _base_year_idx(lp, base_year)
+    target_idx = _target_year_idx(lp, draw)
     for tc in draw["target_coverages"]:
         if tc.risk_group == "PLHIV":
             lp["rn_vac_cov_type"] = RN_Single
-            lp["rn_vac_coverage_rg"][RN_AllRisk, year_idx] = tc.coverage
+            _ramp_to_target(lp["rn_vac_coverage_rg"][RN_AllRisk], base_idx, target_idx, tc.coverage)
         elif tc.sex == "Both" or tc.sex is None:
             lp["rn_vac_cov_type"] = RN_Diff
-            lp["rn_vac_coverage_rg"][_risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=False), year_idx] = (
-                tc.coverage
-            )
-            lp["rn_vac_coverage_rg"][_risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=True), year_idx] = (
-                tc.coverage
-            )
+            for female in (False, True):
+                _ramp_to_target(
+                    lp["rn_vac_coverage_rg"][_risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=female)],
+                    base_idx,
+                    target_idx,
+                    tc.coverage,
+                )
         else:
             lp["rn_vac_cov_type"] = RN_Diff
-            lp["rn_vac_coverage_rg"][
-                _risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=(tc.sex == "Female")), year_idx
-            ] = tc.coverage
+            _ramp_to_target(
+                lp["rn_vac_coverage_rg"][
+                    _risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=(tc.sex == "Female"))
+                ],
+                base_idx,
+                target_idx,
+                tc.coverage,
+            )
     lp["rn_vac_params"][RN_Efficacy] = draw["reduction_in_susceptibility"]
     lp["rn_vac_params"][RN_Infectiousness] = draw["reduction_in_infectiousness"]
     lp["rn_vac_params"][RN_Progression] = draw["increase_in_progression_time_to_aids"]
@@ -329,57 +397,75 @@ def _apply_vaccine(lp: LeapfrogParams, draw: _VaccineDraw) -> None:
         raise ValueError(msg)
 
 
-def _apply_cure(lp: LeapfrogParams, draw: _CureDraw) -> None:
-    year_idx = _target_year_idx(lp, draw)
+def _apply_cure(lp: LeapfrogParams, draw: _CureDraw, base_year: int) -> None:
+    base_idx = _base_year_idx(lp, base_year)
+    target_idx = _target_year_idx(lp, draw)
     for tc in draw["target_coverages"]:
         if tc.risk_group == "PLHIV":
             lp["rn_cure_coverage_type"] = RN_Single
-            lp["rn_cure_coverage_rg"][RN_AllRisk, year_idx] = tc.coverage
+            _ramp_to_target(lp["rn_cure_coverage_rg"][RN_AllRisk], base_idx, target_idx, tc.coverage)
         elif tc.sex == "Both" or tc.sex is None:
             lp["rn_cure_coverage_type"] = RN_Diff
-            lp["rn_cure_coverage_rg"][_risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=False), year_idx] = (
-                tc.coverage
-            )
-            lp["rn_cure_coverage_rg"][_risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=True), year_idx] = (
-                tc.coverage
-            )
+            for female in (False, True):
+                _ramp_to_target(
+                    lp["rn_cure_coverage_rg"][_risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=female)],
+                    base_idx,
+                    target_idx,
+                    tc.coverage,
+                )
         else:
             lp["rn_cure_coverage_type"] = RN_Diff
-            lp["rn_cure_coverage_rg"][
-                _risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=(tc.sex == "Female")), year_idx
-            ] = tc.coverage
+            _ramp_to_target(
+                lp["rn_cure_coverage_rg"][
+                    _risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=(tc.sex == "Female"))
+                ],
+                base_idx,
+                target_idx,
+                tc.coverage,
+            )
     lp["rn_cure_effect"][RN_Efficacy] = draw["efficacy"]
     lp["rn_cure_effect"][RN_Duration] = draw["duration_of_cure"]
 
 
-def _apply_cure_neonates(lp: LeapfrogParams, draw: _CureNeonateDraw) -> None:
-    year_idx = _target_year_idx(lp, draw)
+def _apply_cure_neonates(lp: LeapfrogParams, draw: _CureNeonateDraw, base_year: int) -> None:
+    base_idx = _base_year_idx(lp, base_year)
+    target_idx = _target_year_idx(lp, draw)
     # Neonates are the only population; coverage is a single value by year.
     for tc in draw["target_coverages"]:
-        lp["rn_cure_coverage_neonates"][year_idx] = tc.coverage
+        _ramp_to_target(lp["rn_cure_coverage_neonates"], base_idx, target_idx, tc.coverage)
     lp["rn_cure_effect_neonates"] = draw["effectiveness"]
 
 
-def _apply_vmm(lp: LeapfrogParams, draw: _VMMDraw) -> None:
-    year_idx = _target_year_idx(lp, draw)
+def _apply_vmm(lp: LeapfrogParams, draw: _VMMDraw, base_year: int) -> None:
+    base_idx = _base_year_idx(lp, base_year)
+    target_idx = _target_year_idx(lp, draw)
     for tc in draw["target_coverages"]:
         if tc.risk_group == "Percent of women treated":
             lp["rn_vmm_coverage_type"] = _VMM_COV_ALLRISK
-            lp["rn_vmm_coverage_all"][year_idx] = tc.coverage
+            _ramp_to_target(lp["rn_vmm_coverage_all"], base_idx, target_idx, tc.coverage)
         else:
             lp["rn_vmm_coverage_type"] = _VMM_COV_SINGLE
-            lp["rn_vmm_coverage_rg"][_VMM_RG_IDX[cast(str, tc.risk_group)], year_idx] = tc.coverage
+            _ramp_to_target(
+                lp["rn_vmm_coverage_rg"][_VMM_RG_IDX[cast(str, tc.risk_group)]], base_idx, target_idx, tc.coverage
+            )
     lp["rn_vmm_effect"] = draw["effectiveness"]
 
 
-def _apply_ahd(lp: LeapfrogParams, draw: _AHDTreatmentDraw) -> None:
-    year_idx = _target_year_idx(lp, draw)
-    lp["rn_ahd_treat_cov"][year_idx] = draw["target_coverage"]
+def _apply_ahd(lp: LeapfrogParams, draw: _AHDTreatmentDraw, base_year: int) -> None:
+    base_idx = _base_year_idx(lp, base_year)
+    target_idx = _target_year_idx(lp, draw)
+    _ramp_to_target(lp["rn_ahd_treat_cov"], base_idx, target_idx, draw["target_coverage"])
     lp["rn_ahd_treat_reduc_mort"] = draw["reduction_in_mortality"]
 
 
-def _apply_adult_art(lp: LeapfrogParams, draw: _AdultARTDraw) -> None:
-    year_idx = _target_year_idx(lp, draw)
+def _apply_adult_art(lp: LeapfrogParams, draw: _AdultARTDraw, base_year: int) -> None:
+    # Adult ART is applied as an annual initiation rate, which only has an effect
+    # when the PJNZ was read in initiation-rate mode. For other modes there is no
+    # rate to ramp, so skip it (the run continues; the runner warns once at import).
+    if not uses_art_initiation_rate(lp):
+        return
+    base_idx = _base_year_idx(lp, base_year)
+    target_idx = _target_year_idx(lp, draw)
     for tc in draw["target_coverages"]:
         if tc.sex == "Both":
             sex_indices = [0, 1]
@@ -388,48 +474,49 @@ def _apply_adult_art(lp: LeapfrogParams, draw: _AdultARTDraw) -> None:
         else:
             sex_indices = [1]
         for sex_idx in sex_indices:
-            # Leapfrog stores adult ART coverage under "art15plus_num" with an
-            # "art15plus_isperc" flag (see SpectrumCommon LeapfrogDataMapping).
-            lp["art15plus_num"][sex_idx, year_idx] = tc.coverage
-            lp["art15plus_isperc"][sex_idx, year_idx] = 1
+            # art_initiation_rate is (sex, year); ramp each sex from its base-year
+            # rate up (or down) to the target rate, held at the target thereafter.
+            _ramp_to_target(lp["art_initiation_rate"][sex_idx], base_idx, target_idx, tc.coverage)
 
 
-def _apply_long_acting_treatment(lp: LeapfrogParams, draw: _LongActingTreatmentDraw) -> None:
-    year_idx = _target_year_idx(lp, draw)
+def _apply_long_acting_treatment(lp: LeapfrogParams, draw: _LongActingTreatmentDraw, base_year: int) -> None:
+    base_idx = _base_year_idx(lp, base_year)
+    target_idx = _target_year_idx(lp, draw)
 
-    lp["long_act_treat_cov"][year_idx] = draw["target_coverage"]
+    _ramp_to_target(lp["long_act_treat_cov"], base_idx, target_idx, draw["target_coverage"])
     lp["long_act_treat_eff_vls"] = draw["viral_load_suppression_ratio"]
     lp["long_act_treat_eff_ltfu"] = draw["interruption_rate_reduction"]
 
 
-def _apply_poc(lp: LeapfrogParams, poc_type: int, draw: _POCTestDraw) -> None:
+def _apply_poc(lp: LeapfrogParams, poc_type: int, draw: _POCTestDraw, base_year: int) -> None:
     """Apply point-of-care test coverage. *poc_type* is ``RN_POC_CD4_Int`` or ``RN_POC_VL_Int``."""
-    year_idx = _target_year_idx(lp, draw)
+    base_idx = _base_year_idx(lp, base_year)
+    target_idx = _target_year_idx(lp, draw)
     rn_poc = RN_POC_CD4 if poc_type == RN_POC_CD4_Int else RN_POC_VL
-    lp["rn_poc_cov"][rn_poc, year_idx] = draw["target_coverage"]
+    _ramp_to_target(lp["rn_poc_cov"][rn_poc], base_idx, target_idx, draw["target_coverage"])
     lp["rn_poc_effect"][rn_poc] = draw["effect"]
 
 
-def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict) -> None:
+def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict, base_year: int) -> None:
     match iv.id:
         case "vaccine":
-            _apply_vaccine(lp, cast(_VaccineDraw, draw))
+            _apply_vaccine(lp, cast(_VaccineDraw, draw), base_year)
         case "cure_adults_and_children":
-            _apply_cure(lp, cast(_CureDraw, draw))
+            _apply_cure(lp, cast(_CureDraw, draw), base_year)
         case "cure_neonates":
-            _apply_cure_neonates(lp, cast(_CureNeonateDraw, draw))
+            _apply_cure_neonates(lp, cast(_CureNeonateDraw, draw), base_year)
         case "vaginal_microbiome_modification":
-            _apply_vmm(lp, cast(_VMMDraw, draw))
+            _apply_vmm(lp, cast(_VMMDraw, draw), base_year)
         case "ahd_treatment":
-            _apply_ahd(lp, cast(_AHDTreatmentDraw, draw))
+            _apply_ahd(lp, cast(_AHDTreatmentDraw, draw), base_year)
         case "poc_vl_test":
-            _apply_poc(lp, RN_POC_VL_Int, cast(_POCTestDraw, draw))
+            _apply_poc(lp, RN_POC_VL_Int, cast(_POCTestDraw, draw), base_year)
         case "poc_cd4_test":
-            _apply_poc(lp, RN_POC_CD4_Int, cast(_POCTestDraw, draw))
+            _apply_poc(lp, RN_POC_CD4_Int, cast(_POCTestDraw, draw), base_year)
         case "long_acting_treatment":
-            _apply_long_acting_treatment(lp, cast(_LongActingTreatmentDraw, draw))
+            _apply_long_acting_treatment(lp, cast(_LongActingTreatmentDraw, draw), base_year)
         case "adult_art":
-            _apply_adult_art(lp, cast(_AdultARTDraw, draw))
+            _apply_adult_art(lp, cast(_AdultARTDraw, draw), base_year)
         case _:
             msg = f"Unknown intervention: {iv.id!r}"
             raise ValueError(msg)
@@ -439,13 +526,19 @@ def apply_simulation(
     leapfrog_params: LeapfrogParams,
     interventions: list[InterventionOut],
     simulation: dict[str, InterventionSimulation],
+    base_year: int,
 ) -> None:
     """Apply one sampled draw of intervention parameters to *leapfrog_params* in-place.
+
+    Each intervention's coverage scales up linearly from its existing value in
+    *base_year* to the sampled target coverage in its target year, and is held
+    at the target for all subsequent years.
 
     Args:
         leapfrog_params: Goals model parameter dict from ``import_pjnz``. Modified in-place.
         interventions: Intervention metadata for the current scenario.
         simulation: Mapping of intervention ID → sampled parameter values for one draw.
+        base_year: First year of the coverage scale-up (``base_year`` in the run config).
     """
     meta = {iv.id: iv for iv in interventions}
     prep_draws: list[tuple[str, dict]] = []
@@ -454,9 +547,9 @@ def apply_simulation(
         if intervention_id in _PREP_IDS:
             prep_draws.append((intervention_id, sim.root))
         else:
-            _dispatch(leapfrog_params, iv, sim.root)
+            _dispatch(leapfrog_params, iv, sim.root, base_year)
     if prep_draws:
-        _apply_all_prep(leapfrog_params, prep_draws)
+        _apply_all_prep(leapfrog_params, prep_draws, base_year)
 
 
 def run_simulation(
@@ -470,13 +563,16 @@ def run_simulation(
 
     Applies *simulation* to *leapfrog_params* in-place, runs Goals, and returns
     the raw indicator arrays as produced by ``run_goals`` — no dimension reduction.
+    Intervention coverage scales up linearly from ``output_years.start`` (the
+    run's base year) to each intervention's target year, then holds at the target.
 
     Args:
         leapfrog_params: Goals model parameter dict for one PJNZ. Modified in-place.
         interventions: Intervention metadata for the current scenario.
         simulation: Sampled parameter values for one draw.
         output_indicators: Indicator names to extract from Goals output.
-        output_years: Year range passed to ``run_goals``.
+        output_years: Year range passed to ``run_goals``; its start is also the
+            base year the coverage scale-up starts from.
 
     Returns:
         Mapping of indicator name → NumPy array (last axis indexed by year).
@@ -484,7 +580,7 @@ def run_simulation(
     Raises:
         ValueError: If any indicator in *output_indicators* is absent from Goals output.
     """
-    apply_simulation(leapfrog_params, interventions, simulation)
+    apply_simulation(leapfrog_params, interventions, simulation, base_year=output_years.start)
     leapfrog_params["hc_nosocomial"] = leapfrog_params["hc_nosocomial_infections_by_age"][0, :]
     goals_output = run_goals(leapfrog_params, output_years)
     return _extract_indicators(goals_output, output_indicators)
