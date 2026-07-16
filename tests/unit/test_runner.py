@@ -5,6 +5,7 @@ from queue import Queue
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pyarrow.parquet as pq
 import pytest
 
 from avenir_goals_scenario._runner.pjnz import (
@@ -18,7 +19,8 @@ from avenir_goals_scenario._runner.simulation import _extract_indicators, run_si
 from avenir_goals_scenario._runner.utils import RunCallbacks, WorkUnitResult
 from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
 from avenir_goals_scenario.runner import (
-    _run_pjnz_scenario,
+    _batched,
+    _run_pjnz_batch,
     _run_scenario_analysis,
     _scenario_applies,
     _select_pjnz_files,
@@ -311,6 +313,21 @@ _P_HIVPOP_SHAPE = (81, 2, _N_YEARS)
 _SIM_RESULT = {"p_hivpop": np.asfortranarray(np.ones(_P_HIVPOP_SHAPE))}
 
 
+def _pjnz_part_dir(output_dir, pjnz, indicator="p_hivpop"):
+    return output_dir / indicator / f"pjnz_name={pjnz}"
+
+
+def _scenario_ids_written(output_dir, pjnz, indicator="p_hivpop") -> set[str]:
+    """Return the set of scenario_ids present across all part files for one PJNZ."""
+    part_dir = _pjnz_part_dir(output_dir, pjnz, indicator)
+    if not part_dir.exists():
+        return set()
+    ids: set[str] = set()
+    for f in part_dir.glob("*.parquet"):
+        ids |= set(pq.read_table(f).column("scenario_id").to_pylist())
+    return ids
+
+
 def _integration_patches(sim_result: dict) -> ExitStack:
     """Return a context manager with the patches needed for runner integration tests."""
     stack = ExitStack()
@@ -319,7 +336,7 @@ def _integration_patches(sim_result: dict) -> ExitStack:
     return stack
 
 
-def test_run_scenario_analysis_creates_parquet_per_pjnz_per_scenario(tmp_path):
+def test_run_scenario_analysis_creates_parquet_per_pjnz(tmp_path):
     pjnz_dir = tmp_path / "pjnz"
     pjnz_dir.mkdir()
     (pjnz_dir / "country.PJNZ").touch()
@@ -330,15 +347,14 @@ def test_run_scenario_analysis_creates_parquet_per_pjnz_per_scenario(tmp_path):
     with _integration_patches(_SIM_RESULT):
         run_scenario_analysis(config, simulations)
 
-    assert (config.output_dir / "p_hivpop" / "pjnz_name=country" / "scenario_id=1" / "part-0.parquet").exists()
+    assert (config.output_dir / "p_hivpop" / "pjnz_name=country" / "part-0.parquet").exists()
+    assert _scenario_ids_written(config.output_dir, "country") == {"1"}
 
 
 def test_run_scenario_analysis_parquet_row_count(tmp_path):
     pjnz_dir = tmp_path / "pjnz"
     pjnz_dir.mkdir()
     (pjnz_dir / "country.PJNZ").touch()
-
-    import pyarrow.parquet as pq
 
     n_sims = 3
     simulations = _make_simulations(scenario_id=1, n_simulations=n_sims)
@@ -347,7 +363,7 @@ def test_run_scenario_analysis_parquet_row_count(tmp_path):
     with _integration_patches(_SIM_RESULT):
         run_scenario_analysis(config, simulations)
 
-    path = config.output_dir / "p_hivpop" / "pjnz_name=country" / "scenario_id=1" / "part-0.parquet"
+    path = config.output_dir / "p_hivpop" / "pjnz_name=country" / "part-0.parquet"
     table = pq.read_table(path)
     assert len(table) == n_sims * int(np.prod(_P_HIVPOP_SHAPE))
 
@@ -364,8 +380,26 @@ def test_run_scenario_analysis_multiple_pjnz_creates_separate_partitions(tmp_pat
     with _integration_patches(_SIM_RESULT):
         run_scenario_analysis(config, simulations)
 
-    assert (config.output_dir / "p_hivpop" / "pjnz_name=alpha" / "scenario_id=1" / "part-0.parquet").exists()
-    assert (config.output_dir / "p_hivpop" / "pjnz_name=beta" / "scenario_id=1" / "part-0.parquet").exists()
+    assert (config.output_dir / "p_hivpop" / "pjnz_name=alpha" / "part-0.parquet").exists()
+    assert (config.output_dir / "p_hivpop" / "pjnz_name=beta" / "part-0.parquet").exists()
+
+
+def test_run_scenario_analysis_batches_produce_multiple_part_files(tmp_path):
+    pjnz_dir = tmp_path / "pjnz"
+    pjnz_dir.mkdir()
+    (pjnz_dir / "country.PJNZ").touch()
+
+    simulations = _make_multi_scenario_simulations(["1", "2", "3", "4"], n_simulations=1)
+    config = _make_run_config(tmp_path, pjnz_dir, indicators=["p_hivpop"])
+    config.scenarios_per_file = 2  # 4 scenarios -> 2 files of 2
+
+    with _integration_patches(_SIM_RESULT):
+        run_scenario_analysis(config, simulations)
+
+    part_dir = _pjnz_part_dir(config.output_dir, "country")
+    assert {p.name for p in part_dir.glob("*.parquet")} == {"part-0.parquet", "part-1.parquet"}
+    # All scenarios are still written exactly once across the batches.
+    assert _scenario_ids_written(config.output_dir, "country") == {"1", "2", "3", "4"}
 
 
 def test_run_scenario_analysis_unknown_indicator_raises_before_pjnz_import(tmp_path):
@@ -400,7 +434,8 @@ def test_run_scenario_analysis_uses_pool_when_multiple_workers(tmp_path):
     )
 
     mock_pool_instance = MagicMock()
-    mock_pool_instance.imap_unordered.return_value = iter([WorkUnitResult(pjnz="country", scenario_id="1", ok=True)])
+    # imap_unordered yields one list of per-scenario results per (PJNZ, batch) unit.
+    mock_pool_instance.imap_unordered.return_value = iter([[WorkUnitResult(pjnz="country", scenario_id="1", ok=True)]])
 
     with (
         patch("avenir_goals_scenario.runner.import_pjnz", return_value=_fake_modvars()),
@@ -415,11 +450,32 @@ def test_run_scenario_analysis_uses_pool_when_multiple_workers(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# _run_pjnz_scenario - log_queue branch
+# _batched
 # ---------------------------------------------------------------------------
 
 
-def test_run_pjnz_scenario_configures_worker_logging_when_log_queue_provided(tmp_path):
+def test_batched_even():
+    assert _batched([1, 2, 3, 4], 2) == [[1, 2], [3, 4]]
+
+
+def test_batched_uneven_last_smaller():
+    assert _batched([1, 2, 3, 4, 5], 2) == [[1, 2], [3, 4], [5]]
+
+
+def test_batched_size_larger_than_items():
+    assert _batched([1, 2], 5) == [[1, 2]]
+
+
+def test_batched_size_one():
+    assert _batched([1, 2, 3], 1) == [[1], [2], [3]]
+
+
+# ---------------------------------------------------------------------------
+# _run_pjnz_batch - log_queue branch
+# ---------------------------------------------------------------------------
+
+
+def test_run_pjnz_batch_configures_worker_logging_when_log_queue_provided(tmp_path):
     params = {"projection_end_year": 2024}
     params_path = str(tmp_path / "params.pkl")
     with open(params_path, "wb") as f:
@@ -435,11 +491,83 @@ def test_run_pjnz_scenario_configures_worker_logging_when_log_queue_provided(tmp
     with (
         patch("avenir_goals_scenario._cli.cli_utils.configure_worker_logging") as mock_configure,
         patch("avenir_goals_scenario.runner.run_simulation", return_value={"PLHIV": np.ones(_N_YEARS)}),
-        patch("avenir_goals_scenario.runner.write_scenario_results"),
+        patch("avenir_goals_scenario.runner.write_scenario_batch"),
     ):
-        _run_pjnz_scenario(params_path, "country", scenario, config, 2025, log_queue)
+        _run_pjnz_batch(params_path, "country", [scenario], config, 2025, "part-0", log_queue)
 
     mock_configure.assert_called_once_with(log_queue)
+
+
+def _make_scenario(sid: str):
+    s = MagicMock()
+    s.simulations = [{}]
+    s.id = sid
+    s.interventions = []
+    return s
+
+
+def test_run_pjnz_batch_reports_each_scenario_before_batch_write(tmp_path):
+    params = {"projection_end_year": 2024}
+    params_path = str(tmp_path / "params.pkl")
+    with open(params_path, "wb") as f:
+        pickle.dump(params, f)
+
+    scenarios = [_make_scenario("1"), _make_scenario("2")]
+    config = _make_run_config(tmp_path, tmp_path, indicators=["PLHIV"])
+
+    events: list[tuple[str, bool]] = []
+    events_seen_at_write: list[int] = []
+
+    def fake_write(*_args, **_kwargs):
+        events_seen_at_write.append(len(events))
+
+    with (
+        patch("avenir_goals_scenario.runner.run_simulation", return_value={"PLHIV": np.ones(_N_YEARS)}),
+        patch("avenir_goals_scenario.runner.write_scenario_batch", side_effect=fake_write),
+    ):
+        _run_pjnz_batch(
+            params_path,
+            "country",
+            scenarios,
+            config,
+            2025,
+            "part-0",
+            progress=lambda stem, ok: events.append((stem, ok)),
+        )
+
+    # Each scenario reported as it finished, and all before the single batch write.
+    assert events == [("country", True), ("country", True)]
+    assert events_seen_at_write == [2]
+
+
+def test_run_pjnz_batch_reports_failed_scenario(tmp_path):
+    params = {"projection_end_year": 2024}
+    params_path = str(tmp_path / "params.pkl")
+    with open(params_path, "wb") as f:
+        pickle.dump(params, f)
+
+    scenarios = [_make_scenario("1"), _make_scenario("2")]
+    config = _make_run_config(tmp_path, tmp_path, indicators=["PLHIV"])
+    events: list[tuple[str, bool]] = []
+
+    with (
+        patch(
+            "avenir_goals_scenario.runner.run_simulation",
+            side_effect=[{"PLHIV": np.ones(_N_YEARS)}, RuntimeError("boom")],
+        ),
+        patch("avenir_goals_scenario.runner.write_scenario_batch"),
+    ):
+        _run_pjnz_batch(
+            params_path,
+            "country",
+            scenarios,
+            config,
+            2025,
+            "part-0",
+            progress=lambda stem, ok: events.append((stem, ok)),
+        )
+
+    assert events == [("country", True), ("country", False)]
 
 
 # ---------------------------------------------------------------------------
@@ -531,8 +659,8 @@ def test_run_skips_pjnz_not_in_scenario_pjnz_names(tmp_path):
     with _integration_patches(_SIM_RESULT):
         run_scenario_analysis(config, simulations)
 
-    assert (config.output_dir / "p_hivpop" / "pjnz_name=Zimbabwe" / "scenario_id=1" / "part-0.parquet").exists()
-    assert not (config.output_dir / "p_hivpop" / "pjnz_name=Botswana" / "scenario_id=1" / "part-0.parquet").exists()
+    assert (config.output_dir / "p_hivpop" / "pjnz_name=Zimbabwe" / "part-0.parquet").exists()
+    assert not (config.output_dir / "p_hivpop" / "pjnz_name=Botswana").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -546,10 +674,6 @@ def _make_multi_scenario_simulations(scenario_ids, n_simulations=1) -> ScenarioS
     for sid in scenario_ids:
         scenarios.extend(_make_simulations(scenario_id=sid, n_simulations=n_simulations).scenarios)
     return ScenarioSimulations(scenarios=scenarios)
-
-
-def _hivpop_part(output_dir, pjnz, scenario_id):
-    return output_dir / "p_hivpop" / f"pjnz_name={pjnz}" / f"scenario_id={scenario_id}" / "part-0.parquet"
 
 
 def test_run_continues_when_one_scenario_fails(tmp_path):
@@ -567,8 +691,9 @@ def test_run_continues_when_one_scenario_fails(tmp_path):
     ):
         result = run_scenario_analysis(config, simulations)
 
-    assert _hivpop_part(config.output_dir, "country", "1").exists()
-    assert not _hivpop_part(config.output_dir, "country", "2").exists()
+    # Scenario 1 was written, scenario 2 (which failed) was skipped - both belong to
+    # the same batch file, so the failed scenario is simply absent, not a missing file.
+    assert _scenario_ids_written(config.output_dir, "country") == {"1"}
     assert [(f.pjnz, f.scenario_id) for f in result.failures] == [("country", "2")]
 
     manifest = json.loads((config.output_dir / "failures.json").read_text())
@@ -604,8 +729,10 @@ def test_run_selected_units_restricts_work(tmp_path):
     with _integration_patches(_SIM_RESULT):
         result = _run_scenario_analysis(config, simulations, RunCallbacks(), selected_units={("country", "2")})
 
-    assert not _hivpop_part(config.output_dir, "country", "1").exists()
-    assert _hivpop_part(config.output_dir, "country", "2").exists()
+    # Retry writes recovered scenarios to a supplemental part-retry-*.parquet file.
+    part_dir = _pjnz_part_dir(config.output_dir, "country")
+    assert all(p.name.startswith("part-retry-") for p in part_dir.glob("*.parquet"))
+    assert _scenario_ids_written(config.output_dir, "country") == {"2"}
     assert result.failures == []
 
 

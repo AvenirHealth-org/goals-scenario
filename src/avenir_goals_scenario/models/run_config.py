@@ -38,6 +38,14 @@ class RunConfig(BaseModel):
             sequentially, and any positive integer sets an explicit worker
             count. Zero is not valid. Uses 4 by default or the number of
             available CPUs if fewer than 4.
+        scenarios_per_file (int): Number of scenarios written to each output
+            Parquet file, which is also the unit of parallel work (default 128).
+            The run parallelises over ``(PJNZ, batch)`` units, so the total unit
+            count is ``ceil(n_scenarios / scenarios_per_file) * n_pjnz`` — keep
+            it at least the core count or workers sit idle. A larger value means
+            bigger, better-compressed files and fewer of them, but more memory:
+            one batch is held in flight per worker, so peak memory is roughly
+            ``n_workers * scenarios_per_file * n_simulations * 3.5MB``.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -51,6 +59,7 @@ class RunConfig(BaseModel):
     n_simulations: int = 100
     seed: int | None = None
     n_workers: int = Field(default_factory=lambda: min(os.cpu_count() or 1, 4))
+    scenarios_per_file: int = 128
 
     @field_validator("n_workers")
     @classmethod
@@ -65,6 +74,14 @@ class RunConfig(BaseModel):
     def _n_simulations_must_be_positive(cls, v: int) -> int:
         if v < 1:
             msg = "n_simulations must be a positive integer"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("scenarios_per_file")
+    @classmethod
+    def _scenarios_per_file_must_be_positive(cls, v: int) -> int:
+        if v < 1:
+            msg = "scenarios_per_file must be a positive integer"
             raise ValueError(msg)
         return v
 

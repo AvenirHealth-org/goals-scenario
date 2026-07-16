@@ -53,6 +53,7 @@ Note you need to escape the `\` in windows-style file paths, so use `\\`. Altern
 | `n_simulations` | No | Number of draws per scenario (default: `100`) |
 | `seed` | No | Integer RNG seed for reproducible draws (default: `null` - random) |
 | `n_workers` | No | Parallel workers: `-1` for all CPUs, positive integer for explicit count (default: `4` or CPU count if fewer) |
+| `scenarios_per_file` | No | Scenarios written per output Parquet file, which is also the unit of parallel work (default: `128`). Work units = `ceil(n_scenarios / scenarios_per_file) × n_pjnz`; keep that ≥ your core count or workers sit idle. A larger value gives bigger, better-compressed files but more memory (one batch in flight per worker). |
 
 \* At least one of `definition_path` or `scenario_path` must be supplied for `run`.
 Both are required for `draw`.
@@ -116,8 +117,12 @@ at that manifest:
 goals-scenario run config.json --retry path/to/output/failures.json
 ```
 
-Retries reuse the same draws, so the failed units reproduce exactly. Output partitions are
-overwritten in place, and on a fully successful (re-)run the stale `failures.json` is removed.
+Retries reuse the same draws, so the failed units reproduce exactly. A retry writes the
+recovered scenarios to new supplemental `part-retry-*.parquet` files alongside the originals
+(closed Parquet files are immutable, so nothing is rewritten); because the dataset is read as
+the union of all `part-*.parquet` files and failed scenarios were never written to the
+originals, there are no duplicate rows. On a fully successful (re-)run the stale
+`failures.json` is removed.
 
 | Exit code | Meaning |
 |---|---|
@@ -149,6 +154,50 @@ goals-scenario run config.json
 goals-scenario draw config.json   # writes draws to scenario_path
 goals-scenario run config.json    # reuses the same draws
 ```
+
+#### Performance tuning
+
+The run parallelises over **`(PJNZ, batch)`** work units. Each batch is a group
+of `scenarios_per_file` scenarios, written as a single Parquet file per indicator
+in one `write_table` call (pyarrow sizes the row groups for good compression).
+Two settings control throughput.
+
+- **`n_workers`** - parallel worker processes. Use `-1` to use every core.
+- **`scenarios_per_file`** - scenarios per output file, and the unit of parallel
+  work. The total number of units is
+  `ceil(n_scenarios / scenarios_per_file) × n_pjnz`, and that is what bounds core
+  usage. **Set it so there are at least as many units as cores**, otherwise cores
+  sit idle (the run warns when this happens). It is the single lever that trades
+  off three things at once:
+    - *Parallelism* - smaller value → more units.
+    - *File size / count* - larger value → bigger, fewer, better-compressed files
+      (output file count is `ceil(n_scenarios / scenarios_per_file) × n_pjnz × n_indicators`).
+    - *Memory* - one batch is held in flight per worker, so peak memory is roughly
+      `n_workers × scenarios_per_file × n_simulations × 3.5 MB` (uncompressed
+      Arrow). Unlike the rest of the run, this **does** scale with the setting, so
+      keep it low enough to fit node RAM at high worker or simulation counts.
+
+Example - 4 PJNZ files, 4096 scenarios each:
+
+| Environment | `n_workers` | `scenarios_per_file` | Units | Peak memory (5 sims) |
+|---|---|---|---|---|
+| 6-core laptop | `-1` | `2731` (→ 6 units) | 6 | ~0.3 GB |
+| 32-core node | `-1` | `512` (→ 32 units) | 32 | ~29 GB |
+
+**Output size.** With the eight default indicators at 5 simulations per scenario,
+expect roughly **2 MB of compressed Parquet per scenario per PJNZ**, so a full run
+is about `n_scenarios × n_pjnz × 2 MB` (e.g. 4096 × 4 ≈ **~32 GB**). About 85% of
+that is the dense `h_artpop` array, so its file is the large one — roughly
+`1.7 MB × scenarios_per_file` (~215 MB at the default 128); every other
+indicator's file is much smaller. Output scales linearly with the number of
+simulations and with the number and size of `output_indicators` (adding
+indicators adds their bytes, dominated by the largest arrays).
+
+Why it matters: writing one Parquet file per `(PJNZ, scenario)` produces tens or
+hundreds of thousands of tiny objects, and each object create on object storage
+(S3/ADLS/DBFS) is a rate-limited, replicated, network-committed transaction.
+Batching scenarios into a handful of larger files replaces that with a handful of
+uploads, which is the single biggest lever on wall-clock time for large runs.
 
 ---
 
@@ -546,6 +595,29 @@ Pass it back to `run --retry` to re-run only those units.
 | `pjnz` | Stem of the PJNZ file whose scenario failed (no `.PJNZ`) |
 | `scenario_id` | Identifier of the scenario that failed for that PJNZ |
 | `error` | Short error message describing the failure |
+
+### Output data (Parquet)
+
+Results are written as a Hive-partitioned Parquet dataset, one directory per
+indicator:
+
+```
+{output_dir}/{indicator}/pjnz_name={pjnz}/part-{batch}.parquet
+```
+
+- **`pjnz_name`** is a partition directory. **`scenario_id` is a data column**
+  (not a partition), so a partition may contain several `part-*.parquet` files
+  (one per batch, plus `part-retry-*.parquet` from any `--retry` run). Readers
+  should treat a partition as the **union of all its `part-*.parquet` files** -
+  `arrow::open_dataset(<indicator dir>)` and
+  `read_parquet(..., hive_partitioning = true)` do this automatically.
+- Columns are `scenario_id`, the indicator's dimension columns, `simulation`
+  (int32), and `value` (float64). Row groups are sized by pyarrow within each
+  batch file, and their `scenario_id` statistics give predicate pushdown via the
+  `_metadata` file.
+- **`scenario_id` is stored as a string** (`"1"`, `"all_products"`, ...), because
+  scenario identifiers are not always numeric. Filter with
+  `scenario_id == "1"`, not `scenario_id == 1`.
 
 ## Global options
 

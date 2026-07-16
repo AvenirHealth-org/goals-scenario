@@ -1,8 +1,10 @@
+import copy
 import datetime
 import json
 import os
 import pickle
 import tempfile
+import uuid
 from multiprocessing import Pool
 from pathlib import Path
 from queue import Queue
@@ -13,8 +15,7 @@ from avenir_goals_scenario._runner.indicator_dims import build_indicator_dims
 from avenir_goals_scenario._runner.output import (
     check_indicator_dims,
     consolidate_metadata,
-    remove_scenario_partitions,
-    write_scenario_results,
+    write_scenario_batch,
 )
 from avenir_goals_scenario._runner.pjnz import (
     ART_ENTRY_INITIATION_RATE,
@@ -35,59 +36,90 @@ def _fmt_error(e: Exception) -> str:
     return str(e) or type(e).__name__
 
 
-def _run_pjnz_scenario(
+def _run_pjnz_batch(
     params_path: str,
     pjnz_stem: str,
-    scenario: ScenarioSimulation,
+    scenarios: list[ScenarioSimulation],
     config: RunConfig,
     end_year: int,
+    part_name: str,
     log_queue=None,
-) -> WorkUnitResult:
-    """Run all simulations for one PJNZ/scenario combination and write results.
+    progress=None,
+) -> list[WorkUnitResult]:
+    """Run a batch of scenarios for one PJNZ and write them as one file per indicator.
 
-    Per-unit failures are non-fatal: any exception while simulating or writing
-    is caught, logged, and returned as a failed :class:`WorkUnitResult` so the
-    overall run can continue with the remaining units.
+    The PJNZ params are loaded once and kept as a pristine template; each
+    scenario runs on a fresh ``deepcopy`` (``apply_simulation`` mutates in place,
+    so scenarios must not share a params dict — see the module tests). The whole
+    batch is then written by :func:`write_scenario_batch`, so peak memory is one
+    batch in flight.
+
+    ``progress``, if given, is called ``progress(pjnz_stem, ok)`` as each scenario
+    *finishes simulating* — before the batch is written — so progress advances in
+    real time rather than in one jump per batch. A later batch-write failure does
+    not un-report those scenarios (rare, and progress is only an indicator; the
+    returned results and ``failures.json`` remain authoritative).
+
+    Failure handling: a scenario whose *simulations* raise is skipped (not
+    written) and returned as a failed :class:`WorkUnitResult`; the rest of the
+    batch continues. A failure while *writing* the batch discards the part file
+    and marks every successfully-simulated scenario in the batch as failed, so
+    ``--retry`` regenerates the file.
     """
     if log_queue is not None:
         from avenir_goals_scenario._cli.cli_utils import configure_worker_logging
 
         configure_worker_logging(log_queue)
 
+    with open(params_path, "rb") as f:
+        pristine = pickle.load(f)  # noqa: S301 - only loads data we saved ourselves
+
+    output_years = range(config.base_year, end_year + 1)
+
+    results: list[WorkUnitResult] = []
+    batch: list[tuple[str, list]] = []
+    for scenario in scenarios:
+        try:
+            # Reset to pristine params: apply_simulation mutates in place and
+            # different scenarios must not contaminate each other.
+            params = copy.deepcopy(pristine)
+            start = datetime.datetime.now()
+            simulations_out = [
+                run_simulation(params, scenario.interventions, simulation, config.output_indicators, output_years)
+                for simulation in scenario.simulations
+            ]
+            elapsed_ms = (datetime.datetime.now() - start).total_seconds() * 1000
+            logger.debug(
+                "Scenario {} ({} simulation(s)) for {} finished in {}ms",
+                scenario.id,
+                len(scenario.simulations),
+                pjnz_stem,
+                elapsed_ms,
+            )
+        except Exception as e:
+            error = _fmt_error(e)
+            logger.warning("Scenario {} failed for {}: {}", scenario.id, pjnz_stem, error)
+            results.append(WorkUnitResult(pjnz=pjnz_stem, scenario_id=scenario.id, ok=False, error=error))
+            if progress is not None:
+                progress(pjnz_stem, False)
+            continue
+        batch.append((scenario.id, simulations_out))
+        if progress is not None:
+            progress(pjnz_stem, True)
+
     try:
-        with open(params_path, "rb") as f:
-            params = pickle.load(f)  # noqa: S301 - only loads data we saved ourselves
-
-        output_years = range(config.base_year, end_year + 1)
-
-        start = datetime.datetime.now()
-        simulations_out = [
-            run_simulation(params, scenario.interventions, simulation, config.output_indicators, output_years)
-            for simulation in scenario.simulations
-        ]
-        elapsed_ms = (datetime.datetime.now() - start).total_seconds() * 1000
-        logger.debug(
-            "Scenario run finished {} ({} simulation(s)) for {} in {}ms",
-            scenario.id,
-            len(scenario.simulations),
-            pjnz_stem,
-            elapsed_ms,
-        )
-        write_scenario_results(
-            scenario.id,
-            pjnz_stem,
-            simulations_out,
-            config.output_dir,
-            indicator_dims=build_indicator_dims(config.base_year),
-        )
+        write_scenario_batch(config.output_dir, pjnz_stem, part_name, batch, build_indicator_dims(config.base_year))
     except Exception as e:
         error = _fmt_error(e)
-        logger.warning("Scenario {} failed for {}: {}", scenario.id, pjnz_stem, error)
-        # Drop any partial output so consolidate_metadata stays consistent.
-        remove_scenario_partitions(config.output_dir, pjnz_stem, scenario.id)
-        return WorkUnitResult(pjnz=pjnz_stem, scenario_id=scenario.id, ok=False, error=error)
+        logger.warning(
+            "Writing batch {} for {} failed: {}; re-run affected scenarios with --retry", part_name, pjnz_stem, error
+        )
+        # The part file is discarded, so every simulated scenario must re-run.
+        results.extend(WorkUnitResult(pjnz=pjnz_stem, scenario_id=sid, ok=False, error=error) for sid, _ in batch)
+        return results
 
-    return WorkUnitResult(pjnz=pjnz_stem, scenario_id=scenario.id, ok=True)
+    results.extend(WorkUnitResult(pjnz=pjnz_stem, scenario_id=sid, ok=True) for sid, _ in batch)
+    return results
 
 
 def _scenarios_use_adult_art(simulations: ScenarioSimulations) -> bool:
@@ -135,20 +167,21 @@ def run_scenario_analysis(config: RunConfig, simulations: ScenarioSimulations) -
     """Run scenario analysis across a directory of PJNZ files.
 
     Converts each PJNZ to leapfrog params once in the main process, dumps them
-    to a temporary file using ``pickle.dump``, then distributes
-    ``(PJNZ, scenario)`` work units across worker processes. Workers load
-    params via ``pickle.load``.
+    to a temporary file using ``pickle.dump``, then distributes ``(PJNZ, batch)``
+    work units — each a batch of ``config.scenarios_per_file`` scenarios — across
+    worker processes. Workers load params via ``pickle.load``.
 
-    Results are written to Parquet files under ``config.output_dir``, one file
-    per PJNZ/scenario combination at
-    ``{output_dir}/{pjnz_stem}/scenario_{id}.parquet``. Each file contains one
-    dataset per indicator with shape ``(n_simulations, *indicator_dims)``.
+    Results are written to Parquet files under ``config.output_dir`` in
+    long format, one file per ``(indicator, PJNZ, batch)`` at
+    ``{output_dir}/{indicator}/pjnz_name={pjnz_stem}/{part_name}.parquet``. Each
+    file holds every scenario in the batch, identified by a ``scenario_id``
+    column.
 
-    Individual ``(PJNZ, scenario)`` units that fail are logged and skipped
-    rather than aborting the run; the rest still complete. Failed units are
-    recorded in the returned :class:`RunResult` and written to a
-    ``failures.json`` manifest under ``config.output_dir`` for re-running. PJNZ
-    *import* failures remain fatal and raise.
+    Scenarios whose simulations fail are logged and skipped rather than aborting
+    the run; the rest still complete. Failed scenarios are recorded in the
+    returned :class:`RunResult` and written to a ``failures.json`` manifest under
+    ``config.output_dir`` for re-running. PJNZ *import* failures remain fatal and
+    raise.
 
     Args:
         config: Validated run configuration.
@@ -225,6 +258,7 @@ def _run_scenario_analysis(
     log_queue: Queue | None = None,
     pjnz_files: list[Path] | None = None,
     selected_units: set[tuple[str, str]] | None = None,
+    progress_queue: Queue | None = None,
 ) -> RunResult:
     """Internal run_scenario_analysis function.
 
@@ -232,12 +266,18 @@ def _run_scenario_analysis(
         config: Validated run configuration.
         simulations: Pre-drawn scenario simulations.
         callbacks: Hooks for progress reporting, can be no-op.
-        log_queue: Optional queue to pass to _run_pjnz_scenario when running
+        log_queue: Optional queue to pass to _run_pjnz_batch when running
           in parallel so logs can be raised to the same console as progress
           bars when run via CLI.
         selected_units: Optional set of ``(pjnz_stem, scenario_id)`` pairs to
           restrict the run to (used by ``--retry``). ``None`` runs every
           applicable unit.
+        progress_queue: Optional queue for per-scenario progress events when
+          running in parallel. Each worker puts ``(pjnz_stem, ok)`` as each
+          scenario *finishes simulating* (before the batch is written), and the
+          caller drains it to advance progress in real time. ``None`` (serial
+          runs, or callers without a progress display) reports progress by
+          calling ``callbacks`` directly.
 
     Returns:
         A :class:`RunResult` with the output directory and any failed units.
@@ -267,35 +307,55 @@ def _run_scenario_analysis(
             os.cpu_count(),
             config.n_workers,
         )
-        work_units = [
-            (params_paths[p], p.stem, s, end_years[p])
-            for p in pjnz_files
-            for s in simulations.scenarios
-            if _scenario_applies(s, p.stem, selected_units)
-        ]
+        # Supplemental part-file prefix so a --retry run writes new files
+        # (never rewrites existing ones): "part-0.parquet" on a normal run,
+        # "part-retry-<token>-0.parquet" per retry invocation.
+        part_prefix = "part" if selected_units is None else f"part-retry-{uuid.uuid4().hex[:8]}"
+        work_units = _build_work_units(
+            pjnz_files, params_paths, end_years, simulations, config.scenarios_per_file, selected_units, part_prefix
+        )
+        n_scenario_units = sum(len(scenarios) for _, _, scenarios, _, _ in work_units)
         logger.info(
-            "Running {} work unit(s) ({} PJNZ file(s), {} scenario(s), n_workers={})",
+            "Running {} work unit(s) over {} scenario(s) ({} PJNZ file(s), {} scenario(s)/file, n_workers={})",
             len(work_units),
+            n_scenario_units,
             len(pjnz_files),
-            len(simulations.scenarios),
+            config.scenarios_per_file,
             effective_workers,
         )
         logger.info("Running {} simulations per scenario", len(simulations.scenarios[0].simulations))
+        if len(work_units) < effective_workers:
+            logger.warning(
+                "Only {} work unit(s) for {} worker(s): {} core(s) will sit idle. "
+                "Lower scenarios_per_file (currently {}) so units >= workers.",
+                len(work_units),
+                effective_workers,
+                effective_workers - len(work_units),
+                config.scenarios_per_file,
+            )
 
         if effective_workers == 1:
-            for params_path, pjnz_stem, scenario, end_year in work_units:
-                result = _run_pjnz_scenario(params_path, pjnz_stem, scenario, config, end_year)
-                results.append(result)
-                _report_unit(result, callbacks)
+            # Serial: the worker runs in this process, so it reports each scenario
+            # straight to the callbacks as it finishes.
+            def progress(pjnz_stem: str, ok: bool) -> None:
+                _report_progress(callbacks, pjnz_stem, ok)
+
+            for params_path, pjnz_stem, scenarios, end_year, part_name in work_units:
+                batch_results = _run_pjnz_batch(
+                    params_path, pjnz_stem, scenarios, config, end_year, part_name, progress=progress
+                )
+                results.extend(batch_results)
         else:
+            # Parallel: workers push per-scenario events onto progress_queue,
+            # which the caller drains to advance progress live.
+            worker_progress = _QueueProgress(progress_queue) if progress_queue is not None else None
             packed = [
-                (params_path, pjnz_stem, scenario, config, end_year, log_queue)
-                for params_path, pjnz_stem, scenario, end_year in work_units
+                (params_path, pjnz_stem, scenarios, config, end_year, part_name, log_queue, worker_progress)
+                for params_path, pjnz_stem, scenarios, end_year, part_name in work_units
             ]
             with Pool(processes=effective_workers) as pool:
-                for result in pool.imap_unordered(_run_pjnz_scenario_star, packed):
-                    results.append(result)
-                    _report_unit(result, callbacks)
+                for batch_results in pool.imap_unordered(_run_pjnz_batch_star, packed):
+                    results.extend(batch_results)
 
     callbacks.on_run_complete()
 
@@ -307,12 +367,58 @@ def _run_scenario_analysis(
     return RunResult(output_dir=config.output_dir, failures=failures)
 
 
-def _report_unit(result: WorkUnitResult, callbacks: RunCallbacks) -> None:
-    """Advance progress for a finished unit, success or failure."""
-    if result.ok:
-        callbacks.on_scenario_complete(result.pjnz)
+def _batched(items: list, size: int) -> list[list]:
+    """Split *items* into contiguous, non-empty batches of at most *size*."""
+    size = max(1, size)
+    return [items[i : i + size] for i in range(0, len(items), size)]
+
+
+def _build_work_units(
+    pjnz_files: list[Path],
+    params_paths: dict[Path, str],
+    end_years: dict[Path, int],
+    simulations: ScenarioSimulations,
+    scenarios_per_file: int,
+    selected_units: set[tuple[str, str]] | None,
+    part_prefix: str,
+) -> list[tuple[str, str, list[ScenarioSimulation], int, str]]:
+    """Build ``(params_path, pjnz_stem, scenarios, end_year, part_name)`` work units.
+
+    Each PJNZ's applicable scenarios are split into contiguous batches of at most
+    ``scenarios_per_file``; each batch is one unit that writes ``{part_prefix}-{i}``
+    files. Batch index is per-PJNZ so file names are unique within a partition.
+    """
+    units: list[tuple[str, str, list[ScenarioSimulation], int, str]] = []
+    for p in pjnz_files:
+        applicable = [s for s in simulations.scenarios if _scenario_applies(s, p.stem, selected_units)]
+        if not applicable:
+            continue
+        for i, batch in enumerate(_batched(applicable, scenarios_per_file)):
+            units.append((params_paths[p], p.stem, batch, end_years[p], f"{part_prefix}-{i}"))
+    return units
+
+
+def _report_progress(callbacks: RunCallbacks, pjnz_stem: str, ok: bool) -> None:
+    """Advance progress for one finished scenario, success or failure."""
+    if ok:
+        callbacks.on_scenario_complete(pjnz_stem)
     else:
-        callbacks.on_scenario_failed(result.pjnz)
+        callbacks.on_scenario_failed(pjnz_stem)
+
+
+class _QueueProgress:
+    """Picklable per-scenario progress reporter that forwards events to a queue.
+
+    Passed to worker processes (which cannot call the main process's callbacks
+    directly); the caller drains the queue and applies each ``(pjnz_stem, ok)``
+    event via :func:`_report_progress`.
+    """
+
+    def __init__(self, queue: Queue) -> None:
+        self._queue = queue
+
+    def __call__(self, pjnz_stem: str, ok: bool) -> None:
+        self._queue.put((pjnz_stem, ok))
 
 
 def _write_failures_manifest(output_dir: Path, failures: list[WorkUnitResult]) -> None:
@@ -346,8 +452,8 @@ def _write_failures_manifest(output_dir: Path, failures: list[WorkUnitResult]) -
         json.dump(payload, fh, indent=2)
 
 
-def _run_pjnz_scenario_star(args):
-    return _run_pjnz_scenario(*args)  # pragma: no cover (used when running in parallel)
+def _run_pjnz_batch_star(args):
+    return _run_pjnz_batch(*args)  # pragma: no cover (used when running in parallel)
 
 
 def _warn_if_output_exists(output_dir: Path) -> None:

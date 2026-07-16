@@ -88,6 +88,30 @@ def _make_log_queue_listener(log_queue: Queue) -> threading.Thread:
     return thread
 
 
+def _make_progress_listener(progress_queue: Queue, handle) -> threading.Thread:
+    """Start a daemon thread that drains per-scenario progress events.
+
+    Each item is a ``(pjnz_stem, ok)`` tuple pushed by a worker as a scenario
+    finishes; ``handle(pjnz_stem, ok)`` advances the matching progress bar. This
+    keeps the display moving in real time instead of jumping once per batch.
+    """
+
+    def _listen() -> None:
+        while True:
+            try:
+                item = progress_queue.get(timeout=0.01)
+            except Empty:
+                continue
+            if item == _STOP:
+                break
+            stem, ok = item
+            handle(stem, ok)
+
+    thread = threading.Thread(target=_listen, daemon=True)
+    thread.start()
+    return thread
+
+
 def configure_worker_logging(log_queue: Queue) -> None:
     """Replace loguru handlers in a worker process with a queue sink.
 
@@ -108,6 +132,45 @@ def configure_worker_logging(log_queue: Queue) -> None:
 
     logger.remove()
     logger.add(_sink, format="{message}", colorize=False)
+
+
+def _build_progress_callbacks(
+    pjnz_files,
+    simulations: ScenarioSimulations,
+    selected_units: set[tuple[str, str]] | None,
+    import_progress: Progress,
+    run_progress: Progress,
+    import_task: TaskID,
+    scenario_tasks: dict[str, TaskID],
+) -> RunCallbacks:
+    """Wire progress bars to :class:`RunCallbacks`.
+
+    ``scenario_tasks`` is populated (one bar per PJNZ with applicable scenarios)
+    once imports finish; per-scenario callbacks then advance the matching bar.
+    """
+
+    def on_pjnz_imported() -> None:
+        import_progress.advance(import_task)
+
+    def on_imports_complete() -> None:
+        import_progress.stop()
+        for pjnz_path in pjnz_files:
+            stem = pjnz_path.stem
+            n_applicable = sum(1 for s in simulations.scenarios if _scenario_applies(s, stem, selected_units))
+            if n_applicable > 0:
+                scenario_tasks[stem] = run_progress.add_task(stem, total=n_applicable)
+        run_progress.start()
+
+    def on_scenario_complete(stem: str) -> None:
+        if stem in scenario_tasks:
+            run_progress.advance(scenario_tasks[stem])
+
+    return RunCallbacks(
+        on_pjnz_imported=on_pjnz_imported,
+        on_imports_complete=on_imports_complete,
+        on_scenario_complete=on_scenario_complete,
+        on_scenario_failed=on_scenario_complete,
+    )
 
 
 def run_with_progress(
@@ -139,6 +202,8 @@ def run_with_progress(
     mp_manager = Manager() if use_subprocess else None
     log_queue: Queue | None = mp_manager.Queue() if mp_manager is not None else None
     listener: threading.Thread | None = _make_log_queue_listener(log_queue) if log_queue is not None else None
+    progress_queue: Queue | None = mp_manager.Queue() if mp_manager is not None else None
+    progress_listener: threading.Thread | None = None
 
     import_progress = Progress(
         TextColumn("[cyan]{task.description}"),
@@ -158,35 +223,22 @@ def run_with_progress(
     try:
         import_task = import_progress.add_task("Importing PJNZ files", total=n_pjnz)
         scenario_tasks: dict[str, TaskID] = {}
-
-        def on_pjnz_imported() -> None:
-            import_progress.advance(import_task)
-
-        def on_imports_complete() -> None:
-            import_progress.stop()
-            for pjnz_path in pjnz_files:
-                stem = pjnz_path.stem
-                n_applicable = sum(1 for s in simulations.scenarios if _scenario_applies(s, stem, selected_units))
-                if n_applicable > 0:
-                    scenario_tasks[stem] = run_progress.add_task(stem, total=n_applicable)
-            run_progress.start()
-
-        def on_scenario_complete(stem: str) -> None:
-            run_progress.advance(scenario_tasks[stem])
-
-        def on_scenario_failed(stem: str) -> None:
-            run_progress.advance(scenario_tasks[stem])
-
-        def on_run_complete() -> None:
-            run_progress.stop()
-
-        callbacks = RunCallbacks(
-            on_pjnz_imported=on_pjnz_imported,
-            on_imports_complete=on_imports_complete,
-            on_scenario_complete=on_scenario_complete,
-            on_scenario_failed=on_scenario_failed,
-            on_run_complete=on_run_complete,
+        callbacks = _build_progress_callbacks(
+            pjnz_files, simulations, selected_units, import_progress, run_progress, import_task, scenario_tasks
         )
+
+        # In parallel runs workers report progress over a queue; drain it in a
+        # listener that advances the same bars (serial runs advance directly).
+        if progress_queue is not None:
+
+            def handle_progress(stem: str, ok: bool) -> None:
+                if ok:
+                    callbacks.on_scenario_complete(stem)
+                else:
+                    callbacks.on_scenario_failed(stem)
+
+            progress_listener = _make_progress_listener(progress_queue, handle_progress)
+
         import_progress.start()
         return _run_scenario_analysis(
             config,
@@ -195,11 +247,15 @@ def run_with_progress(
             log_queue=log_queue,
             pjnz_files=pjnz_files,
             selected_units=selected_units,
+            progress_queue=progress_queue,
         )
     finally:
-        # Make sure we call stop on these, in the case that a user
-        # hits ctrl+c before we call it in the callbacks above
-        # or we raise an error
+        # Drain remaining progress events while the bar is still live so it
+        # settles on its final state, then stop everything. Also covers ctrl+c
+        # or an error before the run finishes.
+        if progress_queue is not None and progress_listener is not None:
+            progress_queue.put(_STOP)
+            progress_listener.join()
         import_progress.stop()
         run_progress.stop()
         if log_queue is not None and listener is not None:

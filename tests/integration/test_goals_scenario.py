@@ -1,3 +1,4 @@
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
 from avenir_goals_scenario._runner.pjnz import import_pjnz
@@ -56,26 +57,26 @@ def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_data):
 
     for indicator in _INDICATORS:
         for pjnz_name in _PJNZ_NAMES:
-            ## Each PJNZ has the right number of scenario partitions
+            ## All scenarios fit in one batch (< default scenarios_per_file), so one part file
             pjnz_dir = out_dir / indicator / f"pjnz_name={pjnz_name}"
-            scenario_dirs = {p.name for p in pjnz_dir.iterdir() if p.is_dir()}
-            assert scenario_dirs == {f"scenario_id={sid}" for sid in _SCENARIOS}
+            part_files = sorted(pjnz_dir.glob("*.parquet"))
+            assert [p.name for p in part_files] == ["part-0.parquet"]
+            scenario_ids = set(pq.read_table(part_files[0]).column("scenario_id").to_pylist())
+            assert scenario_ids == {str(sid) for sid in _SCENARIOS}
 
     ## Spot-check p_hivpop schema and row count for scenario 1
     for pjnz_name in _PJNZ_NAMES:
-        path = out_dir / "p_hivpop" / f"pjnz_name={pjnz_name}" / "scenario_id=1" / "part-0.parquet"
+        path = out_dir / "p_hivpop" / f"pjnz_name={pjnz_name}" / "part-0.parquet"
         table = pq.read_table(path)
 
-        assert "age" in table.schema.names
-        assert "sex" in table.schema.names
-        assert "year" in table.schema.names
-        assert "simulation" in table.schema.names
-        assert "value" in table.schema.names
+        for column in ("scenario_id", "age", "sex", "year", "simulation", "value"):
+            assert column in table.schema.names
 
         params = import_pjnz(test_data / "pjnz" / "goals" / "goals-scenario" / f"{pjnz_name}.PJNZ")
         expected_n_years = params["projection_end_year"] - _BASE_YEAR + 1
         expected_rows = _N_SIMULATIONS * 81 * 2 * expected_n_years
-        assert len(table) == expected_rows
+        scenario_1 = table.filter(pc.field("scenario_id") == "1")
+        assert len(scenario_1) == expected_rows
 
 
 @requires_test_data
@@ -114,5 +115,7 @@ def test_every_product_type_runs_end_to_end(tmp_path_factory, test_data):
     # dispatched and applied without error.
     for indicator in _ALL_INDICATORS:
         pjnz_dir = out_dir / indicator / "pjnz_name=SouthAfrica"
-        scenario_dirs = {p.name for p in pjnz_dir.iterdir() if p.is_dir()}
-        assert scenario_dirs == {f"scenario_id={sid}" for sid in _ALL_PRODUCT_SCENARIOS}
+        part_files = sorted(pjnz_dir.glob("*.parquet"))
+        assert [p.name for p in part_files] == ["part-0.parquet"]
+        scenario_ids = set(pq.read_table(part_files[0]).column("scenario_id").to_pylist())
+        assert scenario_ids == set(_ALL_PRODUCT_SCENARIOS)

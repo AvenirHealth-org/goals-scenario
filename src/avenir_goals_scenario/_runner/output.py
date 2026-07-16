@@ -1,4 +1,3 @@
-import shutil
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -13,6 +12,12 @@ from avenir_goals_scenario._runner.indicator_dims import (
     IndicatorDims,
     UnknownIndicatorError,
 )
+
+#: Column name holding the scenario identifier in the long-format output. It is
+#: written as a data column rather than a partition directory, so many scenarios
+#: can share one Parquet file while remaining efficiently filterable via
+#: row-group statistics.
+SCENARIO_ID_COLUMN = "scenario_id"
 
 
 def check_indicator_dims(
@@ -38,87 +43,74 @@ def check_indicator_dims(
             raise UnknownIndicatorError(indicator, supported)
 
 
-def write_scenario_results(
-    scenario_id: str,
-    pjnz_name: str,
-    sim_output: list[dict[str, np.ndarray]],
+def write_scenario_batch(
     output_dir: Path,
-    indicator_dims: IndicatorDims | None = None,
+    pjnz_name: str,
+    part_name: str,
+    batch: list[tuple[str, list[dict[str, np.ndarray]]]],
+    indicator_dims: IndicatorDims,
 ) -> None:
-    """Write simulation results for one scenario/PJNZ as a partitioned Parquet dataset.
+    """Write one batch of scenarios as a single Parquet file per indicator.
 
-    Writes one parquet file per indicator under::
+    All scenarios in the batch share one file per indicator::
 
-        {output_dir}/{indicator}/pjnz_name={pjnz_name}/scenario_id={scenario_id}/part-0.parquet
+        {output_dir}/{indicator}/pjnz_name={pjnz_name}/{part_name}.parquet
 
-    Each file is in long format with columns ``<dim columns…>, simulation, value``.
-    Dimension column names and encodings are Taken from ``indicator_dims``.
-    Every indicator present in ``sim_output`` must have an entry in
-    ``indicator_dims``; a missing entry raises :class:`UnknownIndicatorError`.
-    Different indicators may have entirely different schemas.
+    Each scenario's simulations become long-format rows carrying a constant
+    ``scenario_id`` data column; the batch is concatenated and written in a
+    single :func:`pyarrow.parquet.write_table` call, so pyarrow sizes the row
+    groups itself (good compression) and the file is produced in one open →
+    write → close. Peak memory is one batch in flight.
 
-    This function is safe to call from multiple processes concurrently provided
-    each call uses a distinct (indicator, pjnz_name, scenario_number) combination.
-    It deliberately does **not** write ``_metadata`` or ``_common_metadata``.
-    Call :func:`consolidate_metadata` once from a single process after all
-    workers have finished.
+    If writing any indicator raises, every file written for this batch is deleted
+    before re-raising, so a failed batch leaves no partial output behind and the
+    caller can re-run it with ``--retry``.
+
+    Does **not** write ``_metadata``; call :func:`consolidate_metadata` once from
+    a single process after all batches have been written.
 
     Args:
-        scenario_id: Scenario identifier used in the partition path.
-        pjnz_name: Stem of the source PJNZ file (e.g. ``"country_2024"``).
-        sim_output: List of dicts of simulation output.  Each list item is one
-            simulation; every dict contains the same indicator keys.
-        output_dir: Root directory for the partitioned dataset.
-        indicator_dims: Optional mapping of indicator name to a tuple of
-            :class:`DimSpec` (or plain strings as shorthand). Example::
+        output_dir: Root directory of the partitioned dataset.
+        pjnz_name: Stem of the source PJNZ file (the ``pjnz_name=`` partition).
+        part_name: Base file name for this batch (e.g. ``"part-0"``).
+        batch: List of ``(scenario_id, sim_output)`` pairs. Each ``sim_output``
+            is a list of per-simulation dicts sharing the same indicator keys.
+        indicator_dims: Mapping of indicator name to dimension specs.
 
-                {
-                    "p_hivpop": (
-                        DimSpec("age"),
-                        DimSpec("sex", labels=["male", "female"]),
-                        DimSpec("year", offset=2010),
-                    )
-                }
+    Raises:
+        UnknownIndicatorError: If a produced indicator has no dimension specs.
     """
-    indicator_dims = indicator_dims or {}
-    out_indicators = sim_output[0].keys()
+    if not batch:
+        return
 
-    for indicator in out_indicators:
-        arrays = [sim[indicator] for sim in sim_output]
-
+    # Validate up front so an unknown indicator fails before anything is written.
+    indicators = list(batch[0][1][0])
+    specs = {}
+    for indicator in indicators:
         raw_specs = indicator_dims.get(indicator)
         if raw_specs is None:
             raise UnknownIndicatorError(indicator, list(indicator_dims.keys()))
-        table = _to_long_table(arrays, raw_specs)
+        specs[indicator] = raw_specs
 
-        part_dir = output_dir / f"{indicator}" / f"pjnz_name={pjnz_name}" / f"scenario_id={scenario_id}"
-        part_dir.mkdir(parents=True, exist_ok=True)
-        pq.write_table(table, part_dir / "part-0.parquet")
+    written: list[Path] = []
+    try:
+        for indicator in indicators:
+            tables = [
+                _to_long_table([sim[indicator] for sim in sim_output], specs[indicator], scenario_id=scenario_id)
+                for scenario_id, sim_output in batch
+            ]
+            path = output_dir / f"{indicator}" / f"pjnz_name={pjnz_name}" / f"{part_name}.parquet"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            pq.write_table(pa.concat_tables(tables), path)
+            written.append(path)
+    except Exception:
+        # Discard any partial output so consolidate_metadata stays consistent and
+        # the whole batch can be regenerated on --retry.
+        for path in written:
+            path.unlink(missing_ok=True)
+        raise
 
-        logger.debug(
-            "Written indicator={} pjnz={} scenario={}",
-            indicator,
-            pjnz_name,
-            scenario_id,
-        )
-
-
-def remove_scenario_partitions(output_dir: Path, pjnz_name: str, scenario_id: str) -> None:
-    """Best-effort removal of any partition dirs written for one (PJNZ, scenario).
-
-    Mirrors the layout written by :func:`write_scenario_results`
-    (``{output_dir}/{indicator}/pjnz_name={pjnz_name}/scenario_id={scenario_id}``).
-    Called when a work unit fails part-way through writing so a half-written
-    partition does not later trip up :func:`consolidate_metadata`. Missing
-    directories are ignored.
-    """
-    if not output_dir.exists():
-        return
-    for indicator_dir in output_dir.iterdir():
-        if not indicator_dir.is_dir():
-            continue
-        part_dir = indicator_dir / f"pjnz_name={pjnz_name}" / f"scenario_id={scenario_id}"
-        shutil.rmtree(part_dir, ignore_errors=True)
+    logger.debug("Wrote batch {} ({} scenario(s)) for pjnz={}", part_name, len(batch), pjnz_name)
 
 
 def consolidate_metadata(output_dir: Path) -> None:
@@ -132,7 +124,7 @@ def consolidate_metadata(output_dir: Path) -> None:
     schemas - a single root-level ``_metadata`` is not written.
 
     Must be called from a **single process** after all
-    :func:`write_scenario_results` calls have completed.
+    :func:`write_scenario_batch` calls have completed.
 
     Args:
         output_dir: Root of the partitioned dataset.
@@ -172,8 +164,10 @@ def _dim_field(spec: DimSpec) -> pa.Field:
     return pa.field(spec.name, pa.int16())
 
 
-def _indicator_schema(specs: tuple[DimSpec, ...]) -> pa.Schema:
+def _indicator_schema(specs: tuple[DimSpec, ...], *, with_scenario_id: bool = False) -> pa.Schema:
+    scenario_field = [pa.field(SCENARIO_ID_COLUMN, pa.utf8())] if with_scenario_id else []
     return pa.schema([
+        *scenario_field,
         *[_dim_field(s) for s in specs],
         pa.field("simulation", pa.int32()),
         pa.field("value", pa.float64()),
@@ -206,17 +200,21 @@ def _build_dim_array(spec: DimSpec, flat_index: np.ndarray) -> pa.Array:
 def _to_long_table(
     arrays: list[np.ndarray],
     specs: Sequence[str | DimSpec],
+    scenario_id: str | None = None,
 ) -> pa.Table:
     """Convert a list of per-simulation F-contiguous arrays to a long-format Arrow table.
 
-    Output columns are ``<dim columns…>, simulation, value`` where the first
-    dimension (e.g. age) varies fastest across rows.
+    Output columns are ``[scenario_id,] <dim columns…>, simulation, value`` where
+    the first dimension (e.g. age) varies fastest across rows.
 
     Args:
         arrays: One array per simulation, all with the same shape.  Arrays are
             expected to be F-contiguous float64.
         specs: One `DimSpec` (or plain string) per array dimension. A plain
             string is shorthand for ``DimSpec(name=string)``.
+        scenario_id: If given, a leading ``scenario_id`` column holding this
+            (constant) value is added. Kept constant per table so that each
+            appended row group carries tight ``scenario_id`` statistics.
 
     Raises:
         DimNamesMismatchError: If ``len(specs) != arrays[0].ndim``.
@@ -229,7 +227,7 @@ def _to_long_table(
         raise DimNamesMismatchError(len(specs), len(shape))
 
     specs = tuple(_coerce_spec(s) for s in specs)
-    schema = _indicator_schema(specs)
+    schema = _indicator_schema(specs, with_scenario_id=scenario_id is not None)
 
     # F-order ravel is zero-copy for F-contiguous leapfrog arrays.
     values = np.concatenate([arr.ravel(order="F") for arr in arrays])
@@ -240,6 +238,8 @@ def _to_long_table(
     )
 
     columns: dict[str, pa.Array] = {}
+    if scenario_id is not None:
+        columns[SCENARIO_ID_COLUMN] = pa.array([str(scenario_id)] * (n_sims * n_per_sim), type=pa.utf8())
     columns.update(_build_index_columns(shape, n_sims, specs))
     columns["simulation"] = sim_col
     columns["value"] = pa.array(values, type=pa.float64())
