@@ -57,7 +57,7 @@ def test_can_run_goals_scenario_end_to_end(tmp_path_factory, test_data):
 
     for indicator in _INDICATORS:
         for pjnz_name in _PJNZ_NAMES:
-            ## Each PJNZ writes one part file per chunk (default 1) holding every scenario
+            ## All scenarios fit in one batch (< default scenarios_per_file), so one part file
             pjnz_dir = out_dir / indicator / f"pjnz_name={pjnz_name}"
             part_files = sorted(pjnz_dir.glob("*.parquet"))
             assert [p.name for p in part_files] == ["part-0.parquet"]

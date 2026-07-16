@@ -1,5 +1,3 @@
-import contextlib
-import shutil
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -16,9 +14,9 @@ from avenir_goals_scenario._runner.indicator_dims import (
 )
 
 #: Column name holding the scenario identifier in the long-format output. It is
-#: written as a data column (constant per scenario, one row group per scenario)
-#: rather than a partition directory, so many scenarios can share one Parquet
-#: file while remaining efficiently filterable via row-group statistics.
+#: written as a data column rather than a partition directory, so many scenarios
+#: can share one Parquet file while remaining efficiently filterable via
+#: row-group statistics.
 SCENARIO_ID_COLUMN = "scenario_id"
 
 
@@ -45,94 +43,74 @@ def check_indicator_dims(
             raise UnknownIndicatorError(indicator, supported)
 
 
-class ScenarioChunkWriter:
-    """Streams many scenarios' results into one Parquet file per indicator.
+def write_scenario_batch(
+    output_dir: Path,
+    pjnz_name: str,
+    part_name: str,
+    batch: list[tuple[str, list[dict[str, np.ndarray]]]],
+    indicator_dims: IndicatorDims,
+) -> None:
+    """Write one batch of scenarios as a single Parquet file per indicator.
 
-    All scenarios in one ``(PJNZ, chunk)`` work unit share a single file per
-    indicator::
+    All scenarios in the batch share one file per indicator::
 
         {output_dir}/{indicator}/pjnz_name={pjnz_name}/{part_name}.parquet
 
-    Each scenario is appended as **one row group** (containing all of its
-    simulations) via a persistent :class:`pyarrow.parquet.ParquetWriter`, so
-    peak memory is one scenario in flight regardless of how many scenarios the
-    chunk holds, and only one file is created per indicator regardless of
-    scenario count. ``scenario_id`` is written as a data column (constant within
-    each row group), keeping per-scenario predicate pushdown precise.
+    Each scenario's simulations become long-format rows carrying a constant
+    ``scenario_id`` data column; the batch is concatenated and written in a
+    single :func:`pyarrow.parquet.write_table` call, so pyarrow sizes the row
+    groups itself (good compression) and the file is produced in one open →
+    write → close. Peak memory is one batch in flight.
 
-    When ``staging_dir`` is given, files are written there first and copied to
-    ``output_dir`` on :meth:`close`, so an object-store ``output_dir`` receives a
-    single upload per file rather than per-row-group flushes. When it is
-    ``None`` files are written directly under ``output_dir``.
+    If writing any indicator raises, every file written for this batch is deleted
+    before re-raising, so a failed batch leaves no partial output behind and the
+    caller can re-run it with ``--retry``.
 
     Does **not** write ``_metadata``; call :func:`consolidate_metadata` once from
-    a single process after all writers have closed.
+    a single process after all batches have been written.
+
+    Args:
+        output_dir: Root directory of the partitioned dataset.
+        pjnz_name: Stem of the source PJNZ file (the ``pjnz_name=`` partition).
+        part_name: Base file name for this batch (e.g. ``"part-0"``).
+        batch: List of ``(scenario_id, sim_output)`` pairs. Each ``sim_output``
+            is a list of per-simulation dicts sharing the same indicator keys.
+        indicator_dims: Mapping of indicator name to dimension specs.
+
+    Raises:
+        UnknownIndicatorError: If a produced indicator has no dimension specs.
     """
+    if not batch:
+        return
 
-    def __init__(
-        self,
-        output_dir: Path,
-        pjnz_name: str,
-        part_name: str,
-        indicator_dims: IndicatorDims,
-        staging_dir: Path | None = None,
-    ) -> None:
-        self._output_dir = output_dir
-        self._pjnz_name = pjnz_name
-        self._part_name = part_name
-        self._indicator_dims = indicator_dims
-        self._staging_dir = staging_dir
-        # indicator -> (writer, staged_path, final_path)
-        self._writers: dict[str, tuple[pq.ParquetWriter, Path, Path]] = {}
+    # Validate up front so an unknown indicator fails before anything is written.
+    indicators = list(batch[0][1][0])
+    specs = {}
+    for indicator in indicators:
+        raw_specs = indicator_dims.get(indicator)
+        if raw_specs is None:
+            raise UnknownIndicatorError(indicator, list(indicator_dims.keys()))
+        specs[indicator] = raw_specs
 
-    def _partition_dir(self, root: Path, indicator: str) -> Path:
-        return root / f"{indicator}" / f"pjnz_name={self._pjnz_name}"
+    written: list[Path] = []
+    try:
+        for indicator in indicators:
+            tables = [
+                _to_long_table([sim[indicator] for sim in sim_output], specs[indicator], scenario_id=scenario_id)
+                for scenario_id, sim_output in batch
+            ]
+            path = output_dir / f"{indicator}" / f"pjnz_name={pjnz_name}" / f"{part_name}.parquet"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            pq.write_table(pa.concat_tables(tables), path)
+            written.append(path)
+    except Exception:
+        # Discard any partial output so consolidate_metadata stays consistent and
+        # the whole batch can be regenerated on --retry.
+        for path in written:
+            path.unlink(missing_ok=True)
+        raise
 
-    def _open_writer(self, indicator: str, schema: pa.Schema) -> pq.ParquetWriter:
-        final_path = self._partition_dir(self._output_dir, indicator) / f"{self._part_name}.parquet"
-        write_root = self._staging_dir if self._staging_dir is not None else self._output_dir
-        staged_path = self._partition_dir(write_root, indicator) / f"{self._part_name}.parquet"
-        staged_path.parent.mkdir(parents=True, exist_ok=True)
-        writer = pq.ParquetWriter(staged_path, schema)
-        self._writers[indicator] = (writer, staged_path, final_path)
-        return writer
-
-    def write_scenario(self, scenario_id: str, sim_output: list[dict[str, np.ndarray]]) -> None:
-        """Append one scenario's simulations as a row group to each indicator file."""
-        for indicator in sim_output[0]:
-            arrays = [sim[indicator] for sim in sim_output]
-            raw_specs = self._indicator_dims.get(indicator)
-            if raw_specs is None:
-                raise UnknownIndicatorError(indicator, list(self._indicator_dims.keys()))
-            table = _to_long_table(arrays, raw_specs, scenario_id=scenario_id)
-
-            existing = self._writers.get(indicator)
-            writer = existing[0] if existing is not None else self._open_writer(indicator, table.schema)
-            writer.write_table(table)
-
-        logger.debug("Appended scenario={} pjnz={} to {}", scenario_id, self._pjnz_name, self._part_name)
-
-    def close(self) -> None:
-        """Finalise every file, copying from the staging dir if one is in use."""
-        for writer, staged_path, final_path in self._writers.values():
-            writer.close()
-            if staged_path != final_path:
-                final_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.move(str(staged_path), str(final_path))
-        self._writers.clear()
-
-    def abort(self) -> None:
-        """Close writers and delete any part files for this unit (best effort).
-
-        Used when a write fails mid-chunk: the file is potentially corrupt, so it
-        is removed and every scenario in the chunk is re-run on ``--retry``.
-        """
-        for writer, staged_path, final_path in self._writers.values():
-            with contextlib.suppress(Exception):  # already aborting; nothing useful to do
-                writer.close()
-            staged_path.unlink(missing_ok=True)
-            final_path.unlink(missing_ok=True)
-        self._writers.clear()
+    logger.debug("Wrote batch {} ({} scenario(s)) for pjnz={}", part_name, len(batch), pjnz_name)
 
 
 def consolidate_metadata(output_dir: Path) -> None:
@@ -146,7 +124,7 @@ def consolidate_metadata(output_dir: Path) -> None:
     schemas - a single root-level ``_metadata`` is not written.
 
     Must be called from a **single process** after all
-    :class:`ScenarioChunkWriter` instances have been closed.
+    :func:`write_scenario_batch` calls have completed.
 
     Args:
         output_dir: Root of the partitioned dataset.

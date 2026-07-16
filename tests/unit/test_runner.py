@@ -19,11 +19,11 @@ from avenir_goals_scenario._runner.simulation import _extract_indicators, run_si
 from avenir_goals_scenario._runner.utils import RunCallbacks, WorkUnitResult
 from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
 from avenir_goals_scenario.runner import (
-    _run_pjnz_chunk,
+    _batched,
+    _run_pjnz_batch,
     _run_scenario_analysis,
     _scenario_applies,
     _select_pjnz_files,
-    _split_contiguous,
     _warn_if_output_exists,
     run_scenario_analysis,
 )
@@ -384,21 +384,21 @@ def test_run_scenario_analysis_multiple_pjnz_creates_separate_partitions(tmp_pat
     assert (config.output_dir / "p_hivpop" / "pjnz_name=beta" / "part-0.parquet").exists()
 
 
-def test_run_scenario_analysis_chunks_produce_multiple_part_files(tmp_path):
+def test_run_scenario_analysis_batches_produce_multiple_part_files(tmp_path):
     pjnz_dir = tmp_path / "pjnz"
     pjnz_dir.mkdir()
     (pjnz_dir / "country.PJNZ").touch()
 
     simulations = _make_multi_scenario_simulations(["1", "2", "3", "4"], n_simulations=1)
     config = _make_run_config(tmp_path, pjnz_dir, indicators=["p_hivpop"])
-    config.n_scenario_chunks = 2
+    config.scenarios_per_file = 2  # 4 scenarios -> 2 files of 2
 
     with _integration_patches(_SIM_RESULT):
         run_scenario_analysis(config, simulations)
 
     part_dir = _pjnz_part_dir(config.output_dir, "country")
     assert {p.name for p in part_dir.glob("*.parquet")} == {"part-0.parquet", "part-1.parquet"}
-    # All scenarios are still written exactly once across the chunks.
+    # All scenarios are still written exactly once across the batches.
     assert _scenario_ids_written(config.output_dir, "country") == {"1", "2", "3", "4"}
 
 
@@ -434,7 +434,7 @@ def test_run_scenario_analysis_uses_pool_when_multiple_workers(tmp_path):
     )
 
     mock_pool_instance = MagicMock()
-    # imap_unordered yields one list of per-scenario results per (PJNZ, chunk) unit.
+    # imap_unordered yields one list of per-scenario results per (PJNZ, batch) unit.
     mock_pool_instance.imap_unordered.return_value = iter([[WorkUnitResult(pjnz="country", scenario_id="1", ok=True)]])
 
     with (
@@ -450,33 +450,32 @@ def test_run_scenario_analysis_uses_pool_when_multiple_workers(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# _split_contiguous
+# _batched
 # ---------------------------------------------------------------------------
 
 
-def test_split_contiguous_even():
-    assert _split_contiguous([1, 2, 3, 4], 2) == [[1, 2], [3, 4]]
+def test_batched_even():
+    assert _batched([1, 2, 3, 4], 2) == [[1, 2], [3, 4]]
 
 
-def test_split_contiguous_uneven_front_loaded():
-    assert _split_contiguous([1, 2, 3, 4, 5], 2) == [[1, 2, 3], [4, 5]]
+def test_batched_uneven_last_smaller():
+    assert _batched([1, 2, 3, 4, 5], 2) == [[1, 2], [3, 4], [5]]
 
 
-def test_split_contiguous_more_chunks_than_items():
-    # Never produces empty chunks; caps at len(items).
-    assert _split_contiguous([1, 2], 5) == [[1], [2]]
+def test_batched_size_larger_than_items():
+    assert _batched([1, 2], 5) == [[1, 2]]
 
 
-def test_split_contiguous_single_chunk():
-    assert _split_contiguous([1, 2, 3], 1) == [[1, 2, 3]]
+def test_batched_size_one():
+    assert _batched([1, 2, 3], 1) == [[1], [2], [3]]
 
 
 # ---------------------------------------------------------------------------
-# _run_pjnz_chunk - log_queue branch
+# _run_pjnz_batch - log_queue branch
 # ---------------------------------------------------------------------------
 
 
-def test_run_pjnz_chunk_configures_worker_logging_when_log_queue_provided(tmp_path):
+def test_run_pjnz_batch_configures_worker_logging_when_log_queue_provided(tmp_path):
     params = {"projection_end_year": 2024}
     params_path = str(tmp_path / "params.pkl")
     with open(params_path, "wb") as f:
@@ -492,11 +491,83 @@ def test_run_pjnz_chunk_configures_worker_logging_when_log_queue_provided(tmp_pa
     with (
         patch("avenir_goals_scenario._cli.cli_utils.configure_worker_logging") as mock_configure,
         patch("avenir_goals_scenario.runner.run_simulation", return_value={"PLHIV": np.ones(_N_YEARS)}),
-        patch("avenir_goals_scenario.runner.ScenarioChunkWriter"),
+        patch("avenir_goals_scenario.runner.write_scenario_batch"),
     ):
-        _run_pjnz_chunk(params_path, "country", [scenario], config, 2025, "part-0", log_queue)
+        _run_pjnz_batch(params_path, "country", [scenario], config, 2025, "part-0", log_queue)
 
     mock_configure.assert_called_once_with(log_queue)
+
+
+def _make_scenario(sid: str):
+    s = MagicMock()
+    s.simulations = [{}]
+    s.id = sid
+    s.interventions = []
+    return s
+
+
+def test_run_pjnz_batch_reports_each_scenario_before_batch_write(tmp_path):
+    params = {"projection_end_year": 2024}
+    params_path = str(tmp_path / "params.pkl")
+    with open(params_path, "wb") as f:
+        pickle.dump(params, f)
+
+    scenarios = [_make_scenario("1"), _make_scenario("2")]
+    config = _make_run_config(tmp_path, tmp_path, indicators=["PLHIV"])
+
+    events: list[tuple[str, bool]] = []
+    events_seen_at_write: list[int] = []
+
+    def fake_write(*_args, **_kwargs):
+        events_seen_at_write.append(len(events))
+
+    with (
+        patch("avenir_goals_scenario.runner.run_simulation", return_value={"PLHIV": np.ones(_N_YEARS)}),
+        patch("avenir_goals_scenario.runner.write_scenario_batch", side_effect=fake_write),
+    ):
+        _run_pjnz_batch(
+            params_path,
+            "country",
+            scenarios,
+            config,
+            2025,
+            "part-0",
+            progress=lambda stem, ok: events.append((stem, ok)),
+        )
+
+    # Each scenario reported as it finished, and all before the single batch write.
+    assert events == [("country", True), ("country", True)]
+    assert events_seen_at_write == [2]
+
+
+def test_run_pjnz_batch_reports_failed_scenario(tmp_path):
+    params = {"projection_end_year": 2024}
+    params_path = str(tmp_path / "params.pkl")
+    with open(params_path, "wb") as f:
+        pickle.dump(params, f)
+
+    scenarios = [_make_scenario("1"), _make_scenario("2")]
+    config = _make_run_config(tmp_path, tmp_path, indicators=["PLHIV"])
+    events: list[tuple[str, bool]] = []
+
+    with (
+        patch(
+            "avenir_goals_scenario.runner.run_simulation",
+            side_effect=[{"PLHIV": np.ones(_N_YEARS)}, RuntimeError("boom")],
+        ),
+        patch("avenir_goals_scenario.runner.write_scenario_batch"),
+    ):
+        _run_pjnz_batch(
+            params_path,
+            "country",
+            scenarios,
+            config,
+            2025,
+            "part-0",
+            progress=lambda stem, ok: events.append((stem, ok)),
+        )
+
+    assert events == [("country", True), ("country", False)]
 
 
 # ---------------------------------------------------------------------------
@@ -620,8 +691,8 @@ def test_run_continues_when_one_scenario_fails(tmp_path):
     ):
         result = run_scenario_analysis(config, simulations)
 
-    # Scenario 1 was written, scenario 2 (which failed) was skipped - both live in
-    # the same chunk file, so the failed scenario is simply absent, not a missing file.
+    # Scenario 1 was written, scenario 2 (which failed) was skipped - both belong to
+    # the same batch file, so the failed scenario is simply absent, not a missing file.
     assert _scenario_ids_written(config.output_dir, "country") == {"1"}
     assert [(f.pjnz, f.scenario_id) for f in result.failures] == [("country", "2")]
 

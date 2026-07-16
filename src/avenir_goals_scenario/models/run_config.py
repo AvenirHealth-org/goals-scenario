@@ -38,21 +38,14 @@ class RunConfig(BaseModel):
             sequentially, and any positive integer sets an explicit worker
             count. Zero is not valid. Uses 4 by default or the number of
             available CPUs if fewer than 4.
-        n_scenario_chunks (int): Number of independent write units each PJNZ's
-            scenarios are split into (default 1 = one unit per PJNZ). The run
-            parallelises over ``(PJNZ, chunk)`` units, so
-            ``n_pjnz * n_scenario_chunks`` controls how many cores can be used;
-            set it higher on large nodes (e.g. so units ~= core count). Each
-            chunk streams its scenarios into a single Parquet file per
-            indicator, so higher values mean more (still few) output files but
-            **no** extra memory - peak memory is one scenario in flight
-            regardless of chunk size.
-        staging_dir (Path | None): Optional node-local directory to stream part
-            files into before copying each finished file to ``output_dir`` on
-            close. Set this to fast local disk (e.g. ``/local_disk0/...`` on
-            Databricks) when ``output_dir`` is object storage, so each part file
-            is written with a single upload instead of per-row-group flushes.
-            ``None`` (default) writes directly to ``output_dir``.
+        scenarios_per_file (int): Number of scenarios written to each output
+            Parquet file, which is also the unit of parallel work (default 128).
+            The run parallelises over ``(PJNZ, batch)`` units, so the total unit
+            count is ``ceil(n_scenarios / scenarios_per_file) * n_pjnz`` — keep
+            it at least the core count or workers sit idle. A larger value means
+            bigger, better-compressed files and fewer of them, but more memory:
+            one batch is held in flight per worker, so peak memory is roughly
+            ``n_workers * scenarios_per_file * n_simulations * 3.5MB``.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -66,8 +59,7 @@ class RunConfig(BaseModel):
     n_simulations: int = 100
     seed: int | None = None
     n_workers: int = Field(default_factory=lambda: min(os.cpu_count() or 1, 4))
-    n_scenario_chunks: int = 1
-    staging_dir: Path | None = None
+    scenarios_per_file: int = 128
 
     @field_validator("n_workers")
     @classmethod
@@ -85,11 +77,11 @@ class RunConfig(BaseModel):
             raise ValueError(msg)
         return v
 
-    @field_validator("n_scenario_chunks")
+    @field_validator("scenarios_per_file")
     @classmethod
-    def _n_scenario_chunks_must_be_positive(cls, v: int) -> int:
+    def _scenarios_per_file_must_be_positive(cls, v: int) -> int:
         if v < 1:
-            msg = "n_scenario_chunks must be a positive integer"
+            msg = "scenarios_per_file must be a positive integer"
             raise ValueError(msg)
         return v
 

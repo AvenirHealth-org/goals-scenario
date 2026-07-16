@@ -106,7 +106,9 @@ def test_run_with_progress_exercises_all_callbacks():
     mock_paths = [_mock_pjnz_path("country")]
     mock_scenarios = _make_mock_simulations(1)
 
-    def fake_run(cfg, simulations, callbacks, log_queue=None, pjnz_files=None, selected_units=None):
+    def fake_run(
+        cfg, simulations, callbacks, log_queue=None, pjnz_files=None, selected_units=None, progress_queue=None
+    ):
         callbacks.on_pjnz_imported()
         callbacks.on_imports_complete()
         callbacks.on_scenario_complete("country")
@@ -144,16 +146,21 @@ def test_run_with_progress_with_multiple_workers_cleans_up():
     mock_queue = MagicMock()
     mock_manager.Queue.return_value = mock_queue
     mock_listener = MagicMock()
+    mock_progress_listener = MagicMock()
 
     with (
         patch("avenir_goals_scenario._cli.cli_utils._select_pjnz_files", return_value=mock_paths),
         patch("avenir_goals_scenario._cli.cli_utils.get_effective_workers", return_value=2),
         patch("avenir_goals_scenario._cli.cli_utils.Manager", return_value=mock_manager),
         patch("avenir_goals_scenario._cli.cli_utils._make_log_queue_listener", return_value=mock_listener),
+        patch("avenir_goals_scenario._cli.cli_utils._make_progress_listener", return_value=mock_progress_listener),
         patch("avenir_goals_scenario._cli.cli_utils._run_scenario_analysis"),
     ):
         run_with_progress(config, mock_scenarios)
 
+    # Both the log and progress listeners are signalled to stop and joined,
+    # and the manager is shut down.
     mock_queue.put.assert_called_with(_STOP)
     mock_listener.join.assert_called_once()
+    mock_progress_listener.join.assert_called_once()
     mock_manager.shutdown.assert_called_once()

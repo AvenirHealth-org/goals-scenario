@@ -6,10 +6,10 @@ import pytest
 from avenir_goals_scenario._runner.output import (
     DimNamesMismatchError,
     DimSpec,
-    ScenarioChunkWriter,
     UnknownIndicatorError,
     _to_long_table,
     consolidate_metadata,
+    write_scenario_batch,
 )
 
 # ---------------------------------------------------------------------------
@@ -188,7 +188,7 @@ def test_scenario_id_column_absent_by_default():
 
 
 # ---------------------------------------------------------------------------
-# ScenarioChunkWriter - streaming layout
+# write_scenario_batch - batched layout
 # ---------------------------------------------------------------------------
 
 _DIMS_2D = {
@@ -201,28 +201,24 @@ def _sim(indicators, shape=(3, 2)):
     return {ind: np.asfortranarray(np.ones(shape)) for ind in indicators}
 
 
-def test_chunk_writer_one_file_per_indicator(tmp_path):
-    writer = ScenarioChunkWriter(tmp_path, "Kenya", "part-0", _DIMS_2D)
-    writer.write_scenario("1", [_sim(["p_hivpop", "p_infections"])])
-    writer.write_scenario("2", [_sim(["p_hivpop", "p_infections"])])
-    writer.close()
+def _batch(scenario_ids, indicators, shape=(3, 2), n_sims=1):
+    """One (scenario_id, sim_output) entry per id, each with ``n_sims`` sims."""
+    return [(sid, [_sim(indicators, shape) for _ in range(n_sims)]) for sid in scenario_ids]
+
+
+def test_batch_writer_one_file_per_indicator(tmp_path):
+    write_scenario_batch(tmp_path, "Kenya", "part-0", _batch(["1", "2"], ["p_hivpop", "p_infections"]), _DIMS_2D)
 
     for indicator in ("p_hivpop", "p_infections"):
         part_dir = tmp_path / indicator / "pjnz_name=Kenya"
         assert [p.name for p in part_dir.glob("*.parquet")] == ["part-0.parquet"]
 
 
-def test_chunk_writer_scenarios_share_file_as_row_groups(tmp_path):
-    writer = ScenarioChunkWriter(tmp_path, "Kenya", "part-0", _DIMS_2D)
-    for sid in ("1", "2", "3"):
-        writer.write_scenario(sid, [_sim(["p_hivpop"])])
-    writer.close()
+def test_batch_writer_scenarios_share_one_file(tmp_path):
+    write_scenario_batch(tmp_path, "Kenya", "part-0", _batch(["1", "2", "3"], ["p_hivpop"]), _DIMS_2D)
 
     path = tmp_path / "p_hivpop" / "pjnz_name=Kenya" / "part-0.parquet"
-    pf = pq.ParquetFile(path)
-    # One row group per scenario keeps scenario_id predicate pushdown precise.
-    assert pf.num_row_groups == 3
-    table = pf.read()
+    table = pq.read_table(path)
     assert set(table.column("scenario_id").to_pylist()) == {"1", "2", "3"}
     assert [f for f in table.schema.names if f != "pjnz_name"] == [
         "scenario_id",
@@ -233,50 +229,47 @@ def test_chunk_writer_scenarios_share_file_as_row_groups(tmp_path):
     ]
 
 
-def test_chunk_writer_row_count(tmp_path):
+def test_batch_writer_row_count(tmp_path):
     n_sims = 3
     shape = (5, 2)
-    writer = ScenarioChunkWriter(tmp_path, "Zambia", "part-0", {"p_hivpop": (DimSpec("age"), DimSpec("sex"))})
-    writer.write_scenario("1", [{"p_hivpop": a} for a in _f(shape, n_sims)])
-    writer.close()
+    batch = [("1", [{"p_hivpop": a} for a in _f(shape, n_sims)]), ("2", [{"p_hivpop": a} for a in _f(shape, n_sims)])]
+    write_scenario_batch(tmp_path, "Zambia", "part-0", batch, {"p_hivpop": (DimSpec("age"), DimSpec("sex"))})
     table = pq.read_table(tmp_path / "p_hivpop" / "pjnz_name=Zambia" / "part-0.parquet")
-    assert len(table) == n_sims * shape[0] * shape[1]
+    # Two scenarios, each n_sims * shape rows.
+    assert len(table) == 2 * n_sims * shape[0] * shape[1]
 
 
-def test_chunk_writer_unknown_indicator_raises(tmp_path):
-    writer = ScenarioChunkWriter(tmp_path, "Zimbabwe", "part-0", {})
+def test_batch_writer_empty_batch_writes_nothing(tmp_path):
+    write_scenario_batch(tmp_path, "Kenya", "part-0", [], _DIMS_2D)
+    assert not any(tmp_path.rglob("*.parquet"))
+
+
+def test_batch_writer_unknown_indicator_raises(tmp_path):
     with pytest.raises(UnknownIndicatorError):
-        writer.write_scenario("1", [_sim(["p_hivpop"])])
+        write_scenario_batch(tmp_path, "Zimbabwe", "part-0", _batch(["1"], ["p_hivpop"]), {})
 
 
-def test_chunk_writer_staging_copies_to_output(tmp_path):
-    output_dir = tmp_path / "out"
-    staging_dir = tmp_path / "stage"
-    output_dir.mkdir()
-    writer = ScenarioChunkWriter(
-        output_dir, "Kenya", "part-0", {"p_hivpop": (DimSpec("age"), DimSpec("sex"))}, staging_dir=staging_dir
-    )
-    writer.write_scenario("1", [_sim(["p_hivpop"])])
-    writer.close()
-    final = output_dir / "p_hivpop" / "pjnz_name=Kenya" / "part-0.parquet"
-    assert final.exists()
-    # Staged copy has been moved, not left behind.
-    assert not (staging_dir / "p_hivpop" / "pjnz_name=Kenya" / "part-0.parquet").exists()
-
-
-def test_chunk_writer_abort_removes_part_file(tmp_path):
-    writer = ScenarioChunkWriter(tmp_path, "Kenya", "part-0", {"p_hivpop": (DimSpec("age"), DimSpec("sex"))})
-    writer.write_scenario("1", [_sim(["p_hivpop"])])
-    writer.abort()
-    assert not (tmp_path / "p_hivpop" / "pjnz_name=Kenya" / "part-0.parquet").exists()
+def test_batch_writer_failure_removes_partial_files(tmp_path):
+    # First indicator writes fine; the second has too few dim specs for its
+    # array, so _to_long_table raises after p_hivpop's file already exists.
+    bad_dims = {
+        "p_hivpop": (DimSpec("age"), DimSpec("sex")),
+        "p_infections": (DimSpec("age"),),  # array is 2-D -> mismatch
+    }
+    with pytest.raises(DimNamesMismatchError):
+        write_scenario_batch(tmp_path, "Kenya", "part-0", _batch(["1"], ["p_hivpop", "p_infections"]), bad_dims)
+    # No partial output left behind for either indicator.
+    assert not any(tmp_path.rglob("*.parquet"))
 
 
 def test_custom_part_name_for_retry(tmp_path):
-    writer = ScenarioChunkWriter(
-        tmp_path, "Kenya", "part-retry-abc123-0", {"p_hivpop": (DimSpec("age"), DimSpec("sex"))}
+    write_scenario_batch(
+        tmp_path,
+        "Kenya",
+        "part-retry-abc123-0",
+        _batch(["1"], ["p_hivpop"]),
+        {"p_hivpop": (DimSpec("age"), DimSpec("sex"))},
     )
-    writer.write_scenario("1", [_sim(["p_hivpop"])])
-    writer.close()
     assert (tmp_path / "p_hivpop" / "pjnz_name=Kenya" / "part-retry-abc123-0.parquet").exists()
 
 
@@ -299,9 +292,8 @@ def test_unknown_indicator_error_lists_all_when_no_close_match():
 
 def _write_indicator(tmp_path, shape):
     indicator_dims = {"p_hivpop": tuple(DimSpec(f"d{i}") for i in range(len(shape)))}
-    writer = ScenarioChunkWriter(tmp_path, "Kenya", "part-0", indicator_dims)
-    writer.write_scenario("1", [{"p_hivpop": np.asfortranarray(np.ones(shape))}])
-    writer.close()
+    batch = [("1", [{"p_hivpop": np.asfortranarray(np.ones(shape))}])]
+    write_scenario_batch(tmp_path, "Kenya", "part-0", batch, indicator_dims)
 
 
 def test_consolidate_metadata_writes_per_indicator(tmp_path):
