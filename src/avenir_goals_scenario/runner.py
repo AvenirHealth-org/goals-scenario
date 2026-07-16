@@ -1,8 +1,10 @@
+import copy
 import datetime
 import json
 import os
 import pickle
 import tempfile
+import uuid
 from multiprocessing import Pool
 from pathlib import Path
 from queue import Queue
@@ -11,10 +13,9 @@ from loguru import logger
 
 from avenir_goals_scenario._runner.indicator_dims import build_indicator_dims
 from avenir_goals_scenario._runner.output import (
+    ScenarioChunkWriter,
     check_indicator_dims,
     consolidate_metadata,
-    remove_scenario_partitions,
-    write_scenario_results,
 )
 from avenir_goals_scenario._runner.pjnz import (
     ART_ENTRY_INITIATION_RATE,
@@ -35,59 +36,86 @@ def _fmt_error(e: Exception) -> str:
     return str(e) or type(e).__name__
 
 
-def _run_pjnz_scenario(
+def _run_pjnz_chunk(
     params_path: str,
     pjnz_stem: str,
-    scenario: ScenarioSimulation,
+    scenarios: list[ScenarioSimulation],
     config: RunConfig,
     end_year: int,
+    part_name: str,
     log_queue=None,
-) -> WorkUnitResult:
-    """Run all simulations for one PJNZ/scenario combination and write results.
+) -> list[WorkUnitResult]:
+    """Run a chunk of scenarios for one PJNZ, streaming results to one file per indicator.
 
-    Per-unit failures are non-fatal: any exception while simulating or writing
-    is caught, logged, and returned as a failed :class:`WorkUnitResult` so the
-    overall run can continue with the remaining units.
+    The PJNZ params are loaded once and kept as a pristine template; each
+    scenario runs on a fresh ``deepcopy`` (``apply_simulation`` mutates in place,
+    so scenarios must not share a params dict — see the module tests). Each
+    scenario's simulations are appended as a single row group per indicator via
+    a :class:`ScenarioChunkWriter`, so peak memory is one scenario in flight.
+
+    Failure handling mirrors the previous per-scenario behaviour at scenario
+    granularity: a scenario whose *simulations* raise is skipped (not written)
+    and returned as a failed :class:`WorkUnitResult`; the rest of the chunk
+    continues. A failure while *writing* a row group is treated as fatal to the
+    whole chunk — the (possibly corrupt) part file is deleted and every scenario
+    in the chunk is returned as failed so ``--retry`` regenerates the file.
     """
     if log_queue is not None:
         from avenir_goals_scenario._cli.cli_utils import configure_worker_logging
 
         configure_worker_logging(log_queue)
 
+    with open(params_path, "rb") as f:
+        pristine = pickle.load(f)  # noqa: S301 - only loads data we saved ourselves
+
+    output_years = range(config.base_year, end_year + 1)
+    writer = ScenarioChunkWriter(
+        config.output_dir,
+        pjnz_stem,
+        part_name,
+        build_indicator_dims(config.base_year),
+        staging_dir=config.staging_dir,
+    )
+
+    results: list[WorkUnitResult] = []
     try:
-        with open(params_path, "rb") as f:
-            params = pickle.load(f)  # noqa: S301 - only loads data we saved ourselves
-
-        output_years = range(config.base_year, end_year + 1)
-
-        start = datetime.datetime.now()
-        simulations_out = [
-            run_simulation(params, scenario.interventions, simulation, config.output_indicators, output_years)
-            for simulation in scenario.simulations
-        ]
-        elapsed_ms = (datetime.datetime.now() - start).total_seconds() * 1000
-        logger.debug(
-            "Scenario run finished {} ({} simulation(s)) for {} in {}ms",
-            scenario.id,
-            len(scenario.simulations),
-            pjnz_stem,
-            elapsed_ms,
-        )
-        write_scenario_results(
-            scenario.id,
-            pjnz_stem,
-            simulations_out,
-            config.output_dir,
-            indicator_dims=build_indicator_dims(config.base_year),
-        )
+        for scenario in scenarios:
+            try:
+                # Reset to pristine params: apply_simulation mutates in place and
+                # different scenarios must not contaminate each other.
+                params = copy.deepcopy(pristine)
+                start = datetime.datetime.now()
+                simulations_out = [
+                    run_simulation(params, scenario.interventions, simulation, config.output_indicators, output_years)
+                    for simulation in scenario.simulations
+                ]
+                elapsed_ms = (datetime.datetime.now() - start).total_seconds() * 1000
+                logger.debug(
+                    "Scenario {} ({} simulation(s)) for {} finished in {}ms",
+                    scenario.id,
+                    len(scenario.simulations),
+                    pjnz_stem,
+                    elapsed_ms,
+                )
+            except Exception as e:
+                error = _fmt_error(e)
+                logger.warning("Scenario {} failed for {}: {}", scenario.id, pjnz_stem, error)
+                results.append(WorkUnitResult(pjnz=pjnz_stem, scenario_id=scenario.id, ok=False, error=error))
+                continue
+            # Write failures fall through to the outer handler (chunk-fatal).
+            writer.write_scenario(scenario.id, simulations_out)
+            results.append(WorkUnitResult(pjnz=pjnz_stem, scenario_id=scenario.id, ok=True))
+        writer.close()
     except Exception as e:
         error = _fmt_error(e)
-        logger.warning("Scenario {} failed for {}: {}", scenario.id, pjnz_stem, error)
-        # Drop any partial output so consolidate_metadata stays consistent.
-        remove_scenario_partitions(config.output_dir, pjnz_stem, scenario.id)
-        return WorkUnitResult(pjnz=pjnz_stem, scenario_id=scenario.id, ok=False, error=error)
+        logger.warning(
+            "Writing chunk {} for {} failed: {}; re-run affected scenarios with --retry", part_name, pjnz_stem, error
+        )
+        writer.abort()
+        # The part file is discarded, so every scenario in the chunk must re-run.
+        return [WorkUnitResult(pjnz=pjnz_stem, scenario_id=s.id, ok=False, error=error) for s in scenarios]
 
-    return WorkUnitResult(pjnz=pjnz_stem, scenario_id=scenario.id, ok=True)
+    return results
 
 
 def _scenarios_use_adult_art(simulations: ScenarioSimulations) -> bool:
@@ -232,7 +260,7 @@ def _run_scenario_analysis(
         config: Validated run configuration.
         simulations: Pre-drawn scenario simulations.
         callbacks: Hooks for progress reporting, can be no-op.
-        log_queue: Optional queue to pass to _run_pjnz_scenario when running
+        log_queue: Optional queue to pass to _run_pjnz_chunk when running
           in parallel so logs can be raised to the same console as progress
           bars when run via CLI.
         selected_units: Optional set of ``(pjnz_stem, scenario_id)`` pairs to
@@ -267,35 +295,36 @@ def _run_scenario_analysis(
             os.cpu_count(),
             config.n_workers,
         )
-        work_units = [
-            (params_paths[p], p.stem, s, end_years[p])
-            for p in pjnz_files
-            for s in simulations.scenarios
-            if _scenario_applies(s, p.stem, selected_units)
-        ]
+        # Supplemental part-file prefix so a --retry run appends new files
+        # (never rewrites existing ones): "part-0.parquet" on a normal run,
+        # "part-retry-<token>-0.parquet" per retry invocation.
+        part_prefix = "part" if selected_units is None else f"part-retry-{uuid.uuid4().hex[:8]}"
+        work_units = _build_work_units(
+            pjnz_files, params_paths, end_years, simulations, config.n_scenario_chunks, selected_units, part_prefix
+        )
+        n_scenario_units = sum(len(scenarios) for _, _, scenarios, _, _ in work_units)
         logger.info(
-            "Running {} work unit(s) ({} PJNZ file(s), {} scenario(s), n_workers={})",
+            "Running {} work unit(s) over {} scenario(s) ({} PJNZ file(s), {} chunk(s)/PJNZ, n_workers={})",
             len(work_units),
+            n_scenario_units,
             len(pjnz_files),
-            len(simulations.scenarios),
+            config.n_scenario_chunks,
             effective_workers,
         )
         logger.info("Running {} simulations per scenario", len(simulations.scenarios[0].simulations))
 
         if effective_workers == 1:
-            for params_path, pjnz_stem, scenario, end_year in work_units:
-                result = _run_pjnz_scenario(params_path, pjnz_stem, scenario, config, end_year)
-                results.append(result)
-                _report_unit(result, callbacks)
+            for params_path, pjnz_stem, scenarios, end_year, part_name in work_units:
+                chunk_results = _run_pjnz_chunk(params_path, pjnz_stem, scenarios, config, end_year, part_name)
+                _collect_chunk(chunk_results, results, callbacks)
         else:
             packed = [
-                (params_path, pjnz_stem, scenario, config, end_year, log_queue)
-                for params_path, pjnz_stem, scenario, end_year in work_units
+                (params_path, pjnz_stem, scenarios, config, end_year, part_name, log_queue)
+                for params_path, pjnz_stem, scenarios, end_year, part_name in work_units
             ]
             with Pool(processes=effective_workers) as pool:
-                for result in pool.imap_unordered(_run_pjnz_scenario_star, packed):
-                    results.append(result)
-                    _report_unit(result, callbacks)
+                for chunk_results in pool.imap_unordered(_run_pjnz_chunk_star, packed):
+                    _collect_chunk(chunk_results, results, callbacks)
 
     callbacks.on_run_complete()
 
@@ -305,6 +334,51 @@ def _run_scenario_analysis(
     consolidate_metadata(config.output_dir)
     logger.info("Done. Results written to {}", config.output_dir)
     return RunResult(output_dir=config.output_dir, failures=failures)
+
+
+def _split_contiguous(items: list, n_chunks: int) -> list[list]:
+    """Split *items* into at most *n_chunks* contiguous, near-equal, non-empty chunks."""
+    n_chunks = max(1, min(n_chunks, len(items)))
+    base, remainder = divmod(len(items), n_chunks)
+    chunks: list[list] = []
+    start = 0
+    for i in range(n_chunks):
+        size = base + (1 if i < remainder else 0)
+        chunks.append(items[start : start + size])
+        start += size
+    return [c for c in chunks if c]
+
+
+def _build_work_units(
+    pjnz_files: list[Path],
+    params_paths: dict[Path, str],
+    end_years: dict[Path, int],
+    simulations: ScenarioSimulations,
+    n_scenario_chunks: int,
+    selected_units: set[tuple[str, str]] | None,
+    part_prefix: str,
+) -> list[tuple[str, str, list[ScenarioSimulation], int, str]]:
+    """Build ``(params_path, pjnz_stem, scenarios, end_year, part_name)`` work units.
+
+    Each PJNZ's applicable scenarios are split into ``n_scenario_chunks``
+    contiguous chunks; each chunk is one unit that writes ``{part_prefix}-{i}``
+    files. Chunk index is per-PJNZ so file names are unique within a partition.
+    """
+    units: list[tuple[str, str, list[ScenarioSimulation], int, str]] = []
+    for p in pjnz_files:
+        applicable = [s for s in simulations.scenarios if _scenario_applies(s, p.stem, selected_units)]
+        if not applicable:
+            continue
+        for i, chunk in enumerate(_split_contiguous(applicable, n_scenario_chunks)):
+            units.append((params_paths[p], p.stem, chunk, end_years[p], f"{part_prefix}-{i}"))
+    return units
+
+
+def _collect_chunk(chunk_results: list[WorkUnitResult], results: list[WorkUnitResult], callbacks: RunCallbacks) -> None:
+    """Record a chunk's per-scenario results and advance progress for each."""
+    for result in chunk_results:
+        results.append(result)
+        _report_unit(result, callbacks)
 
 
 def _report_unit(result: WorkUnitResult, callbacks: RunCallbacks) -> None:
@@ -346,8 +420,8 @@ def _write_failures_manifest(output_dir: Path, failures: list[WorkUnitResult]) -
         json.dump(payload, fh, indent=2)
 
 
-def _run_pjnz_scenario_star(args):
-    return _run_pjnz_scenario(*args)  # pragma: no cover (used when running in parallel)
+def _run_pjnz_chunk_star(args):
+    return _run_pjnz_chunk(*args)  # pragma: no cover (used when running in parallel)
 
 
 def _warn_if_output_exists(output_dir: Path) -> None:

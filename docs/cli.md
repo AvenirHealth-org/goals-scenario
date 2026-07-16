@@ -53,6 +53,8 @@ Note you need to escape the `\` in windows-style file paths, so use `\\`. Altern
 | `n_simulations` | No | Number of draws per scenario (default: `100`) |
 | `seed` | No | Integer RNG seed for reproducible draws (default: `null` - random) |
 | `n_workers` | No | Parallel workers: `-1` for all CPUs, positive integer for explicit count (default: `4` or CPU count if fewer) |
+| `n_scenario_chunks` | No | Number of write units each PJNZ's scenarios are split into (default: `1`). The run parallelises over `(PJNZ, chunk)` units, so `n_pjnz × n_scenario_chunks` bounds core usage; raise it on large nodes. Higher values mean more (still few) output files but no extra memory. |
+| `staging_dir` | No | Node-local directory to stream part files into before copying each finished file to `output_dir` (default: `null` - write in place). Set to fast local disk when `output_dir` is object storage, so each part file is one upload. |
 
 \* At least one of `definition_path` or `scenario_path` must be supplied for `run`.
 Both are required for `draw`.
@@ -116,8 +118,12 @@ at that manifest:
 goals-scenario run config.json --retry path/to/output/failures.json
 ```
 
-Retries reuse the same draws, so the failed units reproduce exactly. Output partitions are
-overwritten in place, and on a fully successful (re-)run the stale `failures.json` is removed.
+Retries reuse the same draws, so the failed units reproduce exactly. A retry writes the
+recovered scenarios to new supplemental `part-retry-*.parquet` files alongside the originals
+(closed Parquet files are immutable, so nothing is rewritten); because the dataset is read as
+the union of all `part-*.parquet` files and failed scenarios were never written to the
+originals, there are no duplicate rows. On a fully successful (re-)run the stale
+`failures.json` is removed.
 
 | Exit code | Meaning |
 |---|---|
@@ -149,6 +155,42 @@ goals-scenario run config.json
 goals-scenario draw config.json   # writes draws to scenario_path
 goals-scenario run config.json    # reuses the same draws
 ```
+
+#### Performance tuning
+
+The run parallelises over **`(PJNZ, scenario-chunk)`** work units and streams each
+unit's scenarios into a single Parquet file per indicator (one row group per
+scenario). Three settings control throughput; none of them affect peak memory,
+which stays at roughly one scenario in flight per worker regardless of how many
+scenarios or chunks there are.
+
+- **`n_workers`** - parallel worker processes. Use `-1` to use every core.
+- **`n_scenario_chunks`** - how many independent write units each PJNZ is split
+  into. The total number of units is `n_pjnz × n_scenario_chunks`, and that is
+  what bounds core usage. **Set it so `n_pjnz × n_scenario_chunks` is at least
+  your core count**, otherwise cores sit idle. Raising it produces more (still
+  few) output files but costs no extra memory. Output file count is
+  `n_pjnz × n_scenario_chunks × n_indicators`.
+- **`staging_dir`** - when `output_dir` is object storage (S3/ADLS/DBFS), point
+  this at fast node-local disk (e.g. `/local_disk0/goals_staging`). Each part
+  file is then streamed locally and uploaded **once** on close, instead of
+  risking a network operation per row-group flush on a FUSE-mounted path. Leave
+  it unset when `output_dir` is already local disk. Ensure the local disk has
+  room for roughly `n_workers × (one chunk's data)` at peak; finished files are
+  moved to `output_dir`, so the staging area does not accumulate.
+
+Example - 4 PJNZ files:
+
+| Environment | `n_workers` | `n_scenario_chunks` | `staging_dir` |
+|---|---|---|---|
+| 6-core laptop, local output | `-1` | `2` (→ 8 units) | omit |
+| 32-core node, object-store output | `-1` | `8` (→ 32 units) | `/local_disk0/goals_staging` |
+
+Why it matters: writing one Parquet file per `(PJNZ, scenario)` produces tens or
+hundreds of thousands of tiny objects, and each object create on object storage
+is a rate-limited, replicated, network-committed transaction. Streaming into a
+handful of larger files replaces that with a handful of uploads, which is the
+single biggest lever on wall-clock time for large runs.
 
 ---
 
@@ -546,6 +588,28 @@ Pass it back to `run --retry` to re-run only those units.
 | `pjnz` | Stem of the PJNZ file whose scenario failed (no `.PJNZ`) |
 | `scenario_id` | Identifier of the scenario that failed for that PJNZ |
 | `error` | Short error message describing the failure |
+
+### Output data (Parquet)
+
+Results are written as a Hive-partitioned Parquet dataset, one directory per
+indicator:
+
+```
+{output_dir}/{indicator}/pjnz_name={pjnz}/part-{chunk}.parquet
+```
+
+- **`pjnz_name`** is a partition directory. **`scenario_id` is a data column**
+  (not a partition), so a partition may contain several `part-*.parquet` files
+  (one per chunk, plus `part-retry-*.parquet` from any `--retry` run). Readers
+  should treat a partition as the **union of all its `part-*.parquet` files** -
+  `arrow::open_dataset(<indicator dir>)` and
+  `read_parquet(..., hive_partitioning = true)` do this automatically.
+- Columns are `scenario_id`, the indicator's dimension columns, `simulation`
+  (int32), and `value` (float64). One row group is written per scenario, giving
+  precise `scenario_id` predicate pushdown via the `_metadata` statistics.
+- **`scenario_id` is stored as a string** (`"1"`, `"all_products"`, ...), because
+  scenario identifiers are not always numeric. Filter with
+  `scenario_id == "1"`, not `scenario_id == 1`.
 
 ## Global options
 

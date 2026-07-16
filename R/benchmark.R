@@ -10,8 +10,10 @@
 # No library() calls — all packages are qualified.
 #
 # Parquet layout:
-#   {output_dir}/p_hivpop/pjnz_name=X/scenario_id=X/part-0.parquet
-#   Data columns: sim (int32), age (int16), sex (dict "male"/"female"),
+#   {output_dir}/p_hivpop/pjnz_name=X/part-N.parquet
+#   pjnz_name is a hive partition; each part file holds many scenarios, one row
+#   group per scenario. Data columns: scenario_id (string), simulation (int32),
+#   age (int16), sex (dict "male"/"female"),
 #                 year (int16, actual calendar year), value (float64)
 #
 # HDF5 layout:
