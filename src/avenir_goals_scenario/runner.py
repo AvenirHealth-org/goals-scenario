@@ -5,6 +5,7 @@ import os
 import pickle
 import tempfile
 import uuid
+from collections.abc import Iterator
 from multiprocessing import Pool
 from pathlib import Path
 from queue import Queue
@@ -26,7 +27,7 @@ from avenir_goals_scenario._runner.pjnz import (
 from avenir_goals_scenario._runner.simulation import run_simulation
 from avenir_goals_scenario._runner.utils import RunCallbacks, RunResult, WorkUnitResult, get_effective_workers
 from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
-from avenir_goals_scenario.models.scenario_simulations import ScenarioSimulation
+from avenir_goals_scenario.models.scenario_simulations import ScenarioSimulation, TargetCoverage
 
 _FAILURES_FILENAME = "failures.json"
 
@@ -211,6 +212,57 @@ def _scenario_applies(scenario, pjnz_stem: str, selected: set[tuple[str, str]] |
     return selected is None or (pjnz_stem, scenario.id) in selected
 
 
+def _series_coverages(draw: dict) -> Iterator[list[float]]:
+    """Yield every per-year coverage array in one intervention's draw dict.
+
+    A ``list`` value is either the per-target coverages (a list of
+    :class:`TargetCoverage`, each of whose ``coverage`` may itself be a per-year
+    array) or a bare per-year array for a target-less product (AHD/POC/long-acting).
+    """
+    for value in draw.values():
+        if not isinstance(value, list) or not value:
+            continue
+        if isinstance(value[0], TargetCoverage):
+            for tc in value:
+                if isinstance(tc.coverage, list):
+                    yield tc.coverage
+        else:
+            yield value
+
+
+def _validate_series_lengths(
+    pjnz_files: list[Path],
+    end_years: dict[Path, int],
+    simulations: ScenarioSimulations,
+    base_year: int,
+    selected_units: set[tuple[str, str]] | None,
+) -> None:
+    """Check every per-year coverage array against each PJNZ's projection length.
+
+    A per-year coverage/initiation-rate array must carry one value per year from
+    ``base_year`` to the PJNZ's projection end year (inclusive). That end year is
+    only known once the PJNZ is imported, so this cannot be checked at config
+    parse time. Any mismatch raises, aborting the whole run before any scenario is
+    executed (a fatal config error, exit code 1).
+    """
+    for p in pjnz_files:
+        expected = end_years[p] - base_year + 1
+        for scenario in simulations.scenarios:
+            if not _scenario_applies(scenario, p.stem, selected_units):
+                continue
+            for simulation in scenario.simulations:
+                for iv_id, sim in simulation.items():
+                    for values in _series_coverages(sim.root):
+                        if len(values) != expected:
+                            msg = (
+                                f"Scenario {scenario.id!r} intervention {iv_id!r}: a per-year coverage array "
+                                f"has {len(values)} value(s), but PJNZ {p.stem!r} needs {expected} "
+                                f"(one per year from base_year {base_year} to projection end year "
+                                f"{end_years[p]} inclusive)."
+                            )
+                            raise ValueError(msg)
+
+
 def _select_pjnz_files(pjnz_dir: Path, simulations: ScenarioSimulations) -> list[Path]:
     """Return the PJNZ files that need to be loaded for this run.
 
@@ -299,6 +351,7 @@ def _run_scenario_analysis(
     warn_adult_art = _scenarios_use_adult_art(simulations)
     with tempfile.TemporaryDirectory() as tmp_dir:
         params_paths, end_years = _dump_pjnz_files(pjnz_files, tmp_dir, callbacks, warn_adult_art)
+        _validate_series_lengths(pjnz_files, end_years, simulations, config.base_year, selected_units)
 
         effective_workers = get_effective_workers(config)
         logger.info(

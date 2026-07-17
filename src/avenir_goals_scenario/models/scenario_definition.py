@@ -1,4 +1,4 @@
-from typing import Annotated, Any, Literal, Self
+from typing import Annotated, Any, Literal, Self, overload
 
 import numpy as np
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
@@ -34,24 +34,57 @@ _YEAR_MIN: int = 1970
 _PROPORTION_MIN: float = 0.0
 _PROPORTION_MAX: float = 1.0
 
+# A per-year coverage (or initiation-rate) trajectory: one proportion per year
+# from the run's ``base_year`` to the projection end year (inclusive). When a
+# coverage is given this way the value is passed through without drawing and
+# written directly into the leapfrog coverage array. The exact length depends on
+# each PJNZ's projection end year, so it is checked at run time (see the runner's
+# pre-flight validation), not here.
+CoverageSeries = Annotated[list[Annotated[float, Field(ge=0, le=1)]], Field(min_length=1)]
 
-def _apply_year_constraint(dist: NormalDistParameters) -> NormalDistParameters:
+# Either a distribution to draw from, or an explicit per-year trajectory.
+CoverageValue = NormalDistParameters | CoverageSeries
+
+
+def _apply_year_constraint(dist: NormalDistParameters | None) -> NormalDistParameters | None:
+    if dist is None:
+        return None
     return dist.model_copy(update={"integer": True, "min_value": _YEAR_MIN})
 
 
-def _apply_proportion_defaults(dist: NormalDistParameters) -> NormalDistParameters:
+@overload
+def _apply_proportion_defaults(cov: NormalDistParameters) -> NormalDistParameters: ...
+@overload
+def _apply_proportion_defaults(cov: CoverageValue) -> CoverageValue: ...
+def _apply_proportion_defaults(cov: CoverageValue) -> CoverageValue:
+    if not isinstance(cov, NormalDistParameters):
+        return cov  # per-year array: elements are bounded by the field annotation
     changes: dict[str, float] = {}
-    if dist.min_value is None:
+    if cov.min_value is None:
         changes["min_value"] = _PROPORTION_MIN
-    if dist.max_value is None:
+    if cov.max_value is None:
         changes["max_value"] = _PROPORTION_MAX
-    return dist.model_copy(update=changes) if changes else dist
+    return cov.model_copy(update=changes) if changes else cov
 
 
 def _apply_nonneg_default(dist: NormalDistParameters) -> NormalDistParameters:
     if dist.min_value is None:
         return dist.model_copy(update={"min_value": 0.0})
     return dist
+
+
+def _require_target_year(coverages: list[CoverageValue], target_year: NormalDistParameters | None) -> None:
+    """Enforce that ``target_year`` is present when any coverage is a distribution.
+
+    A distribution coverage is ramped from the base-year value to its target at
+    ``target_year``, so ``target_year`` is required. Per-year array coverages are
+    written verbatim and ignore ``target_year`` entirely, so when every coverage
+    is an array ``target_year`` is optional (and ignored if supplied).
+    """
+    has_distribution = any(isinstance(c, NormalDistParameters) for c in coverages)
+    if has_distribution and target_year is None:
+        msg = "'target_year' is required when any coverage is a distribution (a {mean, sd} object)."
+        raise ValueError(msg)
 
 
 # ---------------------------------------------------------------------------
@@ -75,7 +108,7 @@ class PrepTarget(BaseModel):
 
     risk_group: RiskGroupNames
     sex: SexName
-    target_coverage: NormalDistParameters
+    target_coverage: CoverageValue
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
@@ -97,7 +130,7 @@ class VaccineCureTarget(BaseModel):
 
     risk_group: RiskGroupAndPlhivNames
     sex: SexName | None = None
-    target_coverage: NormalDistParameters
+    target_coverage: CoverageValue
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
@@ -119,7 +152,7 @@ class AdultARTTarget(BaseModel):
     sex: SexName
     # ART entry is modelled as an annual initiation rate (the PJNZ must be in
     # "initiation rate" mode), bounded like a proportion between 0 and 1.
-    target_initiation_rate: NormalDistParameters
+    target_initiation_rate: CoverageValue
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
@@ -134,7 +167,7 @@ class CureNeonateTarget(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     risk_group: Literal["Neonates"]
-    target_coverage: NormalDistParameters
+    target_coverage: CoverageValue
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
@@ -161,7 +194,7 @@ class VMMTarget(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     risk_group: VMMPopulationNames
-    target_coverage: NormalDistParameters
+    target_coverage: CoverageValue
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
@@ -179,7 +212,7 @@ class PrepParameters(BaseModel):
 
     efficacy: NormalDistParameters
     adherence: NormalDistParameters
-    target_year: NormalDistParameters
+    target_year: NormalDistParameters | None = None
     # Product-specific: substitution applies only to "Oral PrEP plus contraceptive",
     # duration only to "Implantable PrEP" (enforced on PrepInterventionDef).
     substitution: NormalDistParameters | None = None
@@ -200,7 +233,7 @@ class PrepParameters(BaseModel):
 class VaccineParameters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    target_year: NormalDistParameters
+    target_year: NormalDistParameters | None = None
     reduction_in_susceptibility: NormalDistParameters
     reduction_in_infectiousness: NormalDistParameters
     increase_in_progression_time_to_aids: NormalDistParameters
@@ -228,7 +261,7 @@ class CureParameters(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    target_year: NormalDistParameters
+    target_year: NormalDistParameters | None = None
     efficacy: NormalDistParameters
     duration_of_cure: NormalDistParameters
 
@@ -248,7 +281,7 @@ class CureNeonateParameters(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    target_year: NormalDistParameters
+    target_year: NormalDistParameters | None = None
     effectiveness: NormalDistParameters
 
     @model_validator(mode="after")
@@ -261,7 +294,7 @@ class CureNeonateParameters(BaseModel):
 class VMMParameters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    target_year: NormalDistParameters
+    target_year: NormalDistParameters | None = None
     effectiveness: NormalDistParameters
 
     @model_validator(mode="after")
@@ -274,8 +307,8 @@ class VMMParameters(BaseModel):
 class AHDTreatmentParameters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    target_year: NormalDistParameters
-    target_coverage: NormalDistParameters
+    target_year: NormalDistParameters | None = None
+    target_coverage: CoverageValue
     reduction_in_mortality: NormalDistParameters
 
     @model_validator(mode="after")
@@ -289,8 +322,8 @@ class AHDTreatmentParameters(BaseModel):
 class POCTestParameters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    target_year: NormalDistParameters
-    target_coverage: NormalDistParameters
+    target_year: NormalDistParameters | None = None
+    target_coverage: CoverageValue
     effect: NormalDistParameters
 
     @model_validator(mode="after")
@@ -304,8 +337,8 @@ class POCTestParameters(BaseModel):
 class LongActingTreatmentParameters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    target_year: NormalDistParameters
-    target_coverage: NormalDistParameters
+    target_year: NormalDistParameters | None = None
+    target_coverage: CoverageValue
     interruption_rate_reduction: NormalDistParameters
     viral_load_suppression_ratio: NormalDistParameters
 
@@ -321,7 +354,7 @@ class LongActingTreatmentParameters(BaseModel):
 class AdultARTParameters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    target_year: NormalDistParameters
+    target_year: NormalDistParameters | None = None
 
     @model_validator(mode="after")
     def _apply_constraints(self) -> Self:
@@ -463,6 +496,32 @@ AnyInterventionDef = Annotated[
 # ---------------------------------------------------------------------------
 
 
+# Per-target coverage lives under one of these attributes (coverage for most
+# products, initiation rate for Adult ART).
+_COVERAGE_TARGET_ATTRS = ("target_coverage", "target_initiation_rate")
+
+
+def _intervention_coverages(iv: "AnyInterventionDef") -> list[CoverageValue]:
+    """Collect every coverage / initiation-rate value defined on *iv*.
+
+    Coverage lives per-target for products with a ``targets`` list, or on
+    ``parameters.target_coverage`` for the target-less products (AHD, POC,
+    long-acting).
+    """
+    targets = getattr(iv, "targets", None)
+    if targets is not None:
+        coverages: list[CoverageValue] = []
+        for t in targets:
+            for attr in _COVERAGE_TARGET_ATTRS:
+                val = getattr(t, attr, None)
+                if val is not None:
+                    coverages.append(val)
+                    break
+        return coverages
+    cov = getattr(iv.parameters, "target_coverage", None)
+    return [cov] if cov is not None else []
+
+
 def _intervention_keys(iv: "AnyInterventionDef") -> list[tuple]:
     """Return the uniqueness keys for *iv* used to detect duplicate interventions."""
     if isinstance(iv, (PrepInterventionDef, VaccineInterventionDef, CureInterventionDef)):
@@ -503,6 +562,12 @@ class SingleScenarioDef(BaseModel):
                         msg = f"Interventions within a scenario contain duplicate (product, risk_group, sex): {key[0]!r} / {key[1]!r} / {key[2]!r}."
                     raise ValueError(msg)
                 seen.add(key)
+        return self
+
+    @model_validator(mode="after")
+    def _validate_target_year(self) -> Self:
+        for iv in self.interventions:
+            _require_target_year(_intervention_coverages(iv), iv.parameters.target_year)
         return self
 
 

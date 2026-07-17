@@ -227,6 +227,21 @@ def _target_year_idx(lp: LeapfrogParams, draw: _Draw) -> int:
     return int(draw["target_year"]) - lp["projection_start_year"]
 
 
+# Sentinel year index used when a draw has no ``target_year`` — the case where
+# every coverage is a per-year array and so no ramp endpoint is needed.
+_NO_TARGET_YEAR = -1
+
+
+def _maybe_target_year_idx(lp: LeapfrogParams, draw: _Draw) -> int:
+    """``target_year`` index, or a sentinel when the draw omits ``target_year``.
+
+    ``target_year`` is dropped from a draw only when all of the intervention's
+    coverages are per-year arrays, which ignore it; the sentinel is never used to
+    build a ramp in that case.
+    """
+    return _target_year_idx(lp, draw) if "target_year" in draw else _NO_TARGET_YEAR
+
+
 def _base_year_idx(lp: LeapfrogParams, base_year: int) -> int:
     """Zero-based index of the scale-up start year, clamped to the projection start."""
     return max(0, int(base_year) - lp["projection_start_year"])
@@ -246,22 +261,62 @@ def _coverage_ramp(base_value: float, target: float, base_idx: int, target_idx: 
     return series
 
 
+def _apply_series(series: np.ndarray, base_idx: int, values: list[float]) -> None:
+    """Write an explicit per-year coverage trajectory into ``series[base_idx:]`` in place.
+
+    *values* is one value per year from the base year to the projection end year
+    (inclusive), so its length must equal ``series.size - base_idx``. The runner
+    validates this up front against each PJNZ before any scenario runs; the check
+    here is a defensive backstop.
+    """
+    if base_idx >= series.size:
+        return
+    expected = series.size - base_idx
+    if len(values) != expected:
+        msg = (
+            f"Per-year coverage array has {len(values)} value(s) but the projection needs "
+            f"{expected} (one per year from the base year to the projection end year)."
+        )
+        raise ValueError(msg)
+    series[base_idx:] = np.asarray(values, dtype=series.dtype)
+
+
+def _prep_series_from_array(values: list[float], base_idx: int, n_years: int) -> np.ndarray:
+    """Per-year PrEP coverage series over ``[base_idx, n_years)`` from an explicit array.
+
+    Mirrors the length contract of :func:`_coverage_ramp` so array and ramped
+    products compose in the same per-``(sex, rg)`` sum.
+    """
+    expected = max(n_years - base_idx, 0)
+    if len(values) != expected:
+        msg = (
+            f"Per-year coverage array has {len(values)} value(s) but the projection needs "
+            f"{expected} (one per year from the base year to the projection end year)."
+        )
+        raise ValueError(msg)
+    return np.asarray(values, dtype=float)
+
+
 def _ramp_to_target(
     series: np.ndarray,
     base_idx: int,
     target_idx: int,
-    target: float,
+    target: float | list[float],
     base_value: float | None = None,
 ) -> None:
-    """Write a linear coverage scale-up into the per-year array *series* in place.
+    """Write a coverage scale-up into the per-year array *series* in place.
 
-    Coverage runs linearly from the base-year value (the existing value at
-    *base_idx*, unless *base_value* overrides it) to *target* at *target_idx*,
-    then stays at *target* to the end of the projection. Interpolates downwards
-    when the base-year value exceeds the target. Years before *base_idx* are
-    left untouched.
+    If *target* is a per-year array it is written verbatim into ``series[base_idx:]``
+    and *target_idx* is ignored. Otherwise coverage runs linearly from the
+    base-year value (the existing value at *base_idx*, unless *base_value*
+    overrides it) to *target* at *target_idx*, then stays at *target* to the end of
+    the projection. Interpolates downwards when the base-year value exceeds the
+    target. Years before *base_idx* are left untouched.
     """
     if base_idx >= series.size:
+        return
+    if isinstance(target, list):
+        _apply_series(series, base_idx, target)
         return
     if base_value is None:
         base_value = float(series[base_idx])
@@ -271,6 +326,18 @@ def _ramp_to_target(
 # ---------------------------------------------------------------------------
 # Per-intervention application functions
 # ---------------------------------------------------------------------------
+
+
+def _apply_prep_effectiveness(lp: LeapfrogParams, method_offset: int, draw: dict) -> None:
+    """Write a PrEP product's effectiveness parameters into ``prep_effectiveness``."""
+    lp["prep_effectiveness"][method_offset, RN_Effectiveness] = draw["efficacy"]
+    lp["prep_effectiveness"][method_offset, RN_Adherence] = draw["adherence"]
+    # Product-specific parameters; validation guarantees these are only set for the
+    # correct product (substitution: oral+contraceptive, duration: implant).
+    if draw.get("substitution") is not None:
+        lp["prep_effectiveness"][method_offset, RN_Substitution] = draw["substitution"]
+    if draw.get("duration") is not None:
+        lp["prep_effectiveness"][method_offset, RN_Duration] = draw["duration"]
 
 
 def _apply_all_prep(
@@ -289,33 +356,36 @@ def _apply_all_prep(
     base_idx = _base_year_idx(lp, base_year)
     n_years = lp["prep_cov"].shape[2]
 
-    # (sex_idx, rg_idx, method_offset) → summed target coverage
-    targets: dict[tuple[int, int, int], float] = {}
+    # (sex_idx, rg_idx, method_offset) → target coverage (a scalar to ramp toward,
+    # or an explicit per-year array). Keys are unique across products (method_offset
+    # is per-product; a product cannot have duplicate risk_group/sex targets), so
+    # each is written once rather than summed.
+    targets: dict[tuple[int, int, int], float | list[float]] = {}
+    # Only set for products with at least one distribution coverage; array-only
+    # products carry no target_year.
     target_idx_by_method: dict[int, int] = {}
 
     for iv_id, draw in prep_draws:
         method_offset = _interv_map[iv_id] - RN_PrEPOralDaily
-        target_idx_by_method[method_offset] = int(draw["target_year"]) - lp["projection_start_year"]
-        lp["prep_effectiveness"][method_offset, RN_Effectiveness] = draw["efficacy"]
-        lp["prep_effectiveness"][method_offset, RN_Adherence] = draw["adherence"]
-        # Product-specific parameters; validation guarantees these are only set
-        # for the correct product (substitution: oral+contraceptive, duration: implant).
-        if draw.get("substitution") is not None:
-            lp["prep_effectiveness"][method_offset, RN_Substitution] = draw["substitution"]
-        if draw.get("duration") is not None:
-            lp["prep_effectiveness"][method_offset, RN_Duration] = draw["duration"]
+        if "target_year" in draw:
+            target_idx_by_method[method_offset] = int(draw["target_year"]) - lp["projection_start_year"]
+        _apply_prep_effectiveness(lp, method_offset, draw)
         for tc in draw["target_coverages"]:
             key = (
                 _sex_idx(cast(SexName, tc.sex)),
                 _risk_group_idx(cast(RiskGroupNames, tc.risk_group)),
                 method_offset,
             )
-            targets[key] = targets.get(key, 0.0) + tc.coverage
+            targets[key] = tc.coverage
 
-    # Per-method scale-up series over [base_idx, n_years). The base-year value of
-    # each method is its share of total base-year coverage per the method mix.
+    # Per-method scale-up series over [base_idx, n_years). For a distribution the
+    # base-year value of each method is its share of total base-year coverage per
+    # the method mix; a per-year array is used verbatim.
     series_by_method: dict[tuple[int, int, int], np.ndarray] = {}
     for (sex_idx, rg_idx, method_offset), target_cov in targets.items():
+        if isinstance(target_cov, list):
+            series_by_method[(sex_idx, rg_idx, method_offset)] = _prep_series_from_array(target_cov, base_idx, n_years)
+            continue
         base_value = float(
             lp["prep_cov"][sex_idx, rg_idx, base_idx] * lp["prep_method_mix"][sex_idx, rg_idx, method_offset, base_idx]
         )
@@ -342,7 +412,7 @@ def _apply_all_prep(
 
 def _apply_vaccine(lp: LeapfrogParams, draw: _VaccineDraw, base_year: int) -> None:
     base_idx = _base_year_idx(lp, base_year)
-    target_idx = _target_year_idx(lp, draw)
+    target_idx = _maybe_target_year_idx(lp, draw)
     for tc in draw["target_coverages"]:
         if tc.risk_group == "PLHIV":
             lp["rn_vac_cov_type"] = RN_Single
@@ -399,7 +469,7 @@ def _apply_vaccine(lp: LeapfrogParams, draw: _VaccineDraw, base_year: int) -> No
 
 def _apply_cure(lp: LeapfrogParams, draw: _CureDraw, base_year: int) -> None:
     base_idx = _base_year_idx(lp, base_year)
-    target_idx = _target_year_idx(lp, draw)
+    target_idx = _maybe_target_year_idx(lp, draw)
     for tc in draw["target_coverages"]:
         if tc.risk_group == "PLHIV":
             lp["rn_cure_coverage_type"] = RN_Single
@@ -429,7 +499,7 @@ def _apply_cure(lp: LeapfrogParams, draw: _CureDraw, base_year: int) -> None:
 
 def _apply_cure_neonates(lp: LeapfrogParams, draw: _CureNeonateDraw, base_year: int) -> None:
     base_idx = _base_year_idx(lp, base_year)
-    target_idx = _target_year_idx(lp, draw)
+    target_idx = _maybe_target_year_idx(lp, draw)
     # Neonates are the only population; coverage is a single value by year.
     for tc in draw["target_coverages"]:
         _ramp_to_target(lp["rn_cure_coverage_neonates"], base_idx, target_idx, tc.coverage)
@@ -438,7 +508,7 @@ def _apply_cure_neonates(lp: LeapfrogParams, draw: _CureNeonateDraw, base_year: 
 
 def _apply_vmm(lp: LeapfrogParams, draw: _VMMDraw, base_year: int) -> None:
     base_idx = _base_year_idx(lp, base_year)
-    target_idx = _target_year_idx(lp, draw)
+    target_idx = _maybe_target_year_idx(lp, draw)
     for tc in draw["target_coverages"]:
         if tc.risk_group == "Percent of women treated":
             lp["rn_vmm_coverage_type"] = _VMM_COV_ALLRISK
@@ -453,7 +523,7 @@ def _apply_vmm(lp: LeapfrogParams, draw: _VMMDraw, base_year: int) -> None:
 
 def _apply_ahd(lp: LeapfrogParams, draw: _AHDTreatmentDraw, base_year: int) -> None:
     base_idx = _base_year_idx(lp, base_year)
-    target_idx = _target_year_idx(lp, draw)
+    target_idx = _maybe_target_year_idx(lp, draw)
     _ramp_to_target(lp["rn_ahd_treat_cov"], base_idx, target_idx, draw["target_coverage"])
     lp["rn_ahd_treat_reduc_mort"] = draw["reduction_in_mortality"]
 
@@ -465,7 +535,7 @@ def _apply_adult_art(lp: LeapfrogParams, draw: _AdultARTDraw, base_year: int) ->
     if not uses_art_initiation_rate(lp):
         return
     base_idx = _base_year_idx(lp, base_year)
-    target_idx = _target_year_idx(lp, draw)
+    target_idx = _maybe_target_year_idx(lp, draw)
     for tc in draw["target_coverages"]:
         if tc.sex == "Both":
             sex_indices = [0, 1]
@@ -481,7 +551,7 @@ def _apply_adult_art(lp: LeapfrogParams, draw: _AdultARTDraw, base_year: int) ->
 
 def _apply_long_acting_treatment(lp: LeapfrogParams, draw: _LongActingTreatmentDraw, base_year: int) -> None:
     base_idx = _base_year_idx(lp, base_year)
-    target_idx = _target_year_idx(lp, draw)
+    target_idx = _maybe_target_year_idx(lp, draw)
 
     _ramp_to_target(lp["long_act_treat_cov"], base_idx, target_idx, draw["target_coverage"])
     lp["long_act_treat_eff_vls"] = draw["viral_load_suppression_ratio"]
@@ -491,7 +561,7 @@ def _apply_long_acting_treatment(lp: LeapfrogParams, draw: _LongActingTreatmentD
 def _apply_poc(lp: LeapfrogParams, poc_type: int, draw: _POCTestDraw, base_year: int) -> None:
     """Apply point-of-care test coverage. *poc_type* is ``RN_POC_CD4_Int`` or ``RN_POC_VL_Int``."""
     base_idx = _base_year_idx(lp, base_year)
-    target_idx = _target_year_idx(lp, draw)
+    target_idx = _maybe_target_year_idx(lp, draw)
     rn_poc = RN_POC_CD4 if poc_type == RN_POC_CD4_Int else RN_POC_VL
     _ramp_to_target(lp["rn_poc_cov"][rn_poc], base_idx, target_idx, draw["target_coverage"])
     lp["rn_poc_effect"][rn_poc] = draw["effect"]

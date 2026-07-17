@@ -242,6 +242,39 @@ writes the resulting draws to the scenario draws JSON.
 Each intervention is discriminated by its `product` field. The valid products and their
 required fields are listed below.
 
+#### Per-year coverage arrays
+
+Anywhere a `target_coverage` or `target_initiation_rate` distribution is accepted, you
+may instead supply an **explicit per-year array** of values, e.g.
+`"target_coverage": [0.80, 0.81, 0.82, ...]`. Each element is a proportion in `0–1`.
+
+- The array holds **one value per year from `base_year` (from the config) to the
+  projection's final year inclusive**, so its length must be
+  `projection_end_year - base_year + 1`. The projection end year comes from each
+  PJNZ file, so the length is checked when the run starts (right after the PJNZ
+  files are imported). A wrong length aborts the whole run with a message naming
+  the scenario, intervention, PJNZ, and the expected length.
+- Array values are **passed straight through** — the `draw` command does no
+  sampling for them, so every simulation carries the same trajectory. The values
+  are written directly into the model's yearly coverage array, bypassing the
+  linear base-year→`target_year` ramp used for distributions.
+- `target_year` is only used to ramp *distribution* coverages. When **every**
+  coverage in an intervention is an array, `target_year` is not needed and may be
+  omitted; if supplied it is ignored. When an intervention **mixes** array and
+  distribution coverages across its targets, `target_year` is still required and
+  applies only to the distribution targets.
+
+```json
+{
+  "product": "Adult ART",
+  "targets": [
+    {"sex": "Female", "target_initiation_rate": [0.80, 0.82, 0.84, 0.85, 0.85]},
+    {"sex": "Male",   "target_initiation_rate": [0.78, 0.80, 0.82, 0.83, 0.83]}
+  ],
+  "parameters": {}
+}
+```
+
 ---
 
 ##### PrEP interventions
@@ -576,6 +609,9 @@ The draws file produced by `draw` (or saved automatically by `run`) has this str
 
 Each entry in `simulations` maps intervention slug → sampled parameter values for one
 draw. Categorical parameters (e.g. `vaccine_action_type`) are passed through unchanged.
+A coverage supplied as a [per-year array](#per-year-coverage-arrays) appears verbatim in
+place of the sampled scalar (as the `coverage` value, or as `target_coverage` for
+target-less products), identical across every simulation.
 
 ### Failures manifest JSON
 
