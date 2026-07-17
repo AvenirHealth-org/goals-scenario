@@ -65,10 +65,13 @@ def _sample_target_coverages(iv, rng: np.random.Generator) -> dict:
         attr = next((a for a in _TARGET_VALUE_ATTRS if hasattr(target, a)), None)
         if attr is None:
             continue
+        value = getattr(target, attr)
+        # A per-year trajectory is passed through unchanged; a distribution is sampled.
+        coverage = list(value) if isinstance(value, list) else value.sample(rng)
         coverages.append({
             "sex": getattr(target, "sex", None),
             "risk_group": getattr(target, "risk_group", None),
-            "coverage": getattr(target, attr).sample(rng),
+            "coverage": coverage,
         })
     return {"target_coverages": coverages} if coverages else {}
 

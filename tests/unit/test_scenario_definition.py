@@ -165,6 +165,7 @@ def test_vaccine_cure_target_risk_group_both_is_valid():
 
 def test_vaccine_cure_target_coverage_gets_proportion_bounds():
     t = VaccineCureTarget(risk_group="PLHIV", sex="Both", target_coverage=NormalDistParameters(mean=0.5, sd=0.1))
+    assert isinstance(t.target_coverage, NormalDistParameters)
     assert t.target_coverage.min_value == 0.0
     assert t.target_coverage.max_value == 1.0
 
@@ -180,6 +181,7 @@ def test_cure_parameters_applies_constraints():
         efficacy=NormalDistParameters(mean=0.8, sd=0.1),
         duration_of_cure=NormalDistParameters(mean=5.0, sd=1.0),
     )
+    assert params.target_year is not None
     assert params.target_year.integer is True
     assert params.target_year.min_value == 1970
     assert params.efficacy.min_value == 0.0
@@ -196,6 +198,7 @@ def test_cure_neonate_parameters_applies_constraints():
         target_year=NormalDistParameters(mean=2032, sd=3),
         effectiveness=NormalDistParameters(mean=0.6, sd=0.1),
     )
+    assert params.target_year is not None
     assert params.target_year.integer is True
     assert params.target_year.min_value == 1970
     assert params.effectiveness.min_value == 0.0
@@ -204,6 +207,7 @@ def test_cure_neonate_parameters_applies_constraints():
 
 def test_cure_neonate_target_coverage_gets_proportion_bounds():
     target = CureNeonateTarget(risk_group="Neonates", target_coverage=NormalDistParameters(mean=0.4, sd=0.05))
+    assert isinstance(target.target_coverage, NormalDistParameters)
     assert target.target_coverage.min_value == 0.0
     assert target.target_coverage.max_value == 1.0
 
@@ -213,6 +217,7 @@ def test_vmm_parameters_applies_constraints():
         target_year=NormalDistParameters(mean=2030, sd=2),
         effectiveness=NormalDistParameters(mean=0.3, sd=0.05),
     )
+    assert params.target_year is not None
     assert params.target_year.integer is True
     assert params.target_year.min_value == 1970
     assert params.effectiveness.min_value == 0.0
@@ -262,6 +267,8 @@ def test_poc_test_parameters_applies_constraints():
         target_coverage=NormalDistParameters(mean=0.1, sd=0.05),
         effect=NormalDistParameters(mean=0.8, sd=0.1),
     )
+    assert params.target_year is not None
+    assert isinstance(params.target_coverage, NormalDistParameters)
     assert params.target_year.integer is True
     assert params.target_year.min_value == 1970
     assert params.target_coverage.min_value == 0.0
@@ -282,6 +289,8 @@ def test_lat_parameters_applies_proportion_defaults():
         interruption_rate_reduction=NormalDistParameters(mean=0.95, sd=0.02),
         viral_load_suppression_ratio=NormalDistParameters(mean=0.99, sd=0.01),
     )
+    assert params.target_year is not None
+    assert isinstance(params.target_coverage, NormalDistParameters)
     assert params.target_year.integer is True
     assert params.target_year.min_value == 1970
     assert params.target_coverage.min_value == 0.0
@@ -314,12 +323,14 @@ def test_adult_art_target_both_is_valid():
 
 def test_adult_art_target_initiation_rate_gets_proportion_bounds():
     t = AdultARTTarget(sex="Male", target_initiation_rate=NormalDistParameters(mean=0.7, sd=0.05))
+    assert isinstance(t.target_initiation_rate, NormalDistParameters)
     assert t.target_initiation_rate.min_value == 0.0
     assert t.target_initiation_rate.max_value == 1.0
 
 
 def test_adult_art_target_initiation_rate_preserves_custom_min():
     t = AdultARTTarget(sex="Male", target_initiation_rate=NormalDistParameters(mean=0.7, sd=0.05, min_value=0.3))
+    assert isinstance(t.target_initiation_rate, NormalDistParameters)
     assert t.target_initiation_rate.min_value == 0.3
     assert t.target_initiation_rate.max_value == 1.0
 
@@ -333,6 +344,7 @@ def test_adult_art_parameters_applies_constraints():
     params = AdultARTParameters(
         target_year=NormalDistParameters(mean=2030, sd=2),
     )
+    assert params.target_year is not None
     assert params.target_year.integer is True
     assert params.target_year.min_value == 1970
 
