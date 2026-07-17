@@ -133,11 +133,13 @@ def test_sample_returns_float_when_not_integer():
 
 def test_target_year_gets_integer_flag():
     iv = PrepInterventionDef.model_validate(PREP_PILL_INTERVENTION)
+    assert iv.parameters.target_year is not None
     assert iv.parameters.target_year.integer is True
 
 
 def test_target_year_gets_min_value():
     iv = PrepInterventionDef.model_validate(PREP_PILL_INTERVENTION)
+    assert iv.parameters.target_year is not None
     assert iv.parameters.target_year.min_value == 1970.0
 
 
@@ -150,6 +152,7 @@ def test_proportion_params_get_bounds():
 def test_target_coverage_in_target_gets_bounds():
     iv = PrepInterventionDef.model_validate(PREP_PILL_INTERVENTION)
     for target in iv.targets:
+        assert isinstance(target.target_coverage, NormalDistParameters)
         assert target.target_coverage.min_value == 0.0
         assert target.target_coverage.max_value == 1.0
 
@@ -614,6 +617,7 @@ def test_load_proportion_params_have_0_1_bounds(tmp_path):
         assert dist.min_value == 0.0, f"{param_name}.min_value"
         assert dist.max_value == 1.0, f"{param_name}.max_value"
     for target in iv.targets:
+        assert isinstance(target.target_coverage, NormalDistParameters)
         assert target.target_coverage.min_value == 0.0
         assert target.target_coverage.max_value == 1.0
 

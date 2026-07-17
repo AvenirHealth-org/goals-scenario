@@ -1,4 +1,4 @@
-from typing import Annotated, Any, Literal, Self, overload
+from typing import Annotated, Any, Literal, Self
 
 import numpy as np
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
@@ -52,19 +52,25 @@ def _apply_year_constraint(dist: NormalDistParameters | None) -> NormalDistParam
     return dist.model_copy(update={"integer": True, "min_value": _YEAR_MIN})
 
 
-@overload
-def _apply_proportion_defaults(cov: NormalDistParameters) -> NormalDistParameters: ...
-@overload
-def _apply_proportion_defaults(cov: CoverageValue) -> CoverageValue: ...
-def _apply_proportion_defaults(cov: CoverageValue) -> CoverageValue:
-    if not isinstance(cov, NormalDistParameters):
-        return cov  # per-year array: elements are bounded by the field annotation
+def _apply_proportion_defaults(dist: NormalDistParameters) -> NormalDistParameters:
+    """Default an unbounded proportion distribution to the [0, 1] range."""
     changes: dict[str, float] = {}
-    if cov.min_value is None:
+    if dist.min_value is None:
         changes["min_value"] = _PROPORTION_MIN
-    if cov.max_value is None:
+    if dist.max_value is None:
         changes["max_value"] = _PROPORTION_MAX
-    return cov.model_copy(update=changes) if changes else cov
+    return dist.model_copy(update=changes) if changes else dist
+
+
+def _apply_coverage_defaults(cov: CoverageValue) -> CoverageValue:
+    """Apply proportion defaults to a coverage that is a distribution.
+
+    A per-year array is returned unchanged; its elements are already bounded to
+    [0, 1] by the :data:`CoverageSeries` field annotation.
+    """
+    if isinstance(cov, NormalDistParameters):
+        return _apply_proportion_defaults(cov)
+    return cov
 
 
 def _apply_nonneg_default(dist: NormalDistParameters) -> NormalDistParameters:
@@ -115,7 +121,7 @@ class PrepTarget(BaseModel):
         if self.risk_group == "Men who have sex with men" and self.sex == "Female":
             msg = "Risk group 'Men who have sex with men' cannot have sex='Female'."
             raise ValueError(msg)
-        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
+        self.target_coverage = _apply_coverage_defaults(self.target_coverage)
         return self
 
 
@@ -142,7 +148,7 @@ class VaccineCureTarget(BaseModel):
             if self.risk_group == "Men who have sex with men" and self.sex == "Female":
                 msg = "Risk group 'Men who have sex with men' cannot have sex='Female'."
                 raise ValueError(msg)
-        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
+        self.target_coverage = _apply_coverage_defaults(self.target_coverage)
         return self
 
 
@@ -156,7 +162,7 @@ class AdultARTTarget(BaseModel):
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
-        self.target_initiation_rate = _apply_proportion_defaults(self.target_initiation_rate)
+        self.target_initiation_rate = _apply_coverage_defaults(self.target_initiation_rate)
         return self
 
 
@@ -171,7 +177,7 @@ class CureNeonateTarget(BaseModel):
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
-        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
+        self.target_coverage = _apply_coverage_defaults(self.target_coverage)
         return self
 
 
@@ -198,7 +204,7 @@ class VMMTarget(BaseModel):
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
-        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
+        self.target_coverage = _apply_coverage_defaults(self.target_coverage)
         return self
 
 
@@ -314,7 +320,7 @@ class AHDTreatmentParameters(BaseModel):
     @model_validator(mode="after")
     def _apply_constraints(self) -> Self:
         self.target_year = _apply_year_constraint(self.target_year)
-        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
+        self.target_coverage = _apply_coverage_defaults(self.target_coverage)
         self.reduction_in_mortality = _apply_proportion_defaults(self.reduction_in_mortality)
         return self
 
@@ -329,7 +335,7 @@ class POCTestParameters(BaseModel):
     @model_validator(mode="after")
     def _apply_constraints(self) -> Self:
         self.target_year = _apply_year_constraint(self.target_year)
-        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
+        self.target_coverage = _apply_coverage_defaults(self.target_coverage)
         self.effect = _apply_proportion_defaults(self.effect)
         return self
 
@@ -345,7 +351,7 @@ class LongActingTreatmentParameters(BaseModel):
     @model_validator(mode="after")
     def _apply_constraints(self) -> Self:
         self.target_year = _apply_year_constraint(self.target_year)
-        self.target_coverage = _apply_proportion_defaults(self.target_coverage)
+        self.target_coverage = _apply_coverage_defaults(self.target_coverage)
         self.interruption_rate_reduction = _apply_proportion_defaults(self.interruption_rate_reduction)
         self.viral_load_suppression_ratio = _apply_proportion_defaults(self.viral_load_suppression_ratio)
         return self
