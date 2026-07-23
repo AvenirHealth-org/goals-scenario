@@ -244,7 +244,7 @@ required fields are listed below.
 
 #### Per-year coverage arrays
 
-Anywhere a `target_coverage` or `target_initiation_rate` distribution is accepted, you
+Anywhere a `target_coverage` distribution is accepted, you
 may instead supply an **explicit per-year array** of values, e.g.
 `"target_coverage": [0.80, 0.81, 0.82, ...]`. Each element is a proportion in `0–1`.
 
@@ -268,8 +268,8 @@ may instead supply an **explicit per-year array** of values, e.g.
 {
   "product": "Adult ART",
   "targets": [
-    {"sex": "Female", "target_initiation_rate": [0.80, 0.82, 0.84, 0.85, 0.85]},
-    {"sex": "Male",   "target_initiation_rate": [0.78, 0.80, 0.82, 0.83, 0.83]}
+    {"sex": "Female", "target_coverage": [0.80, 0.82, 0.84, 0.85, 0.85]},
+    {"sex": "Male",   "target_coverage": [0.78, 0.80, 0.82, 0.83, 0.83]}
   ],
   "parameters": {}
 }
@@ -502,13 +502,12 @@ Same structure as POC VL test.
 
 `product`: `"Adult ART"`
 
-`targets`: one or more entries, each specifying a sex and its target ART
-initiation rate.
+`targets`: one or more entries, each specifying a sex and its target coverage.
 
 | Field | Values |
 |---|---|
 | `sex` | `"Male"`, `"Female"`, `"Both"` |
-| `target_initiation_rate` | Distribution for the target annual ART initiation rate (proportion, 0–1) |
+| `target_coverage` | Distribution for target ART coverage (proportion, 0–1) |
 
 `parameters`:
 
@@ -516,18 +515,17 @@ initiation rate.
 |---|---|
 | `target_year` | Target implementation year (integer ≥ 1970) |
 
-ART is modelled as an annual initiation rate (leapfrog `art_initiation_rate`),
-which ramps linearly from its base-year value to `target_initiation_rate` at
-`target_year` and is held thereafter. The input PJNZ **must** be in initiation-rate
-mode (`art_entry_option == 1`); a PJNZ using number/percent (0) or percent by risk
-group (2) is rejected on read, naming the offending file.
+Coverage ramps linearly from its base-year value to `target_coverage` at
+`target_year` and is held thereafter. Coverage values are interpreted as
+proportions (ratio between 0 and 1); `art15plus_isperc` is automatically set to
+1 for the targeted sex from the base year onward.
 
 ```json
 {
   "product": "Adult ART",
   "targets": [
-    {"sex": "Female", "target_initiation_rate": {"mean": 0.85, "sd": 0.05}},
-    {"sex": "Male",   "target_initiation_rate": {"mean": 0.85, "sd": 0.05}}
+    {"sex": "Female", "target_coverage": {"mean": 0.85, "sd": 0.05}},
+    {"sex": "Male",   "target_coverage": {"mean": 0.85, "sd": 0.05}}
   ],
   "parameters": {
     "target_year": {"mean": 2028, "sd": 2}

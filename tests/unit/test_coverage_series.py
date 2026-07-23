@@ -13,7 +13,6 @@ import pytest
 from pydantic import ValidationError
 from SpectrumCommon.Const.RN import RN_HRH
 
-from avenir_goals_scenario._runner.pjnz import ART_ENTRY_INITIATION_RATE
 from avenir_goals_scenario._runner.simulation import _apply_series, _ramp_to_target, apply_simulation
 from avenir_goals_scenario._scenario_generator.scenario_generator import gen_simulations
 from avenir_goals_scenario.models import InterventionOut, InterventionSimulation, TargetCoverage
@@ -37,7 +36,7 @@ def _scenario(interventions: list[dict]) -> dict:
 def _adult_art(cov, parameters: dict | None = None) -> dict:
     return {
         "product": "Adult ART",
-        "targets": [{"sex": "Both", "target_initiation_rate": cov}],
+        "targets": [{"sex": "Both", "target_coverage": cov}],
         "parameters": parameters or {},
     }
 
@@ -51,7 +50,7 @@ def test_array_coverage_accepted_without_target_year():
     si = ScenarioInput.model_validate(_scenario([_adult_art([0.1, 0.2, 0.3])]))
     scenario = cast(SingleScenarioDef, si.scenarios[0])
     iv = cast(AdultARTInterventionDef, scenario.interventions[0])
-    assert iv.targets[0].target_initiation_rate == [0.1, 0.2, 0.3]
+    assert iv.targets[0].target_coverage == [0.1, 0.2, 0.3]
     assert iv.parameters.target_year is None
 
 
@@ -178,8 +177,8 @@ def test_apply_adult_art_array_written_verbatim():
     lp = {
         "projection_start_year": start,
         "projection_end_year": end,
-        "art_entry_option": ART_ENTRY_INITIATION_RATE,
-        "art_initiation_rate": np.zeros((2, n)),
+        "art15plus_num": np.zeros((2, n)),
+        "art15plus_isperc": np.zeros((2, n)),
     }
     ivs = [InterventionOut(id="adult_art", product="Adult ART")]
     sim = {
@@ -189,8 +188,9 @@ def test_apply_adult_art_array_written_verbatim():
     }
     apply_simulation(lp, ivs, sim, base_year)
     for sex_idx in (0, 1):
-        assert np.allclose(lp["art_initiation_rate"][sex_idx, base_idx:], [0.5, 0.6, 0.7, 0.8, 0.9])
-        assert np.allclose(lp["art_initiation_rate"][sex_idx, :base_idx], 0.0)
+        assert np.allclose(lp["art15plus_num"][sex_idx, base_idx:], [0.5, 0.6, 0.7, 0.8, 0.9])
+        assert np.allclose(lp["art15plus_num"][sex_idx, :base_idx], 0.0)
+        assert np.allclose(lp["art15plus_isperc"][sex_idx, base_idx:], 1)
 
 
 def test_apply_prep_mixes_array_and_ramp():

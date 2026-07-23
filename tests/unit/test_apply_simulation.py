@@ -647,17 +647,12 @@ def test_poc_cd4_writes_coverage_and_effect():
 _N_SEXES_ART = 2
 _N_YEARS_ART = 20
 
-# Adult ART is applied as an initiation rate; the per-target "coverage" transport
-# field carries the sampled rate. It is only applied when the PJNZ is in
-# initiation-rate mode (art_entry_option == 1); otherwise it is skipped.
-_ART_ENTRY_INITIATION_RATE = 1
 
-
-def _adult_art_params(art_entry_option: int = _ART_ENTRY_INITIATION_RATE) -> dict:
+def _adult_art_params() -> dict:
     return {
         "projection_start_year": _START_YEAR,
-        "art_entry_option": art_entry_option,
-        "art_initiation_rate": np.zeros((_N_SEXES_ART, _N_YEARS_ART)),
+        "art15plus_num": np.zeros((_N_SEXES_ART, _N_YEARS_ART)),
+        "art15plus_isperc": np.zeros((_N_SEXES_ART, _N_YEARS_ART)),
     }
 
 
@@ -668,8 +663,10 @@ def test_adult_art_male_writes_male_index():
 
     apply_simulation(lp, ivs, sim, _START_YEAR)
 
-    assert lp["art_initiation_rate"][0, _TARGET_YEAR_IDX] == pytest.approx(0.75)
-    assert lp["art_initiation_rate"][1, _TARGET_YEAR_IDX] == 0.0
+    assert lp["art15plus_num"][0, _TARGET_YEAR_IDX] == pytest.approx(0.75)
+    assert lp["art15plus_num"][1, _TARGET_YEAR_IDX] == 0.0
+    assert lp["art15plus_isperc"][0, _TARGET_YEAR_IDX] == 1
+    assert lp["art15plus_isperc"][1, _TARGET_YEAR_IDX] == 0
 
 
 def test_adult_art_female_writes_female_index():
@@ -679,8 +676,10 @@ def test_adult_art_female_writes_female_index():
 
     apply_simulation(lp, ivs, sim, _START_YEAR)
 
-    assert lp["art_initiation_rate"][0, _TARGET_YEAR_IDX] == 0.0
-    assert lp["art_initiation_rate"][1, _TARGET_YEAR_IDX] == pytest.approx(0.60)
+    assert lp["art15plus_num"][0, _TARGET_YEAR_IDX] == 0.0
+    assert lp["art15plus_num"][1, _TARGET_YEAR_IDX] == pytest.approx(0.60)
+    assert lp["art15plus_isperc"][0, _TARGET_YEAR_IDX] == 0
+    assert lp["art15plus_isperc"][1, _TARGET_YEAR_IDX] == 1
 
 
 def test_adult_art_both_writes_male_and_female():
@@ -690,11 +689,13 @@ def test_adult_art_both_writes_male_and_female():
 
     apply_simulation(lp, ivs, sim, _START_YEAR)
 
-    assert lp["art_initiation_rate"][0, _TARGET_YEAR_IDX] == pytest.approx(0.80)
-    assert lp["art_initiation_rate"][1, _TARGET_YEAR_IDX] == pytest.approx(0.80)
+    assert lp["art15plus_num"][0, _TARGET_YEAR_IDX] == pytest.approx(0.80)
+    assert lp["art15plus_num"][1, _TARGET_YEAR_IDX] == pytest.approx(0.80)
+    assert lp["art15plus_isperc"][0, _TARGET_YEAR_IDX] == 1
+    assert lp["art15plus_isperc"][1, _TARGET_YEAR_IDX] == 1
 
 
-def test_adult_art_multiple_targets_can_have_different_rates():
+def test_adult_art_multiple_targets_can_have_different_coverages():
     lp = _adult_art_params()
     ivs = _iv("adult_art", "Adult ART")
     sim = _sim(
@@ -707,33 +708,24 @@ def test_adult_art_multiple_targets_can_have_different_rates():
 
     apply_simulation(lp, ivs, sim, _START_YEAR)
 
-    assert lp["art_initiation_rate"][0, _TARGET_YEAR_IDX] == pytest.approx(0.75)
-    assert lp["art_initiation_rate"][1, _TARGET_YEAR_IDX] == pytest.approx(0.60)
+    assert lp["art15plus_num"][0, _TARGET_YEAR_IDX] == pytest.approx(0.75)
+    assert lp["art15plus_num"][1, _TARGET_YEAR_IDX] == pytest.approx(0.60)
+    assert lp["art15plus_isperc"][0, _TARGET_YEAR_IDX] == 1
+    assert lp["art15plus_isperc"][1, _TARGET_YEAR_IDX] == 1
 
 
-def test_adult_art_initiation_rate_interpolates_from_base_year():
+def test_adult_art_coverage_interpolates_from_base_year():
     lp = _adult_art_params()
-    lp["art_initiation_rate"][1, _BASE_YEAR_IDX] = 0.20  # existing base-year rate
+    lp["art15plus_num"][1, _BASE_YEAR_IDX] = 0.20  # existing base-year coverage
     ivs = _iv("adult_art", "Adult ART")
     sim = _sim("adult_art", target_coverages=[{"sex": "Female", "risk_group": None, "coverage": 0.60}])
 
     apply_simulation(lp, ivs, sim, _BASE_YEAR)
 
-    rate = lp["art_initiation_rate"][1]
-    np.testing.assert_allclose(rate[_BASE_YEAR_IDX : _TARGET_YEAR_IDX + 1], [0.2, 0.3, 0.4, 0.5, 0.6])
-    np.testing.assert_allclose(rate[_TARGET_YEAR_IDX:], 0.6)
-
-
-@pytest.mark.parametrize("bad_option", [0, 2])
-def test_adult_art_skipped_when_not_initiation_rate_mode(bad_option):
-    lp = _adult_art_params(art_entry_option=bad_option)
-    ivs = _iv("adult_art", "Adult ART")
-    sim = _sim("adult_art", target_coverages=[{"sex": "Both", "risk_group": None, "coverage": 0.80}])
-
-    apply_simulation(lp, ivs, sim, _START_YEAR)
-
-    # Not in initiation-rate mode: the rate array is left untouched.
-    assert np.all(lp["art_initiation_rate"] == 0.0)
+    cov = lp["art15plus_num"][1]
+    np.testing.assert_allclose(cov[_BASE_YEAR_IDX : _TARGET_YEAR_IDX + 1], [0.2, 0.3, 0.4, 0.5, 0.6])
+    np.testing.assert_allclose(cov[_TARGET_YEAR_IDX:], 0.6)
+    np.testing.assert_allclose(lp["art15plus_isperc"][1, _BASE_YEAR_IDX:], 1)
 
 
 # ---------------------------------------------------------------------------

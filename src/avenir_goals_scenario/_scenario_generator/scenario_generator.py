@@ -49,23 +49,13 @@ def _sample_parameters(params_model, rng: np.random.Generator, base_year: int | 
     return result
 
 
-# Per-target sampled scalar: coverage for most products, or an ART initiation
-# rate for Adult ART. Both are transported in the generic "coverage" field.
-_TARGET_VALUE_ATTRS = ("target_coverage", "target_initiation_rate")
-
-
 def _sample_target_coverages(iv, rng: np.random.Generator) -> dict:
-    """Sample each target's scalar value, returning {"target_coverages": [...]}.
-
-    The value is the target's coverage where present, or its initiation rate
-    (Adult ART); either is carried in the generic ``coverage`` transport field.
-    """
+    """Sample each target's coverage, returning {"target_coverages": [...]}."""
     coverages = []
     for target in getattr(iv, "targets", []):
-        attr = next((a for a in _TARGET_VALUE_ATTRS if hasattr(target, a)), None)
-        if attr is None:
+        if not hasattr(target, "target_coverage"):
             continue
-        value = getattr(target, attr)
+        value = target.target_coverage
         # A per-year trajectory is passed through unchanged; a distribution is sampled.
         coverage = list(value) if isinstance(value, list) else value.sample(rng)
         coverages.append({

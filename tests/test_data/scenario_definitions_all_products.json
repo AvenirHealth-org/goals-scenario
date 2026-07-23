@@ -472,14 +472,14 @@
           "targets": [
             {
               "sex": "Male",
-              "target_initiation_rate": {
+              "target_coverage": {
                 "mean": 0.85,
                 "sd": 0.0
               }
             },
             {
               "sex": "Female",
-              "target_initiation_rate": {
+              "target_coverage": {
                 "mean": 0.85,
                 "sd": 0.0
               }

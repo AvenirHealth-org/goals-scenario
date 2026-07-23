@@ -307,32 +307,32 @@ def test_lat_parameters_applies_proportion_defaults():
 
 
 def test_adult_art_target_male_is_valid():
-    t = AdultARTTarget(sex="Male", target_initiation_rate=_ANY_COV)
+    t = AdultARTTarget(sex="Male", target_coverage=_ANY_COV)
     assert t.sex == "Male"
 
 
 def test_adult_art_target_female_is_valid():
-    t = AdultARTTarget(sex="Female", target_initiation_rate=_ANY_COV)
+    t = AdultARTTarget(sex="Female", target_coverage=_ANY_COV)
     assert t.sex == "Female"
 
 
 def test_adult_art_target_both_is_valid():
-    t = AdultARTTarget(sex="Both", target_initiation_rate=_ANY_COV)
+    t = AdultARTTarget(sex="Both", target_coverage=_ANY_COV)
     assert t.sex == "Both"
 
 
-def test_adult_art_target_initiation_rate_gets_proportion_bounds():
-    t = AdultARTTarget(sex="Male", target_initiation_rate=NormalDistParameters(mean=0.7, sd=0.05))
-    assert isinstance(t.target_initiation_rate, NormalDistParameters)
-    assert t.target_initiation_rate.min_value == 0.0
-    assert t.target_initiation_rate.max_value == 1.0
+def test_adult_art_target_coverage_gets_proportion_bounds():
+    t = AdultARTTarget(sex="Male", target_coverage=NormalDistParameters(mean=0.7, sd=0.05))
+    assert isinstance(t.target_coverage, NormalDistParameters)
+    assert t.target_coverage.min_value == 0.0
+    assert t.target_coverage.max_value == 1.0
 
 
-def test_adult_art_target_initiation_rate_preserves_custom_min():
-    t = AdultARTTarget(sex="Male", target_initiation_rate=NormalDistParameters(mean=0.7, sd=0.05, min_value=0.3))
-    assert isinstance(t.target_initiation_rate, NormalDistParameters)
-    assert t.target_initiation_rate.min_value == 0.3
-    assert t.target_initiation_rate.max_value == 1.0
+def test_adult_art_target_coverage_preserves_custom_min():
+    t = AdultARTTarget(sex="Male", target_coverage=NormalDistParameters(mean=0.7, sd=0.05, min_value=0.3))
+    assert isinstance(t.target_coverage, NormalDistParameters)
+    assert t.target_coverage.min_value == 0.3
+    assert t.target_coverage.max_value == 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -363,8 +363,8 @@ _ADULT_ART_PARAMS = {
     "target_year": {"mean": 2028, "sd": 2},
 }
 
-_ADULT_ART_TARGET = {"sex": "Female", "target_initiation_rate": _ANY_COV}
-_ADULT_ART_TARGET_M = {"sex": "Male", "target_initiation_rate": _ANY_COV}
+_ADULT_ART_TARGET = {"sex": "Female", "target_coverage": _ANY_COV}
+_ADULT_ART_TARGET_M = {"sex": "Male", "target_coverage": _ANY_COV}
 
 
 def test_single_scenario_duplicate_no_target_product_raises():
