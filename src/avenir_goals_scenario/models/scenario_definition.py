@@ -156,13 +156,11 @@ class AdultARTTarget(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     sex: SexName
-    # ART entry is modelled as an annual initiation rate (the PJNZ must be in
-    # "initiation rate" mode), bounded like a proportion between 0 and 1.
-    target_initiation_rate: CoverageValue
+    target_coverage: CoverageValue
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
-        self.target_initiation_rate = _apply_coverage_defaults(self.target_initiation_rate)
+        self.target_coverage = _apply_coverage_defaults(self.target_coverage)
         return self
 
 
@@ -502,13 +500,8 @@ AnyInterventionDef = Annotated[
 # ---------------------------------------------------------------------------
 
 
-# Per-target coverage lives under one of these attributes (coverage for most
-# products, initiation rate for Adult ART).
-_COVERAGE_TARGET_ATTRS = ("target_coverage", "target_initiation_rate")
-
-
 def _intervention_coverages(iv: "AnyInterventionDef") -> list[CoverageValue]:
-    """Collect every coverage / initiation-rate value defined on *iv*.
+    """Collect every coverage value defined on *iv*.
 
     Coverage lives per-target for products with a ``targets`` list, or on
     ``parameters.target_coverage`` for the target-less products (AHD, POC,
@@ -516,14 +509,7 @@ def _intervention_coverages(iv: "AnyInterventionDef") -> list[CoverageValue]:
     """
     targets = getattr(iv, "targets", None)
     if targets is not None:
-        coverages: list[CoverageValue] = []
-        for t in targets:
-            for attr in _COVERAGE_TARGET_ATTRS:
-                val = getattr(t, attr, None)
-                if val is not None:
-                    coverages.append(val)
-                    break
-        return coverages
+        return [t.target_coverage for t in targets]
     cov = getattr(iv.parameters, "target_coverage", None)
     return [cov] if cov is not None else []
 

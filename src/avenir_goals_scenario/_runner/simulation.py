@@ -48,7 +48,6 @@ from SpectrumCommon.Const.RN import (
 )
 
 from avenir_goals_scenario._runner.indicator_dims import CALCULATED_INDICATORS, RESOURCE_INDICATOR_ROWS
-from avenir_goals_scenario._runner.pjnz import uses_art_initiation_rate
 from avenir_goals_scenario._scenario_generator.scenario_generator import _product_to_id
 from avenir_goals_scenario.models.scenario_definition import (
     PrepProduct,
@@ -529,11 +528,6 @@ def _apply_ahd(lp: LeapfrogParams, draw: _AHDTreatmentDraw, base_year: int) -> N
 
 
 def _apply_adult_art(lp: LeapfrogParams, draw: _AdultARTDraw, base_year: int) -> None:
-    # Adult ART is applied as an annual initiation rate, which only has an effect
-    # when the PJNZ was read in initiation-rate mode. For other modes there is no
-    # rate to ramp, so skip it (the run continues; the runner warns once at import).
-    if not uses_art_initiation_rate(lp):
-        return
     base_idx = _base_year_idx(lp, base_year)
     target_idx = _maybe_target_year_idx(lp, draw)
     for tc in draw["target_coverages"]:
@@ -544,9 +538,10 @@ def _apply_adult_art(lp: LeapfrogParams, draw: _AdultARTDraw, base_year: int) ->
         else:
             sex_indices = [1]
         for sex_idx in sex_indices:
-            # art_initiation_rate is (sex, year); ramp each sex from its base-year
-            # rate up (or down) to the target rate, held at the target thereafter.
-            _ramp_to_target(lp["art_initiation_rate"][sex_idx], base_idx, target_idx, tc.coverage)
+            # Leapfrog stores adult ART coverage under "art15plus_num" with an
+            # "art15plus_isperc" flag (see SpectrumCommon LeapfrogDataMapping).
+            _ramp_to_target(lp["art15plus_num"][sex_idx], base_idx, target_idx, tc.coverage)
+            lp["art15plus_isperc"][sex_idx, base_idx:] = 1
 
 
 def _apply_long_acting_treatment(lp: LeapfrogParams, draw: _LongActingTreatmentDraw, base_year: int) -> None:

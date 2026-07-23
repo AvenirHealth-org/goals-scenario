@@ -242,10 +242,18 @@ writes the resulting draws to the scenario draws JSON.
 Each intervention is discriminated by its `product` field. The valid products and their
 required fields are listed below.
 
+Every intervention has a `parameters` object. Products that target specific populations
+(PrEP/PEP, Vaccine, Cure, Cure (neonates), Vaginal microbiome modification, Adult ART)
+also have a `targets` list, and for those products `target_coverage` lives **inside each
+target**, not in `parameters` — each target gets its own coverage. The target-less
+products (AHD treatment, POC tests, Long-acting treatment) have no `targets` list, so
+`target_coverage` lives directly in `parameters` instead, since there is only one
+population to specify coverage for.
+
 #### Per-year coverage arrays
 
-Anywhere a `target_coverage` or `target_initiation_rate` distribution is accepted, you
-may instead supply an **explicit per-year array** of values, e.g.
+Anywhere a `target_coverage` distribution is accepted — whether inside a target or in
+`parameters` — you may instead supply an **explicit per-year array** of values, e.g.
 `"target_coverage": [0.80, 0.81, 0.82, ...]`. Each element is a proportion in `0–1`.
 
 - The array holds **one value per year from `base_year` (from the config) to the
@@ -268,8 +276,8 @@ may instead supply an **explicit per-year array** of values, e.g.
 {
   "product": "Adult ART",
   "targets": [
-    {"sex": "Female", "target_initiation_rate": [0.80, 0.82, 0.84, 0.85, 0.85]},
-    {"sex": "Male",   "target_initiation_rate": [0.78, 0.80, 0.82, 0.83, 0.83]}
+    {"sex": "Female", "target_coverage": [0.80, 0.82, 0.84, 0.85, 0.85]},
+    {"sex": "Male",   "target_coverage": [0.78, 0.80, 0.82, 0.83, 0.83]}
   ],
   "parameters": {}
 }
@@ -284,12 +292,13 @@ Valid `product` values: `"Oral PrEP (daily)"`, `"Oral PrEP (monthly)"`,
 `"Injectable PrEP (6 month)"`, `"Oral PrEP plus contraceptive"`,
 `"PrEP ring"`, `"Implantable PrEP"`, `"bNABs"`, `"PEP"`
 
-`targets`: one or more risk group/sex combinations.
+`targets`: one or more risk group/sex combinations, each with its own target coverage.
 
 | Field | Values |
 |---|---|
 | `risk_group` | `"Low risk heterosexual"`, `"Medium risk heterosexual"`, `"High risk heterosexual"`, `"People who inject drugs"`, `"Men who have sex with men"` |
 | `sex` | `"Male"`, `"Female"`, `"Both"` |
+| `target_coverage` | Distribution parameters (`mean` & `sd`) or an array of per-year coverages for this target — see [per-year coverage arrays](#per-year-coverage-arrays) |
 
 `"Men who have sex with men"` cannot have `sex: "Female"`.
 
@@ -299,8 +308,7 @@ Valid `product` values: `"Oral PrEP (daily)"`, `"Oral PrEP (monthly)"`,
 |---|---|
 | `efficacy` | Distribution for intervention efficacy (proportion, 0–1) |
 | `adherence` | Distribution for adherence (proportion, 0–1) |
-| `target_coverage` | Distribution for target population coverage (proportion, 0–1) |
-| `target_year` | Distribution for target implementation year (integer ≥ 1970) |
+| `target_year` | Distribution for target implementation year (integer ≥ 1970). Ignored if every target's `target_coverage` is passed as an array — see [per-year coverage arrays](#per-year-coverage-arrays) |
 | `substitution` | Distribution for substitution (proportion, 0–1). **Only valid for `"Oral PrEP plus contraceptive"`.** |
 | `duration` | Distribution for implant duration in months (≥ 0). **Only valid for `"Implantable PrEP"`.** |
 
@@ -314,14 +322,13 @@ product other than `"Oral PrEP plus contraceptive"`, or `duration` on anything o
 {
   "product": "Oral PrEP (daily)",
   "targets": [
-    {"risk_group": "High risk heterosexual", "sex": "Female"},
-    {"risk_group": "Men who have sex with men", "sex": "Male"}
+    {"risk_group": "High risk heterosexual", "sex": "Female", "target_coverage": {"mean": 0.30, "sd": 0.05}},
+    {"risk_group": "Men who have sex with men", "sex": "Male", "target_coverage": {"mean": 0.30, "sd": 0.05}}
   ],
   "parameters": {
-    "efficacy":        {"mean": 0.95, "sd": 0.03},
-    "adherence":       {"mean": 0.85, "sd": 0.05},
-    "target_coverage": {"mean": 0.30, "sd": 0.05},
-    "target_year":     {"mean": 2028, "sd": 2}
+    "efficacy":    {"mean": 0.95, "sd": 0.03},
+    "adherence":   {"mean": 0.85, "sd": 0.05},
+    "target_year": {"mean": 2028, "sd": 2}
   }
 }
 ```
@@ -331,7 +338,9 @@ Implantable PrEP with a `duration` (months), and Oral PrEP plus contraceptive wi
 ```json
 {
   "product": "Implantable PrEP",
-  "targets": [{"risk_group": "High risk heterosexual", "sex": "Female"}],
+  "targets": [
+    {"risk_group": "High risk heterosexual", "sex": "Female", "target_coverage": {"mean": 0.15, "sd": 0.05}}
+  ],
   "parameters": {
     "efficacy":    {"mean": 0.90, "sd": 0.03},
     "adherence":   {"mean": 0.85, "sd": 0.05},
@@ -347,10 +356,17 @@ Implantable PrEP with a `duration` (months), and Oral PrEP plus contraceptive wi
 
 `product`: `"Vaccine"`
 
-`targets`: one or more entries (one or more required). Two targeting modes:
+`targets`: one or more entries (one or more required), each with its own target coverage.
+Two targeting modes:
 
 - **PLHIV** — applies coverage across all PLHIV regardless of risk group. Use `risk_group: "PLHIV"` with `sex: "Both"` or omit `sex`.
-- **Risk group** — targets a specific risk group. Use the same `risk_group` and `sex` values as PrEP. `"Both"` applies coverage to both male and female indices for that group.
+- **Risk group** — targets a specific risk group. `"Both"` applies coverage to both male and female indices for that group.
+
+| Field | Values |
+|---|---|
+| `risk_group` | `"Low risk heterosexual"`, `"Medium risk heterosexual"`, `"High risk heterosexual"`, `"People who inject drugs"`, `"Men who have sex with men"`, `"PLHIV"` |
+| `sex` | `"Male"`, `"Female"`, `"Both"`. Optional — omitting it behaves the same as `"Both"`. For `risk_group: "PLHIV"`, only `"Both"` (or omitting `sex`) is allowed; `"Male"`/`"Female"` are rejected there since PLHIV coverage applies regardless of sex |
+| `target_coverage` | Distribution parameters (`mean` & `sd`) or an array of per-year coverages for this target — see [per-year coverage arrays](#per-year-coverage-arrays) |
 
 `"Men who have sex with men"` cannot have `sex: "Female"`. `"PLHIV"` cannot have `sex: "Male"` or `"Female"`.
 
@@ -358,8 +374,7 @@ Implantable PrEP with a `duration` (months), and Oral PrEP plus contraceptive wi
 
 | Parameter | Type | Description |
 |---|---|---|
-| `target_year` | Distribution | Target implementation year |
-| `target_coverage` | Distribution | Target population coverage (0–1) |
+| `target_year` | Distribution | Target implementation year. Ignored if every target's `target_coverage` is passed as an array — see [per-year coverage arrays](#per-year-coverage-arrays) |
 | `reduction_in_susceptibility` | Distribution | Reduction in susceptibility to HIV due to vaccination (0–1) |
 | `reduction_in_infectiousness` | Distribution | Reduction in infectiousness due to vaccination (0–1) |
 | `increase_in_progression_time_to_aids` | Distribution | Increase in progression time to AIDS (0–1) |
@@ -371,11 +386,10 @@ Implantable PrEP with a `duration` (months), and Oral PrEP plus contraceptive wi
 {
   "product": "Vaccine",
   "targets": [
-    {"risk_group": "PLHIV"}
+    {"risk_group": "PLHIV", "target_coverage": {"mean": 0.50, "sd": 0.10}}
   ],
   "parameters": {
     "target_year":                           {"mean": 2035, "sd": 3},
-    "target_coverage":                       {"mean": 0.50, "sd": 0.10},
     "reduction_in_susceptibility":           {"mean": 0.60, "sd": 0.05},
     "reduction_in_infectiousness":           {"mean": 0.40, "sd": 0.05},
     "increase_in_progression_time_to_aids":  {"mean": 0.20, "sd": 0.02},
@@ -392,10 +406,17 @@ Implantable PrEP with a `duration` (months), and Oral PrEP plus contraceptive wi
 
 `product`: `"Cure (adults and children)"`
 
-`targets`: one or more entries (one or more required). Same two targeting modes as Vaccine:
+`targets`: one or more entries (one or more required), each with its own target coverage.
+Same two targeting modes as Vaccine:
 
 - **PLHIV** — `risk_group: "PLHIV"` with `sex: "Both"` or omit `sex`.
-- **Risk group** — same `risk_group` and `sex` values as PrEP. `"Both"` applies coverage to both male and female indices.
+- **Risk group** — targets a specific risk group. `"Both"` applies coverage to both male and female indices.
+
+| Field | Values |
+|---|---|
+| `risk_group` | `"Low risk heterosexual"`, `"Medium risk heterosexual"`, `"High risk heterosexual"`, `"People who inject drugs"`, `"Men who have sex with men"`, `"PLHIV"` |
+| `sex` | `"Male"`, `"Female"`, `"Both"`. Optional — omitting it behaves the same as `"Both"`. For `risk_group: "PLHIV"`, only `"Both"` (or omitting `sex`) is allowed; `"Male"`/`"Female"` are rejected there since PLHIV coverage applies regardless of sex |
+| `target_coverage` | Distribution parameters (`mean` & `sd`) or an array of per-year coverages for this target — see [per-year coverage arrays](#per-year-coverage-arrays) |
 
 `"Men who have sex with men"` cannot have `sex: "Female"`. `"PLHIV"` cannot have `sex: "Male"` or `"Female"`.
 
@@ -403,8 +424,7 @@ Implantable PrEP with a `duration` (months), and Oral PrEP plus contraceptive wi
 
 | Parameter | Description |
 |---|---|
-| `target_year` | Target implementation year |
-| `target_coverage` | Target coverage (0–1) |
+| `target_year` | Target implementation year. Ignored if every target's `target_coverage` is passed as an array — see [per-year coverage arrays](#per-year-coverage-arrays) |
 | `efficacy` | Efficacy of the cure (0–1) |
 | `duration_of_cure` | Duration of cure effect |
 
@@ -412,13 +432,83 @@ Implantable PrEP with a `duration` (months), and Oral PrEP plus contraceptive wi
 {
   "product": "Cure (adults and children)",
   "targets": [
-    {"risk_group": "PLHIV"}
+    {"risk_group": "PLHIV", "target_coverage": {"mean": 0.20, "sd": 0.05}}
   ],
   "parameters": {
-    "target_year":     {"mean": 2035, "sd": 3},
-    "target_coverage": {"mean": 0.20, "sd": 0.05},
-    "efficacy":        {"mean": 0.85, "sd": 0.05},
-    "duration_of_cure":{"mean": 0.50, "sd": 0.10}
+    "target_year":      {"mean": 2035, "sd": 3},
+    "efficacy":         {"mean": 0.85, "sd": 0.05},
+    "duration_of_cure": {"mean": 0.50, "sd": 0.10}
+  }
+}
+```
+
+---
+
+##### Cure (neonates)
+
+`product`: `"Cure (neonates)"`
+
+`targets`: neonates are a single population with no risk-group or sex split, so this is
+normally a single entry.
+
+| Field | Values |
+|---|---|
+| `risk_group` | `"Neonates"` |
+| `target_coverage` | Distribution parameters (`mean` & `sd`) or an array of per-year coverages — see [per-year coverage arrays](#per-year-coverage-arrays) |
+
+`parameters`:
+
+| Parameter | Description |
+|---|---|
+| `target_year` | Target implementation year. Ignored if `target_coverage` is passed as an array — see [per-year coverage arrays](#per-year-coverage-arrays) |
+| `effectiveness` | Effectiveness of the cure (0–1) |
+
+```json
+{
+  "product": "Cure (neonates)",
+  "targets": [
+    {"risk_group": "Neonates", "target_coverage": {"mean": 0.40, "sd": 0.05}}
+  ],
+  "parameters": {
+    "target_year":   {"mean": 2032, "sd": 2},
+    "effectiveness": {"mean": 0.65, "sd": 0.05}
+  }
+}
+```
+
+---
+
+##### Vaginal microbiome modification
+
+`product`: `"Vaginal microbiome modification"`
+
+`targets`: one or more entries, each with its own target coverage. Women only (there is
+no `sex` field).
+
+| Field | Values |
+|---|---|
+| `risk_group` | `"Percent of women treated"`, `"Not sexually active"`, `"Low risk heterosexual"`, `"Medium risk heterosexual"`, `"High risk heterosexual"` |
+| `target_coverage` | Distribution parameters (`mean` & `sd`) or an array of per-year coverages for this target — see [per-year coverage arrays](#per-year-coverage-arrays) |
+
+`"Percent of women treated"` applies coverage to all women and, when used, must be the
+only target on the intervention.
+
+`parameters`:
+
+| Parameter | Description |
+|---|---|
+| `target_year` | Target implementation year. Ignored if every target's `target_coverage` is passed as an array — see [per-year coverage arrays](#per-year-coverage-arrays) |
+| `effectiveness` | Effectiveness of the intervention (0–1) |
+
+```json
+{
+  "product": "Vaginal microbiome modification",
+  "targets": [
+    {"risk_group": "Percent of women treated", "target_coverage": {"mean": 0.30, "sd": 0.05}}
+  ],
+  "parameters": {
+    "target_year":   {"mean": 2032, "sd": 2},
+    "effectiveness": {"mean": 0.40, "sd": 0.05}
   }
 }
 ```
@@ -435,8 +525,8 @@ No `targets` field — coverage applies globally.
 
 | Parameter | Description |
 |---|---|
-| `target_year` | Target implementation year |
-| `target_coverage` | Target coverage (0–1) |
+| `target_year` | Target implementation year. Ignored if `target_coverage` is passed as an array — see [per-year coverage arrays](#per-year-coverage-arrays) |
+| `target_coverage` | Distribution parameters (`mean` & `sd`) or an array of per-year coverages — see [per-year coverage arrays](#per-year-coverage-arrays) |
 | `reduction_in_mortality` | Reduction in AHD mortality (0–1) |
 
 ```json
@@ -462,8 +552,8 @@ No `targets` field.
 
 | Parameter | Description |
 |---|---|
-| `target_year` | Target implementation year |
-| `target_coverage` | Target coverage (0–1) |
+| `target_year` | Target implementation year. Ignored if `target_coverage` is passed as an array — see [per-year coverage arrays](#per-year-coverage-arrays) |
+| `target_coverage` | Distribution parameters (`mean` & `sd`) or an array of per-year coverages — see [per-year coverage arrays](#per-year-coverage-arrays) |
 | `effect` | Effect size (0–1) |
 
 ```json
@@ -502,32 +592,30 @@ Same structure as POC VL test.
 
 `product`: `"Adult ART"`
 
-`targets`: one or more entries, each specifying a sex and its target ART
-initiation rate.
+`targets`: one or more entries, each specifying a sex and its target coverage.
 
 | Field | Values |
 |---|---|
 | `sex` | `"Male"`, `"Female"`, `"Both"` |
-| `target_initiation_rate` | Distribution for the target annual ART initiation rate (proportion, 0–1) |
+| `target_coverage` | Distribution parameters (`mean` & `sd`) or an array of per-year coverages for this target — see [per-year coverage arrays](#per-year-coverage-arrays) |
 
 `parameters`:
 
 | Parameter | Description |
 |---|---|
-| `target_year` | Target implementation year (integer ≥ 1970) |
+| `target_year` | Target implementation year (integer ≥ 1970). Ignored if every target's `target_coverage` is passed as an array — see [per-year coverage arrays](#per-year-coverage-arrays) |
 
-ART is modelled as an annual initiation rate (leapfrog `art_initiation_rate`),
-which ramps linearly from its base-year value to `target_initiation_rate` at
-`target_year` and is held thereafter. The input PJNZ **must** be in initiation-rate
-mode (`art_entry_option == 1`); a PJNZ using number/percent (0) or percent by risk
-group (2) is rejected on read, naming the offending file.
+Coverage ramps linearly from its base-year value to `target_coverage` at
+`target_year` and is held thereafter. Coverage values are interpreted as
+proportions (ratio between 0 and 1); `art15plus_isperc` is automatically set to
+1 for the targeted sex from the base year onward.
 
 ```json
 {
   "product": "Adult ART",
   "targets": [
-    {"sex": "Female", "target_initiation_rate": {"mean": 0.85, "sd": 0.05}},
-    {"sex": "Male",   "target_initiation_rate": {"mean": 0.85, "sd": 0.05}}
+    {"sex": "Female", "target_coverage": {"mean": 0.85, "sd": 0.05}},
+    {"sex": "Male",   "target_coverage": {"mean": 0.85, "sd": 0.05}}
   ],
   "parameters": {
     "target_year": {"mean": 2028, "sd": 2}
@@ -541,35 +629,28 @@ group (2) is rejected on read, naming the offending file.
 
 `product`: `"Long-acting treatment"`
 
-`targets`: one or more entries. Valid populations: `"Key populations"`,
-`"General population"`, `"Medium risk populations"`, `"Not sexually active"`.
-Valid sex values: `"Male"`, `"Female"`, `"Both"` (omit `sex` for Key populations).
+No `targets` field — coverage applies globally.
 
 `parameters`:
 
 | Parameter | Description |
 |---|---|
-| `target_year` | Target implementation year |
-| `target_coverage` | Target coverage (0–1) |
+| `target_year` | Target implementation year. Ignored if `target_coverage` is passed as an array — see [per-year coverage arrays](#per-year-coverage-arrays) |
+| `target_coverage` | Distribution parameters (`mean` & `sd`) or an array of per-year coverages — see [per-year coverage arrays](#per-year-coverage-arrays) |
+| `interruption_rate_reduction` | Reduction in treatment interruption rate (0–1) |
+| `viral_load_suppression_ratio` | Viral load suppression ratio (0–1) |
 
 ```json
 {
   "product": "Long-acting treatment",
-  "targets": [
-    {"population": "Key populations"},
-    {"population": "General population", "sex": "Female"},
-    {"population": "General population", "sex": "Male"}
-  ],
   "parameters": {
-    "target_year":     {"mean": 2030, "sd": 2},
-    "target_coverage": {"mean": 0.30, "sd": 0.05}
+    "target_year":                  {"mean": 2030, "sd": 2},
+    "target_coverage":               {"mean": 0.30, "sd": 0.05},
+    "interruption_rate_reduction":   {"mean": 0.25, "sd": 0.05},
+    "viral_load_suppression_ratio":  {"mean": 0.80, "sd": 0.05}
   }
 }
 ```
-
-> **Note:** Long-acting treatment is defined in the schema but its application to the
-> Goals model is not yet implemented. Scenarios containing this intervention will raise
-> an error at run time.
 
 ---
 

@@ -18,12 +18,7 @@ from avenir_goals_scenario._runner.output import (
     consolidate_metadata,
     write_scenario_batch,
 )
-from avenir_goals_scenario._runner.pjnz import (
-    ART_ENTRY_INITIATION_RATE,
-    find_pjnz_files,
-    import_pjnz,
-    uses_art_initiation_rate,
-)
+from avenir_goals_scenario._runner.pjnz import find_pjnz_files, import_pjnz
 from avenir_goals_scenario._runner.simulation import run_simulation
 from avenir_goals_scenario._runner.utils import RunCallbacks, RunResult, WorkUnitResult, get_effective_workers
 from avenir_goals_scenario.models import RunConfig, ScenarioSimulations
@@ -123,36 +118,18 @@ def _run_pjnz_batch(
     return results
 
 
-def _scenarios_use_adult_art(simulations: ScenarioSimulations) -> bool:
-    """Return True if any scenario contains an 'Adult ART' intervention."""
-    return any(iv.id == "adult_art" for s in simulations.scenarios for iv in s.interventions)
-
-
 def _dump_pjnz_files(
     pjnz_files: list[Path],
     tmp_dir: str,
     cb: RunCallbacks,
-    warn_adult_art: bool = False,
 ) -> tuple[dict[Path, str], dict[Path, int]]:
-    """Import each PJNZ, pickle it to tmp_dir, return paths and end years.
-
-    When ``warn_adult_art`` is set (some scenario uses 'Adult ART'), a warning is
-    logged for each PJNZ that is not in ART initiation-rate mode, since 'Adult
-    ART' interventions have no effect for it.
-    """
+    """Import each PJNZ, pickle it to tmp_dir, return paths and end years."""
     params_paths: dict[Path, str] = {}
     end_years: dict[Path, int] = {}
     logger.info("Loading {} PJNZ file(s)", len(pjnz_files))
     for pjnz_path in pjnz_files:
         logger.debug("Importing {}", pjnz_path.name)
         leapfrog_params = import_pjnz(pjnz_path)
-        if warn_adult_art and not uses_art_initiation_rate(leapfrog_params):
-            logger.warning(
-                "PJNZ '{}' is not in ART initiation-rate mode (art_entry_option != {}); "
-                "'Adult ART' interventions will not be applied for it.",
-                pjnz_path.name,
-                ART_ENTRY_INITIATION_RATE,
-            )
         dump_path = str(Path(tmp_dir) / f"{pjnz_path.stem}.pkl")
         with open(dump_path, "wb") as f:
             pickle.dump(leapfrog_params, f)
@@ -348,9 +325,8 @@ def _run_scenario_analysis(
     logger.info("Loading {} PJNZ file(s) from {}", len(pjnz_files), config.pjnz_dir)
 
     results: list[WorkUnitResult] = []
-    warn_adult_art = _scenarios_use_adult_art(simulations)
     with tempfile.TemporaryDirectory() as tmp_dir:
-        params_paths, end_years = _dump_pjnz_files(pjnz_files, tmp_dir, callbacks, warn_adult_art)
+        params_paths, end_years = _dump_pjnz_files(pjnz_files, tmp_dir, callbacks)
         _validate_series_lengths(pjnz_files, end_years, simulations, config.base_year, selected_units)
 
         effective_workers = get_effective_workers(config)
