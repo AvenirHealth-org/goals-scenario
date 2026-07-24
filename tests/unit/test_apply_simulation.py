@@ -121,8 +121,8 @@ def _lat_params() -> dict:
     return {
         "projection_start_year": _START_YEAR,
         "long_act_treat_cov": np.zeros(_N_YEARS),
-        "long_act_treat_eff": 0,
-        "art_interrupt_rate": np.zeros(_N_YEARS),
+        "long_act_treat_eff_vls": 0.0,
+        "long_act_treat_eff_ltfu": 0.0,
     }
 
 
@@ -748,8 +748,10 @@ def test_long_acting_treatment_is_applied_correctly():
     apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["long_act_treat_cov"][_TARGET_YEAR_IDX] == 0.7
-    assert lp["long_act_treat_eff_vls"] == 0.8
-    assert lp["long_act_treat_eff_ltfu"] == 0.25
+    # A single product still goes through the coverage-weighted blend (weight ==
+    # total_weight), so these are equal up to floating-point rounding, not bit-exact.
+    assert lp["long_act_treat_eff_vls"] == pytest.approx(0.8)
+    assert lp["long_act_treat_eff_ltfu"] == pytest.approx(0.25)
 
 
 # ---------------------------------------------------------------------------
@@ -809,6 +811,67 @@ def test_long_acting_treatment_coverage_interpolates():
     assert cov[0] == 0.0
     np.testing.assert_allclose(cov[_BASE_YEAR_IDX : _TARGET_YEAR_IDX + 1], [0.0, 0.2, 0.4, 0.6, 0.8])
     np.testing.assert_allclose(cov[_TARGET_YEAR_IDX:], 0.8)
+
+
+def test_long_acting_treatment_multi_product_sums_cov_and_blends_effects():
+    """Two long-acting products: coverage sums, effects blend weighted by each product's own steady-state coverage."""
+    lp = _lat_params()
+    ivs = [
+        InterventionOut(id="long_acting_treatment_oral_weekly", product="Long-acting treatment (Oral weekly)"),
+        InterventionOut(
+            id="long_acting_treatment_injectable_6_month", product="Long-acting treatment (Injectable 6 month)"
+        ),
+    ]
+    sim = {
+        "long_acting_treatment_oral_weekly": InterventionSimulation({
+            "target_year": _TARGET_YEAR,
+            "target_coverage": 0.3,
+            "interruption_rate_reduction": 0.20,
+            "viral_load_suppression_ratio": 0.75,
+        }),
+        "long_acting_treatment_injectable_6_month": InterventionSimulation({
+            "target_year": _TARGET_YEAR,
+            "target_coverage": 0.2,
+            "interruption_rate_reduction": 0.30,
+            "viral_load_suppression_ratio": 0.85,
+        }),
+    }
+
+    apply_simulation(lp, ivs, sim, _START_YEAR)
+
+    assert lp["long_act_treat_cov"][_TARGET_YEAR_IDX] == pytest.approx(0.5)
+    # weighted by each product's own steady-state coverage: (0.3*x + 0.2*y) / 0.5
+    assert lp["long_act_treat_eff_vls"] == pytest.approx((0.3 * 0.75 + 0.2 * 0.85) / 0.5)
+    assert lp["long_act_treat_eff_ltfu"] == pytest.approx((0.3 * 0.20 + 0.2 * 0.30) / 0.5)
+
+
+def test_long_acting_treatment_multi_product_clamps_cov_to_1():
+    lp = _lat_params()
+    ivs = [
+        InterventionOut(id="long_acting_treatment_oral_weekly", product="Long-acting treatment (Oral weekly)"),
+        InterventionOut(id="long_acting_treatment_implant", product="Long-acting treatment (Implant)"),
+    ]
+    sim = {
+        "long_acting_treatment_oral_weekly": InterventionSimulation({
+            "target_year": _TARGET_YEAR,
+            "target_coverage": 0.7,
+            "interruption_rate_reduction": 0.20,
+            "viral_load_suppression_ratio": 0.75,
+        }),
+        "long_acting_treatment_implant": InterventionSimulation({
+            "target_year": _TARGET_YEAR,
+            "target_coverage": 0.5,
+            "interruption_rate_reduction": 0.35,
+            "viral_load_suppression_ratio": 0.90,
+        }),
+    }
+
+    apply_simulation(lp, ivs, sim, _START_YEAR)
+
+    assert lp["long_act_treat_cov"][_TARGET_YEAR_IDX] == pytest.approx(1.0)
+    # blend weights use each product's own (unclamped) steady-state coverage, not the clamped total
+    assert lp["long_act_treat_eff_vls"] == pytest.approx((0.7 * 0.75 + 0.5 * 0.90) / 1.2)
+    assert lp["long_act_treat_eff_ltfu"] == pytest.approx((0.7 * 0.20 + 0.5 * 0.35) / 1.2)
 
 
 def test_prep_coverage_interpolates_and_mix_constant_for_single_product():

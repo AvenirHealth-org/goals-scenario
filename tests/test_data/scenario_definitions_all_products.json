@@ -447,22 +447,64 @@
           }
         },
         {
-          "product": "Long-acting treatment",
+          "product": "Long-acting treatment (Oral weekly)",
           "parameters": {
             "target_year": {
               "mean": 2030,
               "sd": 0.0
             },
             "target_coverage": {
-              "mean": 0.7,
+              "mean": 0.3,
               "sd": 0.0
             },
             "interruption_rate_reduction": {
-              "mean": 0.25,
+              "mean": 0.2,
               "sd": 0.0
             },
             "viral_load_suppression_ratio": {
-              "mean": 0.8,
+              "mean": 0.75,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "Long-acting treatment (Injectable 6 month)",
+          "parameters": {
+            "target_year": {
+              "mean": 2031,
+              "sd": 0.0
+            },
+            "target_coverage": {
+              "mean": 0.3,
+              "sd": 0.0
+            },
+            "interruption_rate_reduction": {
+              "mean": 0.3,
+              "sd": 0.0
+            },
+            "viral_load_suppression_ratio": {
+              "mean": 0.85,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "Long-acting treatment (Implant)",
+          "parameters": {
+            "target_year": {
+              "mean": 2033,
+              "sd": 0.0
+            },
+            "target_coverage": {
+              "mean": 0.2,
+              "sd": 0.0
+            },
+            "interruption_rate_reduction": {
+              "mean": 0.35,
+              "sd": 0.0
+            },
+            "viral_load_suppression_ratio": {
+              "mean": 0.9,
               "sd": 0.0
             }
           }

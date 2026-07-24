@@ -9,6 +9,7 @@ from avenir_goals_scenario.models.scenario_definition import (
     CureNeonateParameters,
     CureNeonateTarget,
     CureParameters,
+    LongActingTreatmentDef,
     LongActingTreatmentParameters,
     NormalDistParameters,
     POCTestParameters,
@@ -299,6 +300,58 @@ def test_lat_parameters_applies_proportion_defaults():
     assert params.interruption_rate_reduction.max_value == 1.0
     assert params.viral_load_suppression_ratio.min_value == 0.0
     assert params.viral_load_suppression_ratio.max_value == 1.0
+
+
+_LAT_PARAMS = {
+    "target_year": {"mean": 2030, "sd": 2},
+    "target_coverage": {"mean": 0.3, "sd": 0.05},
+    "interruption_rate_reduction": {"mean": 0.2, "sd": 0.05},
+    "viral_load_suppression_ratio": {"mean": 0.75, "sd": 0.05},
+}
+
+
+@pytest.mark.parametrize(
+    "product",
+    [
+        "Long-acting treatment",
+        "Long-acting treatment (Oral weekly)",
+        "Long-acting treatment (Injectable 6 month)",
+        "Long-acting treatment (Implant)",
+    ],
+)
+def test_long_acting_treatment_def_accepts_all_valid_products(product):
+    iv = LongActingTreatmentDef.model_validate({"product": product, "parameters": _LAT_PARAMS})
+    assert iv.product == product
+
+
+def test_long_acting_treatment_def_rejects_unknown_product():
+    with pytest.raises(ValidationError):
+        LongActingTreatmentDef.model_validate({
+            "product": "Long-acting treatment (Nasal spray)",
+            "parameters": _LAT_PARAMS,
+        })
+
+
+def test_single_scenario_two_long_acting_variants_are_not_duplicates():
+    scenario = SingleScenarioDef.model_validate({
+        "id": "s1",
+        "interventions": [
+            {"product": "Long-acting treatment (Oral weekly)", "parameters": _LAT_PARAMS},
+            {"product": "Long-acting treatment (Injectable 6 month)", "parameters": _LAT_PARAMS},
+        ],
+    })
+    assert len(scenario.interventions) == 2
+
+
+def test_single_scenario_duplicate_long_acting_variant_raises():
+    with pytest.raises(ValidationError, match="duplicate product 'Long-acting treatment \\(Oral weekly\\)'"):
+        SingleScenarioDef.model_validate({
+            "id": "s1",
+            "interventions": [
+                {"product": "Long-acting treatment (Oral weekly)", "parameters": _LAT_PARAMS},
+                {"product": "Long-acting treatment (Oral weekly)", "parameters": _LAT_PARAMS},
+            ],
+        })
 
 
 # ---------------------------------------------------------------------------
