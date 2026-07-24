@@ -383,6 +383,18 @@ PrepProduct = Literal[
     "PEP",
 ]
 
+# The bare "Long-acting treatment" is kept for backward compatibility with existing
+# scenario JSON; new scenarios should use one of the 3 suffixed variants below, which
+# can be combined within a single scenario (their coverages are summed and their
+# interruption_rate_reduction/viral_load_suppression_ratio blended — see
+# _apply_all_long_acting_treatment in _runner/simulation.py).
+LongActingProduct = Literal[
+    "Long-acting treatment",
+    "Long-acting treatment (Oral weekly)",
+    "Long-acting treatment (Injectable 6 month)",
+    "Long-acting treatment (Implant)",
+]
+
 
 class PrepInterventionDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -468,7 +480,7 @@ class POCCD4TestDef(BaseModel):
 class LongActingTreatmentDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    product: Literal["Long-acting treatment"]
+    product: LongActingProduct
     parameters: LongActingTreatmentParameters
 
 

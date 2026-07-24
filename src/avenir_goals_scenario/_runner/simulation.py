@@ -50,6 +50,7 @@ from SpectrumCommon.Const.RN import (
 from avenir_goals_scenario._runner.indicator_dims import CALCULATED_INDICATORS, RESOURCE_INDICATOR_ROWS
 from avenir_goals_scenario._scenario_generator.scenario_generator import _product_to_id
 from avenir_goals_scenario.models.scenario_definition import (
+    LongActingProduct,
     PrepProduct,
     RiskGroupNames,
     SexName,
@@ -82,6 +83,9 @@ _interv_map: dict[str, int] = {
 
 # Derived from PrepProduct so the two stay in sync automatically.
 _PREP_IDS = frozenset(_product_to_id(p) for p in get_args(PrepProduct))
+
+# Derived from LongActingProduct so the two stay in sync automatically.
+_LAT_IDS = frozenset(_product_to_id(p) for p in get_args(LongActingProduct))
 
 
 # VMM coverage-type flags (leapfrog enum, not exported from SpectrumCommon). Note the
@@ -544,13 +548,53 @@ def _apply_adult_art(lp: LeapfrogParams, draw: _AdultARTDraw, base_year: int) ->
             lp["art15plus_isperc"][sex_idx, base_idx:] = 1
 
 
-def _apply_long_acting_treatment(lp: LeapfrogParams, draw: _LongActingTreatmentDraw, base_year: int) -> None:
-    base_idx = _base_year_idx(lp, base_year)
-    target_idx = _maybe_target_year_idx(lp, draw)
+def _apply_all_long_acting_treatment(
+    lp: LeapfrogParams,
+    lat_draws: list[tuple[str, dict]],
+    base_year: int,
+) -> None:
+    """Apply all long-acting-treatment products together.
 
-    _ramp_to_target(lp["long_act_treat_cov"], base_idx, target_idx, draw["target_coverage"])
-    lp["long_act_treat_eff_vls"] = draw["viral_load_suppression_ratio"]
-    lp["long_act_treat_eff_ltfu"] = draw["interruption_rate_reduction"]
+    Each product's own coverage ramps from its base-year share of
+    long_act_treat_cov to its target at its own target year (or is used verbatim
+    if given as a per-year array). The combined coverage is the per-year sum,
+    clamped to 1.0. interruption_rate_reduction and viral_load_suppression_ratio
+    — single scalars for the whole run in leapfrog, since neither varies by year
+    there — are blended into one value each, weighted by every product's own
+    steady-state (final-year, pre-clamp) coverage.
+    """
+    base_idx = _base_year_idx(lp, base_year)
+    n_years = lp["long_act_treat_cov"].shape[0]
+    base_total = float(lp["long_act_treat_cov"][base_idx])
+    n = len(lat_draws)
+
+    series_list: list[np.ndarray] = []
+    weighted_effects: list[tuple[float, float, float]] = []  # (weight, vls, ltfu)
+    for _iv_id, draw in lat_draws:
+        target = draw["target_coverage"]
+        if isinstance(target, list):
+            series = _prep_series_from_array(target, base_idx, n_years)
+        else:
+            target_idx = _maybe_target_year_idx(lp, cast(_LongActingTreatmentDraw, draw))
+            base_value = base_total / n if n else 0.0
+            series = _coverage_ramp(base_value, target, base_idx, target_idx, n_years)
+        series_list.append(series)
+        weighted_effects.append((
+            float(series[-1]) if series.size else 0.0,
+            draw["viral_load_suppression_ratio"],
+            draw["interruption_rate_reduction"],
+        ))
+
+    total = np.sum(series_list, axis=0)
+    lp["long_act_treat_cov"][base_idx:] = np.minimum(total, 1.0)
+
+    total_weight = sum(w for w, _, _ in weighted_effects)
+    if total_weight > 0:
+        lp["long_act_treat_eff_vls"] = sum(w * vls for w, vls, _ in weighted_effects) / total_weight
+        lp["long_act_treat_eff_ltfu"] = sum(w * ltfu for w, _, ltfu in weighted_effects) / total_weight
+    else:
+        lp["long_act_treat_eff_vls"] = 0.0
+        lp["long_act_treat_eff_ltfu"] = 0.0
 
 
 def _apply_poc(lp: LeapfrogParams, poc_type: int, draw: _POCTestDraw, base_year: int) -> None:
@@ -578,8 +622,6 @@ def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict, base_year: in
             _apply_poc(lp, RN_POC_VL_Int, cast(_POCTestDraw, draw), base_year)
         case "poc_cd4_test":
             _apply_poc(lp, RN_POC_CD4_Int, cast(_POCTestDraw, draw), base_year)
-        case "long_acting_treatment":
-            _apply_long_acting_treatment(lp, cast(_LongActingTreatmentDraw, draw), base_year)
         case "adult_art":
             _apply_adult_art(lp, cast(_AdultARTDraw, draw), base_year)
         case _:
@@ -607,14 +649,19 @@ def apply_simulation(
     """
     meta = {iv.id: iv for iv in interventions}
     prep_draws: list[tuple[str, dict]] = []
+    lat_draws: list[tuple[str, dict]] = []
     for intervention_id, sim in simulation.items():
         iv = meta[intervention_id]
         if intervention_id in _PREP_IDS:
             prep_draws.append((intervention_id, sim.root))
+        elif intervention_id in _LAT_IDS:
+            lat_draws.append((intervention_id, sim.root))
         else:
             _dispatch(leapfrog_params, iv, sim.root, base_year)
     if prep_draws:
         _apply_all_prep(leapfrog_params, prep_draws, base_year)
+    if lat_draws:
+        _apply_all_long_acting_treatment(leapfrog_params, lat_draws, base_year)
 
 
 def run_simulation(

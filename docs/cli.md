@@ -627,7 +627,8 @@ proportions (ratio between 0 and 1); `art15plus_isperc` is automatically set to
 
 ##### Long-acting treatment
 
-`product`: `"Long-acting treatment"`
+Valid `product` values: `"Long-acting treatment"`, `"Long-acting treatment (Oral weekly)"`,
+`"Long-acting treatment (Injectable 6 month)"`, `"Long-acting treatment (Implant)"`.
 
 No `targets` field — coverage applies globally.
 
@@ -640,14 +641,24 @@ No `targets` field — coverage applies globally.
 | `interruption_rate_reduction` | Reduction in treatment interruption rate (0–1) |
 | `viral_load_suppression_ratio` | Viral load suppression ratio (0–1) |
 
+A scenario may include more than one of the 4 products above (e.g. both the oral
+weekly and the injectable variant) — they are combined before being passed to
+Goals, since the model only has a single coverage slot for long-acting
+treatment: each product's `target_coverage` is ramped independently, then
+summed per year (clamped to 1.0). `interruption_rate_reduction` and
+`viral_load_suppression_ratio` are each blended into a single value, weighted
+by every included product's own target_year coverage — Goals has
+no way to vary either rate by year, so this blend is necessarily a single
+number for the whole run, not a per-year series.
+
 ```json
 {
-  "product": "Long-acting treatment",
+  "product": "Long-acting treatment (Oral weekly)",
   "parameters": {
     "target_year":                  {"mean": 2030, "sd": 2},
     "target_coverage":               {"mean": 0.30, "sd": 0.05},
-    "interruption_rate_reduction":   {"mean": 0.25, "sd": 0.05},
-    "viral_load_suppression_ratio":  {"mean": 0.80, "sd": 0.05}
+    "interruption_rate_reduction":   {"mean": 0.20, "sd": 0.05},
+    "viral_load_suppression_ratio":  {"mean": 0.75, "sd": 0.05}
   }
 }
 ```

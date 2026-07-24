@@ -64,16 +64,26 @@ SOC_PRODUCTS <- c(
 # R&D products.
 # NOT YET INCLUDED:
 #   "Therapeutic vaccine"            — not added yet (TODO).
-#   2nd "Long-acting treatment" variant — only one variant included for now.
 #   "Vaginal microbiome modification" / "Cure (neonates)" — new model products
 #                                       available to adopt, omitted for now.
+#
+# Long-acting treatment is split into 3 R&D products, each going through its own
+# success/failure branch (own PTRS) like any other product. When more than one
+# succeeds in a branch, Goals combines them internally: their target_coverage
+# values are summed per year, and their interruption_rate_reduction /
+# viral_load_suppression_ratio are blended into single values weighted by each
+# product's own steady-state coverage (see _apply_all_long_acting_treatment in
+# avenir_goals_scenario/_runner/simulation.py). Nothing in this script needs to
+# know about that combining — each variant is just another independent product.
 RND_PRODUCTS <- c(
   "Injectable PrEP (6 month)",
   "Oral PrEP (monthly)",
   "Implantable PrEP",
   "PEP",
   "Vaccine",
-  "Long-acting treatment",
+  "Long-acting treatment (Oral weekly)",
+  "Long-acting treatment (Injectable 6 month)",
+  "Long-acting treatment (Implant)",
   "AHD treatment",
   "Cure (adults and children)",
   "POC CD4 test",
@@ -114,7 +124,11 @@ create_dummy_products <- function(path) {
   #            "PrEP ring", "Implantable PrEP", "bNABs", "PEP"
   #   Other:   "Vaccine", "Cure (adults and children)", "Cure (neonates)",
   #            "Vaginal microbiome modification", "AHD treatment",
-  #            "POC CD4 test", "POC VL test", "Long-acting treatment", "Adult ART"
+  #            "POC CD4 test", "POC VL test", "Adult ART",
+  #            "Long-acting treatment" (bare form kept for backward compatibility;
+  #            not used by this script), "Long-acting treatment (Oral weekly)",
+  #            "Long-acting treatment (Injectable 6 month)",
+  #            "Long-acting treatment (Implant)"
   #
   # Target shapes by product family:
   #   PrEP / PEP        : {risk_group, sex, target_coverage}
@@ -268,14 +282,33 @@ create_dummy_products <- function(path) {
     ),
     # Long-acting treatment: NO targets field (Goals schema forbids it);
     # target_year/target_coverage live in parameters, like AHD treatment / POC
-    # tests below. Included as a single variant.
+    # tests below. 3 independent variants (own PTRS, own coverage/target year);
+    # Goals combines whichever succeed together (see RND_PRODUCTS comment above).
     list(
-      product = "Long-acting treatment",
+      product = "Long-acting treatment (Oral weekly)",
       parameters = list(
         target_year                  = list(mean = 2030, sd = 2),
-        target_coverage              = list(mean = 0.70, sd = 0.08),
-        interruption_rate_reduction  = list(mean = 0.25, sd = 0.05),
-        viral_load_suppression_ratio = list(mean = 0.80, sd = 0.05)
+        target_coverage              = list(mean = 0.30, sd = 0.05),
+        interruption_rate_reduction  = list(mean = 0.20, sd = 0.05),
+        viral_load_suppression_ratio = list(mean = 0.75, sd = 0.05)
+      )
+    ),
+    list(
+      product = "Long-acting treatment (Injectable 6 month)",
+      parameters = list(
+        target_year                  = list(mean = 2031, sd = 2),
+        target_coverage              = list(mean = 0.30, sd = 0.05),
+        interruption_rate_reduction  = list(mean = 0.30, sd = 0.05),
+        viral_load_suppression_ratio = list(mean = 0.85, sd = 0.05)
+      )
+    ),
+    list(
+      product = "Long-acting treatment (Implant)",
+      parameters = list(
+        target_year                  = list(mean = 2033, sd = 2),
+        target_coverage              = list(mean = 0.20, sd = 0.05),
+        interruption_rate_reduction  = list(mean = 0.35, sd = 0.05),
+        viral_load_suppression_ratio = list(mean = 0.90, sd = 0.05)
       )
     ),
     # AHD treatment and POC tests: NO targets field (Goals schema forbids it);
@@ -338,29 +371,34 @@ create_dummy_ptrs <- function(path) {
   # Uses internal product ids (the "id" field, defaulting to "product").
   # One row per R&D product, in RND_PRODUCTS order:
   #   Injectable PrEP (6 month), Oral PrEP (monthly), Implantable PrEP, PEP,
-  #   Vaccine, Cure (adults and children), Long-acting treatment, AHD treatment,
-  #   POC CD4 test, POC VL test
+  #   Vaccine, Long-acting treatment (Oral weekly), Long-acting treatment
+  #   (Injectable 6 month), Long-acting treatment (Implant), AHD treatment,
+  #   Cure (adults and children), POC CD4 test, POC VL test
   readr::write_csv(tibble::tibble(
     Product = RND_PRODUCTS,
-    ptrs    = c(0.90, 0.70, 0.40, 0.50, 0.17, 0.10, 0.50, 0.30, 0.60, 0.60)
+    ptrs    = c(0.90, 0.70, 0.40, 0.50, 0.17, 0.10, 0.10, 0.10, 0.50, 0.30, 0.60, 0.60)
   ), path)
   message("Wrote dummy ", path)
 }
 
 create_dummy_market_dynamics <- function(path) {
   # trigger_products and affected_product use CANONICAL product names (e.g.
-  # "Vaccine"), so a rule fires when any matching variant is present.
-  # "Long-acting treatment" now carries a target_coverage (in parameters), so
-  # it can be used as either a trigger or an affected_product.
+  # "Vaccine"), so a rule fires when any matching variant is present. Each of the
+  # 3 long-acting treatment variants carries its own target_coverage (in
+  # parameters), so each can be used as either a trigger or an affected_product,
+  # same as any other product.
   readr::write_csv(tibble::tribble(
-    ~trigger_products,                                       ~affected_product,            ~coverage_multiplier, ~type,
-    "Vaccine",                                               "Oral PrEP (daily)",          0.50,                 "cannibalization",
-    "Vaccine",                                               "Injectable PrEP (2 month)",  0.50,                 "cannibalization",
-    "Vaccine",                                               "Injectable PrEP (6 month)",  0.50,                 "cannibalization",
-    "Implantable PrEP",                                      "Oral PrEP (daily)",          0.10,                 "cannibalization",
-    "Cure (adults and children)",                            "Adult ART",                  0.10,                 "cannibalization",
-    "Injectable PrEP (6 month);Oral PrEP (monthly)",         "Injectable PrEP (6 month)",  1.10,                 "synergy",
-    "Injectable PrEP (6 month);Oral PrEP (monthly)",         "Oral PrEP (monthly)",        1.10,                 "synergy"
+    ~trigger_products,                                       ~affected_product,                             ~coverage_multiplier, ~type,
+    "Vaccine",                                               "Oral PrEP (daily)",                           0.50,                 "cannibalization",
+    "Vaccine",                                               "Injectable PrEP (2 month)",                   0.50,                 "cannibalization",
+    "Vaccine",                                               "Injectable PrEP (6 month)",                   0.50,                 "cannibalization",
+    "Implantable PrEP",                                      "Oral PrEP (daily)",                           0.10,                 "cannibalization",
+    "Cure (adults and children)",                            "Adult ART",                                  0.10,                 "cannibalization",
+    "Long-acting treatment (Oral weekly)",                   "Adult ART",                                  0.10,                 "cannibalization",
+    "Long-acting treatment (Injectable 6 month)",            "Adult ART",                                  0.10,                 "cannibalization",
+    "Long-acting treatment (Implant)",                       "Adult ART",                                  0.10,                 "cannibalization",
+    "Injectable PrEP (6 month);Oral PrEP (monthly)",         "Injectable PrEP (6 month)",                   1.10,                 "synergy",
+    "Injectable PrEP (6 month);Oral PrEP (monthly)",         "Oral PrEP (monthly)",                         1.10,                 "synergy"
   ), path)
   message("Wrote dummy ", path)
 }
