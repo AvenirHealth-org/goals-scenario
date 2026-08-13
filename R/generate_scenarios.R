@@ -19,7 +19,7 @@
 #     the internal R&D product name used in RND_PRODUCTS, PTRS, and market dynamics.
 #     If omitted, the "product" field is used as the id.
 #   - The "product" field is the canonical Goals product name (must match the
-#     Python Literal exactly, e.g. "Vaccine").
+#     Python Literal exactly, e.g. "Prophylactic vaccine").
 #   - Each product in RND_PRODUCTS must map to a unique canonical product name.
 #
 # Country archetypes:
@@ -36,7 +36,7 @@
 #
 # Market dynamics:
 #   - trigger_products and affected_product use CANONICAL product names (e.g.
-#     "Vaccine"), so a rule fires regardless of which internal variant succeeded.
+#     "Prophylactic vaccine"), so a rule fires regardless of which internal variant succeeded.
 #   - When all trigger products are present, the affected product's
 #     target_coverage.mean is multiplied by coverage_multiplier (multiplicative).
 #
@@ -67,6 +67,11 @@ SOC_PRODUCTS <- c(
 #   "Vaginal microbiome modification" / "Cure (neonates)" — new model products
 #                                       available to adopt, omitted for now.
 #
+# "Cure (adults and children)" has been replaced by "Functional cure" below,
+# which targets high-risk adults, low-risk adults, and children separately
+# (no more single PLHIV-wide target) and drops "efficacy" in favor of
+# "reduction_in_mortality" / "reduction_in_infectiousness".
+#
 # Long-acting treatment is split into 3 R&D products, each going through its own
 # success/failure branch (own PTRS) like any other product. When more than one
 # succeeds in a branch, Goals combines them internally: their target_coverage
@@ -80,12 +85,12 @@ RND_PRODUCTS <- c(
   "Oral PrEP (monthly)",
   "Implantable PrEP",
   "PEP",
-  "Vaccine",
+  "Prophylactic vaccine",
   "Long-acting treatment (Oral weekly)",
   "Long-acting treatment (Injectable 6 month)",
   "Long-acting treatment (Implant)",
   "AHD treatment",
-  "Cure (adults and children)",
+  "Functional cure",
   "POC CD4 test",
   "POC VL test"
 )
@@ -104,25 +109,26 @@ create_dummy_products <- function(path) {
   # Each entry:
   #   id (optional) : internal name matching RND_PRODUCTS / ptrs_input.csv.
   #                   If absent, "product" is used as the id.
-  #   product       : canonical Goals product name (Python Literal, e.g. "Vaccine")
+  #   product       : canonical Goals product name (Python Literal, e.g. "Prophylactic vaccine")
   #   targets       : product-type-specific list of target objects (see below);
   #                   omit entirely for AHD treatment and POC tests.
   #   parameters    : product-type-specific
   #
   # IMPORTANT — coverage location (Goals model "coverage fix"):
-  #   For products WITH targets (PrEP/PEP, Vaccine, Cure, Adult ART), the
-  #   "target_coverage" {mean, sd} now lives INSIDE EACH TARGET, not in
-  #   "parameters". The target-less products (AHD treatment, POC tests,
-  #   Long-acting treatment) keep "target_coverage" (and "target_year") in
-  #   "parameters" instead, and must NOT have a "targets" field at all
-  #   (the Goals schema forbids it for these products).
+  #   For products WITH targets (PrEP/PEP, Prophylactic vaccine, Cure, Functional
+  #   cure, Adult ART), the "target_coverage" {mean, sd} now lives INSIDE EACH
+  #   TARGET, not in "parameters". The target-less products (Therapeutic vaccine,
+  #   AHD treatment, POC tests, Long-acting treatment) keep "target_coverage"
+  #   (and "target_year") in "parameters" instead, and must NOT have a "targets"
+  #   field at all (the Goals schema forbids it for these products).
   #
   # Valid canonical product names:
   #   PrEP:    "Oral PrEP (daily)", "Oral PrEP (monthly)",
   #            "Injectable PrEP (1 month)", "Injectable PrEP (2 month)",
   #            "Injectable PrEP (6 month)", "Oral PrEP plus contraceptive",
   #            "PrEP ring", "Implantable PrEP", "bNABs", "PEP"
-  #   Other:   "Vaccine", "Cure (adults and children)", "Cure (neonates)",
+  #   Other:   "Prophylactic vaccine", "Therapeutic vaccine",
+  #            "Cure (adults and children)", "Cure (neonates)", "Functional cure",
   #            "Vaginal microbiome modification", "AHD treatment",
   #            "POC CD4 test", "POC VL test", "Adult ART",
   #            "Long-acting treatment" (bare form kept for backward compatibility;
@@ -131,19 +137,23 @@ create_dummy_products <- function(path) {
   #            "Long-acting treatment (Implant)"
   #
   # Target shapes by product family:
-  #   PrEP / PEP        : {risk_group, sex, target_coverage}
-  #   Vaccine / Cure    : {risk_group, sex (optional), target_coverage}
-  #                       risk_group may be "PLHIV" (then sex must be "Both" or omitted)
-  #   Adult ART         : {sex, target_coverage}            (no risk_group)
-  #   Long-acting tx    : NO targets list; target_year/target_coverage live in
-  #                       "parameters" (same shape as AHD treatment / POC tests).
+  #   PrEP / PEP          : {risk_group, sex, target_coverage}
+  #   Prophylactic vaccine
+  #     / Cure (adults and children) : {risk_group, sex (optional), target_coverage}
+  #                         risk_group may be "PLHIV" (then sex must be "Both" or omitted)
+  #   Functional cure     : {risk_group, target_coverage}   (no sex; risk_group is
+  #                         one of "High risk adults" / "Low risk adults" / "Children")
+  #   Adult ART           : {sex, target_coverage}            (no risk_group)
+  #   Long-acting tx /
+  #     Therapeutic vaccine: NO targets list; target_year/target_coverage live in
+  #                         "parameters" (same shape as AHD treatment / POC tests).
   #
-  # Risk groups (PrEP / Vaccine / Cure):
+  # Risk groups (PrEP / Prophylactic vaccine / Cure):
   #   "Low risk heterosexual", "Medium risk heterosexual", "High risk heterosexual",
-  #   "People who inject drugs", "Men who have sex with men", and (Vaccine/Cure) "PLHIV"
+  #   "People who inject drugs", "Men who have sex with men", and (vaccine/cure) "PLHIV"
   #   sex: "Male", "Female", "Both"
   #
-  # Vaccine parameter Literals:
+  # Prophylactic vaccine parameter Literals:
   #   vaccine_action_type: "Take" | "Degree"
   #   targeting: "Vaccinate without HIV testing"
   #            | "Vaccinate only HIV-negative individuals"
@@ -251,7 +261,7 @@ create_dummy_products <- function(path) {
     # TODO: confirm whether targeting should be "Vaccinate without HIV testing"
     # or "Vaccinate only HIV-negative individuals" for this product.
     list(
-      product = "Vaccine",
+      product = "Prophylactic vaccine",
       targets = list(
         list(risk_group = "Medium risk heterosexual", sex = "Female",
              target_coverage = list(mean = 0.50, sd = 0.10)),
@@ -268,16 +278,20 @@ create_dummy_products <- function(path) {
         targeting                            = "Vaccinate without HIV testing"
       )
     ),
-    # Cure: targets PLHIV (sex omitted; PLHIV must be sex "Both" or unset).
+    # Functional cure: targets high-risk adults, low-risk adults, and children
+    # separately (no PLHIV-wide mode, no sex dimension).
     list(
-      product = "Cure (adults and children)",
+      product = "Functional cure",
       targets = list(
-        list(risk_group = "PLHIV", target_coverage = list(mean = 0.20, sd = 0.05))
+        list(risk_group = "High risk adults", target_coverage = list(mean = 0.20, sd = 0.05)),
+        list(risk_group = "Low risk adults",  target_coverage = list(mean = 0.20, sd = 0.05)),
+        list(risk_group = "Children",         target_coverage = list(mean = 0.20, sd = 0.05))
       ),
       parameters = list(
-        target_year      = list(mean = 2035, sd = 3),
-        efficacy         = list(mean = 0.85, sd = 0.05),
-        duration_of_cure = list(mean = 5.0,  sd = 1.0)
+        target_year                  = list(mean = 2035, sd = 3),
+        reduction_in_mortality       = list(mean = 0.85, sd = 0.05),
+        reduction_in_infectiousness  = list(mean = 0.70, sd = 0.05),
+        duration_of_cure             = list(mean = 5.0,  sd = 1.0)
       )
     ),
     # Long-acting treatment: NO targets field (Goals schema forbids it);
@@ -371,9 +385,9 @@ create_dummy_ptrs <- function(path) {
   # Uses internal product ids (the "id" field, defaulting to "product").
   # One row per R&D product, in RND_PRODUCTS order:
   #   Injectable PrEP (6 month), Oral PrEP (monthly), Implantable PrEP, PEP,
-  #   Vaccine, Long-acting treatment (Oral weekly), Long-acting treatment
-  #   (Injectable 6 month), Long-acting treatment (Implant), AHD treatment,
-  #   Cure (adults and children), POC CD4 test, POC VL test
+  #   Prophylactic vaccine, Long-acting treatment (Oral weekly), Long-acting
+  #   treatment (Injectable 6 month), Long-acting treatment (Implant),
+  #   AHD treatment, Functional cure, POC CD4 test, POC VL test
   readr::write_csv(tibble::tibble(
     Product = RND_PRODUCTS,
     ptrs    = c(0.90, 0.70, 0.40, 0.50, 0.17, 0.10, 0.10, 0.10, 0.50, 0.30, 0.60, 0.60)
@@ -383,17 +397,17 @@ create_dummy_ptrs <- function(path) {
 
 create_dummy_market_dynamics <- function(path) {
   # trigger_products and affected_product use CANONICAL product names (e.g.
-  # "Vaccine"), so a rule fires when any matching variant is present. Each of the
-  # 3 long-acting treatment variants carries its own target_coverage (in
-  # parameters), so each can be used as either a trigger or an affected_product,
-  # same as any other product.
+  # "Prophylactic vaccine"), so a rule fires when any matching variant is
+  # present. Each of the 3 long-acting treatment variants carries its own
+  # target_coverage (in parameters), so each can be used as either a trigger or
+  # an affected_product, same as any other product.
   readr::write_csv(tibble::tribble(
     ~trigger_products,                                       ~affected_product,                             ~coverage_multiplier, ~type,
-    "Vaccine",                                               "Oral PrEP (daily)",                           0.50,                 "cannibalization",
-    "Vaccine",                                               "Injectable PrEP (2 month)",                   0.50,                 "cannibalization",
-    "Vaccine",                                               "Injectable PrEP (6 month)",                   0.50,                 "cannibalization",
+    "Prophylactic vaccine",                                  "Oral PrEP (daily)",                           0.50,                 "cannibalization",
+    "Prophylactic vaccine",                                  "Injectable PrEP (2 month)",                   0.50,                 "cannibalization",
+    "Prophylactic vaccine",                                  "Injectable PrEP (6 month)",                   0.50,                 "cannibalization",
     "Implantable PrEP",                                      "Oral PrEP (daily)",                           0.10,                 "cannibalization",
-    "Cure (adults and children)",                            "Adult ART",                                  0.10,                 "cannibalization",
+    "Functional cure",                                       "Adult ART",                                  0.10,                 "cannibalization",
     "Long-acting treatment (Oral weekly)",                   "Adult ART",                                  0.10,                 "cannibalization",
     "Long-acting treatment (Injectable 6 month)",            "Adult ART",                                  0.10,                 "cannibalization",
     "Long-acting treatment (Implant)",                       "Adult ART",                                  0.10,                 "cannibalization",
@@ -491,8 +505,9 @@ archetype_multiplier <- function(lookup, archetype, target_pop) {
 
 # For one scenario (a set of products present), compute the product-level
 # market-dynamic multiplier from ALL applicable rules (combined multiplicatively).
-# Market dynamics operates on CANONICAL product names so that a "Vaccine" rule
-# fires regardless of which vaccine variant (prophylactic / therapeutic) succeeded.
+# Market dynamics operates on CANONICAL product names so that a "Prophylactic
+# vaccine" rule fires regardless of which vaccine variant (prophylactic /
+# therapeutic) succeeded.
 market_dynamic_multipliers <- function(canonical_products_in_scenario, market_df) {
   out <- stats::setNames(rep(1, length(canonical_products_in_scenario)),
                          canonical_products_in_scenario)
@@ -556,9 +571,10 @@ build_intervention <- function(prod_entry) {
 # per-target archetype multiplier and the product-level market-dynamic multiplier.
 #
 # Coverage lives in one of two places (see create_dummy_products):
-#   - per-target "target_coverage" (PrEP/PEP, Vaccine, Cure, Adult ART):
-#     each target is scaled by archetype_multiplier(archetype, its risk_group)
-#     * md_mult. Targets with no risk_group (Adult ART) use the "*" archetype row.
+#   - per-target "target_coverage" (PrEP/PEP, Prophylactic vaccine, Cure,
+#     Functional cure, Adult ART): each target is scaled by
+#     archetype_multiplier(archetype, its risk_group) * md_mult. Targets with no
+#     risk_group (Adult ART) use the "*" archetype row.
 #   - parameters$target_coverage (AHD treatment, POC tests, Long-acting
 #     treatment): scaled by archetype_multiplier(archetype, "*") * md_mult.
 build_intervention_scaled <- function(entry, arch_lookup, archetype, md_mult) {

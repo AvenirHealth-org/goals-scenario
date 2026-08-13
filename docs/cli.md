@@ -243,12 +243,12 @@ Each intervention is discriminated by its `product` field. The valid products an
 required fields are listed below.
 
 Every intervention has a `parameters` object. Products that target specific populations
-(PrEP/PEP, Vaccine, Cure, Cure (neonates), Vaginal microbiome modification, Adult ART)
-also have a `targets` list, and for those products `target_coverage` lives **inside each
-target**, not in `parameters` — each target gets its own coverage. The target-less
-products (AHD treatment, POC tests, Long-acting treatment) have no `targets` list, so
-`target_coverage` lives directly in `parameters` instead, since there is only one
-population to specify coverage for.
+(PrEP/PEP, Prophylactic vaccine, Cure, Functional cure, Cure (neonates), Vaginal
+microbiome modification, Adult ART) also have a `targets` list, and for those products
+`target_coverage` lives **inside each target**, not in `parameters` — each target gets
+its own coverage. The target-less products (Therapeutic vaccine, AHD treatment, POC
+tests, Long-acting treatment) have no `targets` list, so `target_coverage` lives directly
+in `parameters` instead, since there is only one population to specify coverage for.
 
 #### Per-year coverage arrays
 
@@ -352,9 +352,9 @@ Implantable PrEP with a `duration` (months), and Oral PrEP plus contraceptive wi
 
 ---
 
-##### Vaccine
+##### Prophylactic vaccine
 
-`product`: `"Vaccine"`
+`product`: `"Prophylactic vaccine"`
 
 `targets`: one or more entries (one or more required), each with its own target coverage.
 Two targeting modes:
@@ -384,7 +384,7 @@ Two targeting modes:
 
 ```json
 {
-  "product": "Vaccine",
+  "product": "Prophylactic vaccine",
   "targets": [
     {"risk_group": "PLHIV", "target_coverage": {"mean": 0.50, "sd": 0.10}}
   ],
@@ -396,6 +396,37 @@ Two targeting modes:
     "vaccine_duration_years":                {"mean": 5,    "sd": 1},
     "vaccine_action_type":                   "Take",
     "targeting":                             "Vaccinate only HIV-negative individuals"
+  }
+}
+```
+
+---
+
+##### Therapeutic vaccine
+
+`product`: `"Therapeutic vaccine"`
+
+No `targets` field — coverage applies globally.
+
+`parameters`:
+
+| Parameter | Description |
+|---|---|
+| `target_year` | Target implementation year. Ignored if `target_coverage` is passed as an array — see [per-year coverage arrays](#per-year-coverage-arrays) |
+| `target_coverage` | Distribution parameters (`mean` & `sd`) or an array of per-year coverages — see [per-year coverage arrays](#per-year-coverage-arrays) |
+| `reduction_in_mortality` | Reduction in mortality due to the therapeutic vaccine (0–1) |
+| `reduction_in_infectiousness` | Reduction in infectiousness due to the therapeutic vaccine (0–1) |
+| `vaccine_duration_years` | Vaccine duration in years |
+
+```json
+{
+  "product": "Therapeutic vaccine",
+  "parameters": {
+    "target_year":                  {"mean": 2035, "sd": 3},
+    "target_coverage":              {"mean": 0.50, "sd": 0.10},
+    "reduction_in_mortality":       {"mean": 0.40, "sd": 0.05},
+    "reduction_in_infectiousness":  {"mean": 0.50, "sd": 0.05},
+    "vaccine_duration_years":       {"mean": 5,    "sd": 1}
   }
 }
 ```
@@ -438,6 +469,47 @@ Same two targeting modes as Vaccine:
     "target_year":      {"mean": 2035, "sd": 3},
     "efficacy":         {"mean": 0.85, "sd": 0.05},
     "duration_of_cure": {"mean": 0.50, "sd": 0.10}
+  }
+}
+```
+
+---
+
+##### Functional cure
+
+`product`: `"Functional cure"`
+
+`targets`: one or more entries, each with its own target coverage. There is no PLHIV-wide
+mode and no `sex` field — coverage is specified separately for each of the 3 population
+groups below.
+
+| Field | Values |
+|---|---|
+| `risk_group` | `"High risk adults"`, `"Low risk adults"`, `"Children"` |
+| `target_coverage` | Distribution parameters (`mean` & `sd`) or an array of per-year coverages for this target — see [per-year coverage arrays](#per-year-coverage-arrays) |
+
+`parameters`:
+
+| Parameter | Description |
+|---|---|
+| `target_year` | Target implementation year. Ignored if every target's `target_coverage` is passed as an array — see [per-year coverage arrays](#per-year-coverage-arrays) |
+| `reduction_in_mortality` | Reduction in mortality due to the functional cure (0–1) |
+| `reduction_in_infectiousness` | Reduction in infectiousness due to the functional cure (0–1) |
+| `duration_of_cure` | Duration of cure effect |
+
+```json
+{
+  "product": "Functional cure",
+  "targets": [
+    {"risk_group": "High risk adults", "target_coverage": {"mean": 0.30, "sd": 0.05}},
+    {"risk_group": "Low risk adults",  "target_coverage": {"mean": 0.20, "sd": 0.05}},
+    {"risk_group": "Children",         "target_coverage": {"mean": 0.15, "sd": 0.05}}
+  ],
+  "parameters": {
+    "target_year":                  {"mean": 2035, "sd": 3},
+    "reduction_in_mortality":       {"mean": 0.60, "sd": 0.05},
+    "reduction_in_infectiousness":  {"mean": 0.70, "sd": 0.05},
+    "duration_of_cure":             {"mean": 0.50, "sd": 0.10}
   }
 }
 ```

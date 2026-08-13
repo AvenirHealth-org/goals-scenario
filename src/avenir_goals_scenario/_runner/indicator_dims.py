@@ -225,20 +225,22 @@ _REACHED_INTERVENTIONS: tuple[tuple[int, str], ...] = (
     (48, "Infant males circumcised"),
     (49, "Adults on ART"),
     (50, "Children on ART"),
-    (39, "Vaccine"),
+    (39, "Prophylactic vaccine"),
     (40, "Cure (adults and children)"),
     (41, "Cure (neonates)"),
     (43, "AHD treatment"),
     (44, "POC CD4 test"),
     (45, "POC VL test"),
     (42, "Vaginal microbiome modification"),
+    (55, "Therapeutic vaccine"),
+    (56, "Functional cure"),
 )
 
 # Aggregate cost rows present only in resources_required.
 _COST_ROWS: tuple[tuple[int, str], ...] = (
-    (53, "Direct costs"),
-    (54, "Program costs"),
-    (55, "Total costs"),
+    (57, "Direct costs"),
+    (58, "Program costs"),
+    (59, "Total costs"),
 )
 
 _RESOURCES_REQUIRED_ROWS = (*_REACHED_INTERVENTIONS, *_COST_ROWS)

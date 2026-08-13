@@ -466,14 +466,14 @@ def test_ahd_treatment_has_no_target_coverages_in_draw():
 
 
 def test_categorical_params_passed_through_unchanged():
-    """Vaccine categorical params (vaccine_action_type, targeting) survive in the simulation draw."""
+    """Prophylactic vaccine categorical params (vaccine_action_type, targeting) survive in the simulation draw."""
     data = {
         "scenarios": [
             {
                 "id": "1",
                 "interventions": [
                     {
-                        "product": "Vaccine",
+                        "product": "Prophylactic vaccine",
                         "targets": [
                             {
                                 "risk_group": "High risk heterosexual",
@@ -497,7 +497,7 @@ def test_categorical_params_passed_through_unchanged():
     }
     definition = ScenarioInput.model_validate(data)
     output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
-    params = output.scenarios[0].simulations[0]["vaccine"].root
+    params = output.scenarios[0].simulations[0]["prophylactic_vaccine"].root
     assert params["vaccine_action_type"] == "Take"
     assert params["targeting"] == "Vaccinate only HIV-negative individuals"
 

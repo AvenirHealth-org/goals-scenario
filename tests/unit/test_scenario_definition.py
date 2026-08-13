@@ -9,6 +9,9 @@ from avenir_goals_scenario.models.scenario_definition import (
     CureNeonateParameters,
     CureNeonateTarget,
     CureParameters,
+    FunctionalCureInterventionDef,
+    FunctionalCureParameters,
+    FunctionalCureTarget,
     LongActingTreatmentDef,
     LongActingTreatmentParameters,
     NormalDistParameters,
@@ -18,6 +21,7 @@ from avenir_goals_scenario.models.scenario_definition import (
     PrepTarget,
     ScenarioInput,
     SingleScenarioDef,
+    TherapeuticVaccineParameters,
     VaccineCureTarget,
     VMMInterventionDef,
     VMMParameters,
@@ -172,6 +176,42 @@ def test_vaccine_cure_target_coverage_gets_proportion_bounds():
 
 
 # ---------------------------------------------------------------------------
+# TherapeuticVaccineParameters constraints
+# ---------------------------------------------------------------------------
+
+
+def test_therapeutic_vaccine_parameters_applies_constraints():
+    params = TherapeuticVaccineParameters(
+        target_year=NormalDistParameters(mean=2032, sd=3),
+        target_coverage=NormalDistParameters(mean=0.4, sd=0.05),
+        reduction_in_mortality=NormalDistParameters(mean=0.5, sd=0.1),
+        reduction_in_infectiousness=NormalDistParameters(mean=0.6, sd=0.1),
+        vaccine_duration_years=NormalDistParameters(mean=8.0, sd=1.0),
+    )
+    assert params.target_year is not None
+    assert params.target_year.integer is True
+    assert params.target_year.min_value == 1970
+    assert isinstance(params.target_coverage, NormalDistParameters)
+    assert params.target_coverage.min_value == 0.0
+    assert params.target_coverage.max_value == 1.0
+    assert params.reduction_in_mortality.min_value == 0.0
+    assert params.reduction_in_mortality.max_value == 1.0
+    assert params.reduction_in_infectiousness.min_value == 0.0
+    assert params.reduction_in_infectiousness.max_value == 1.0
+
+
+def test_therapeutic_vaccine_parameters_accepts_coverage_array():
+    params = TherapeuticVaccineParameters(
+        target_coverage=[0.1, 0.2, 0.3],
+        reduction_in_mortality=NormalDistParameters(mean=0.5, sd=0.1),
+        reduction_in_infectiousness=NormalDistParameters(mean=0.6, sd=0.1),
+        vaccine_duration_years=NormalDistParameters(mean=8.0, sd=1.0),
+    )
+    assert params.target_coverage == [0.1, 0.2, 0.3]
+    assert params.target_year is None
+
+
+# ---------------------------------------------------------------------------
 # CureParameters constraints
 # ---------------------------------------------------------------------------
 
@@ -187,6 +227,84 @@ def test_cure_parameters_applies_constraints():
     assert params.target_year.min_value == 1970
     assert params.efficacy.min_value == 0.0
     assert params.efficacy.max_value == 1.0
+
+
+# ---------------------------------------------------------------------------
+# FunctionalCureTarget and FunctionalCureParameters
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("population", ["High risk adults", "Low risk adults", "Children"])
+def test_functional_cure_target_accepts_all_populations(population):
+    t = FunctionalCureTarget(risk_group=population, target_coverage=_ANY_COV)
+    assert t.risk_group == population
+
+
+def test_functional_cure_target_rejects_unknown_population():
+    with pytest.raises(ValidationError):
+        FunctionalCureTarget(risk_group="Medium risk heterosexual", target_coverage=_ANY_COV)
+
+
+def test_functional_cure_target_coverage_gets_proportion_bounds():
+    t = FunctionalCureTarget(risk_group="Children", target_coverage=NormalDistParameters(mean=0.2, sd=0.05))
+    assert isinstance(t.target_coverage, NormalDistParameters)
+    assert t.target_coverage.min_value == 0.0
+    assert t.target_coverage.max_value == 1.0
+
+
+def test_functional_cure_parameters_applies_constraints():
+    params = FunctionalCureParameters(
+        target_year=NormalDistParameters(mean=2035, sd=3),
+        reduction_in_mortality=NormalDistParameters(mean=0.6, sd=0.1),
+        reduction_in_infectiousness=NormalDistParameters(mean=0.7, sd=0.1),
+        duration_of_cure=NormalDistParameters(mean=5.0, sd=1.0),
+    )
+    assert params.target_year is not None
+    assert params.target_year.integer is True
+    assert params.target_year.min_value == 1970
+    assert params.reduction_in_mortality.min_value == 0.0
+    assert params.reduction_in_mortality.max_value == 1.0
+    assert params.reduction_in_infectiousness.min_value == 0.0
+    assert params.reduction_in_infectiousness.max_value == 1.0
+
+
+def test_functional_cure_intervention_def_accepts_multiple_population_targets():
+    iv = FunctionalCureInterventionDef(
+        product="Functional cure",
+        targets=[
+            FunctionalCureTarget(risk_group="High risk adults", target_coverage=_ANY_COV),
+            FunctionalCureTarget(risk_group="Low risk adults", target_coverage=_ANY_COV),
+            FunctionalCureTarget(risk_group="Children", target_coverage=_ANY_COV),
+        ],
+        parameters=FunctionalCureParameters(
+            target_year=NormalDistParameters(mean=2035, sd=3),
+            reduction_in_mortality=NormalDistParameters(mean=0.6, sd=0.1),
+            reduction_in_infectiousness=NormalDistParameters(mean=0.7, sd=0.1),
+            duration_of_cure=NormalDistParameters(mean=5.0, sd=1.0),
+        ),
+    )
+    assert len(iv.targets) == 3
+
+
+def test_single_scenario_duplicate_functional_cure_population_raises():
+    target = {"risk_group": "Children", "target_coverage": _ANY_COV}
+    params = {
+        "target_year": {"mean": 2035, "sd": 3},
+        "reduction_in_mortality": {"mean": 0.6, "sd": 0.1},
+        "reduction_in_infectiousness": {"mean": 0.7, "sd": 0.1},
+        "duration_of_cure": {"mean": 5.0, "sd": 1.0},
+    }
+    # The validator's message says "(product, sex)" for any 2-element key, even though the
+    # second element here is risk_group, not sex — a pre-existing label quirk shared with
+    # CureNeonate/VMM's identical 2-tuple keys.
+    with pytest.raises(ValidationError, match=r"duplicate \(product, sex\).*Functional cure.*Children"):
+        SingleScenarioDef.model_validate({
+            "id": "s1",
+            "interventions": [
+                {"product": "Functional cure", "targets": [target], "parameters": params},
+                {"product": "Functional cure", "targets": [target], "parameters": params},
+            ],
+        })
 
 
 # ---------------------------------------------------------------------------

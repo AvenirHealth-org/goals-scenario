@@ -60,7 +60,7 @@ def _prep_params() -> dict:
     }
 
 
-def _vaccine_params() -> dict:
+def _prophylactic_vaccine_params() -> dict:
     return {
         "projection_start_year": _START_YEAR,
         "rn_vac_cov_type": 0,
@@ -351,7 +351,7 @@ def test_prep_zero_coverage_does_not_raise():
 
 
 # ---------------------------------------------------------------------------
-# Vaccine — not yet fully implemented; partial coverage write is expected
+# Prophylactic vaccine — not yet fully implemented; partial coverage write is expected
 # ---------------------------------------------------------------------------
 
 
@@ -365,10 +365,14 @@ _VAC_SIM_BASE = {
 }
 
 
-def test_vaccine_plhiv_target_writes_all_risk():
-    lp = _vaccine_params()
-    ivs = _iv("vaccine", "Vaccine")
-    sim = _sim("vaccine", target_coverages=[{"sex": "Both", "risk_group": "PLHIV", "coverage": 0.50}], **_VAC_SIM_BASE)
+def test_prophylactic_vaccine_plhiv_target_writes_all_risk():
+    lp = _prophylactic_vaccine_params()
+    ivs = _iv("prophylactic_vaccine", "Prophylactic vaccine")
+    sim = _sim(
+        "prophylactic_vaccine",
+        target_coverages=[{"sex": "Both", "risk_group": "PLHIV", "coverage": 0.50}],
+        **_VAC_SIM_BASE,
+    )
 
     apply_simulation(lp, ivs, sim, _START_YEAR)
 
@@ -381,10 +385,14 @@ def test_vaccine_plhiv_target_writes_all_risk():
     assert lp["rn_vac_targetting"] == 0
 
 
-def test_vaccine_plhiv_target_sex_none_writes_all_risk():
-    lp = _vaccine_params()
-    ivs = _iv("vaccine", "Vaccine")
-    sim = _sim("vaccine", target_coverages=[{"sex": None, "risk_group": "PLHIV", "coverage": 0.45}], **_VAC_SIM_BASE)
+def test_prophylactic_vaccine_plhiv_target_sex_none_writes_all_risk():
+    lp = _prophylactic_vaccine_params()
+    ivs = _iv("prophylactic_vaccine", "Prophylactic vaccine")
+    sim = _sim(
+        "prophylactic_vaccine",
+        target_coverages=[{"sex": None, "risk_group": "PLHIV", "coverage": 0.45}],
+        **_VAC_SIM_BASE,
+    )
 
     apply_simulation(lp, ivs, sim, _START_YEAR)
 
@@ -392,11 +400,11 @@ def test_vaccine_plhiv_target_sex_none_writes_all_risk():
     assert lp["rn_vac_coverage_rg"][RN_AllRisk, _TARGET_YEAR_IDX] == pytest.approx(0.45)
 
 
-def test_vaccine_risk_group_female_writes_female_index():
-    lp = _vaccine_params()
-    ivs = _iv("vaccine", "Vaccine")
+def test_prophylactic_vaccine_risk_group_female_writes_female_index():
+    lp = _prophylactic_vaccine_params()
+    ivs = _iv("prophylactic_vaccine", "Prophylactic vaccine")
     sim = _sim(
-        "vaccine",
+        "prophylactic_vaccine",
         target_coverages=[{"sex": "Female", "risk_group": "High risk heterosexual", "coverage": 0.40}],
         **{**_VAC_SIM_BASE, "vaccine_action_type": "Degree", "targeting": "Vaccinate only HIV-negative individuals"},
     )
@@ -408,11 +416,11 @@ def test_vaccine_risk_group_female_writes_female_index():
     assert lp["rn_vac_targetting"] == 1
 
 
-def test_vaccine_risk_group_both_writes_male_and_female():
-    lp = _vaccine_params()
-    ivs = _iv("vaccine", "Vaccine")
+def test_prophylactic_vaccine_risk_group_both_writes_male_and_female():
+    lp = _prophylactic_vaccine_params()
+    ivs = _iv("prophylactic_vaccine", "Prophylactic vaccine")
     sim = _sim(
-        "vaccine",
+        "prophylactic_vaccine",
         target_coverages=[{"sex": "Both", "risk_group": "High risk heterosexual", "coverage": 0.35}],
         **_VAC_SIM_BASE,
     )
@@ -424,11 +432,11 @@ def test_vaccine_risk_group_both_writes_male_and_female():
     assert lp["rn_vac_coverage_rg"][RN_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.35)
 
 
-def test_vaccine_action_type_is_mapped():
-    lp = _vaccine_params()
-    ivs = _iv("vaccine", "Vaccine")
+def test_prophylactic_vaccine_action_type_is_mapped():
+    lp = _prophylactic_vaccine_params()
+    ivs = _iv("prophylactic_vaccine", "Prophylactic vaccine")
     sim = _sim(
-        "vaccine",
+        "prophylactic_vaccine",
         target_coverages=[{"sex": None, "risk_group": "PLHIV", "coverage": 0.50}],
         **{**_VAC_SIM_BASE, "vaccine_action_type": "Take"},
     )
@@ -438,7 +446,7 @@ def test_vaccine_action_type_is_mapped():
     assert lp["rn_vac_params"][RN_Type] == 0
 
     sim = _sim(
-        "vaccine",
+        "prophylactic_vaccine",
         target_coverages=[{"sex": None, "risk_group": "PLHIV", "coverage": 0.50}],
         **{**_VAC_SIM_BASE, "vaccine_action_type": "Degree"},
     )
@@ -448,11 +456,11 @@ def test_vaccine_action_type_is_mapped():
     assert lp["rn_vac_params"][RN_Type] == 1
 
 
-def test_vaccine_invalid_action_type_raises():
-    lp = _vaccine_params()
-    ivs = _iv("vaccine", "Vaccine")
+def test_prophylactic_vaccine_invalid_action_type_raises():
+    lp = _prophylactic_vaccine_params()
+    ivs = _iv("prophylactic_vaccine", "Prophylactic vaccine")
     sim = _sim(
-        "vaccine",
+        "prophylactic_vaccine",
         target_coverages=[{"sex": None, "risk_group": "PLHIV", "coverage": 0.50}],
         **{**_VAC_SIM_BASE, "vaccine_action_type": "Invalid"},
     )
@@ -461,11 +469,11 @@ def test_vaccine_invalid_action_type_raises():
         apply_simulation(lp, ivs, sim, _START_YEAR)
 
 
-def test_vaccine_invalid_targeting_raises():
-    lp = _vaccine_params()
-    ivs = _iv("vaccine", "Vaccine")
+def test_prophylactic_vaccine_invalid_targeting_raises():
+    lp = _prophylactic_vaccine_params()
+    ivs = _iv("prophylactic_vaccine", "Prophylactic vaccine")
     sim = _sim(
-        "vaccine",
+        "prophylactic_vaccine",
         target_coverages=[{"sex": None, "risk_group": "PLHIV", "coverage": 0.50}],
         **{**_VAC_SIM_BASE, "targeting": "Invalid"},
     )
@@ -763,10 +771,14 @@ _BASE_YEAR = _START_YEAR + 1
 _BASE_YEAR_IDX = _BASE_YEAR - _START_YEAR  # 1
 
 
-def test_vaccine_coverage_interpolates_linearly_and_holds_at_target():
-    lp = _vaccine_params()
-    ivs = _iv("vaccine", "Vaccine")
-    sim = _sim("vaccine", target_coverages=[{"sex": "Both", "risk_group": "PLHIV", "coverage": 0.40}], **_VAC_SIM_BASE)
+def test_prophylactic_vaccine_coverage_interpolates_linearly_and_holds_at_target():
+    lp = _prophylactic_vaccine_params()
+    ivs = _iv("prophylactic_vaccine", "Prophylactic vaccine")
+    sim = _sim(
+        "prophylactic_vaccine",
+        target_coverages=[{"sex": "Both", "risk_group": "PLHIV", "coverage": 0.40}],
+        **_VAC_SIM_BASE,
+    )
 
     apply_simulation(lp, ivs, sim, _BASE_YEAR)
 

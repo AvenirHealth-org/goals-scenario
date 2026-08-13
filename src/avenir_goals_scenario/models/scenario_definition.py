@@ -234,7 +234,7 @@ class PrepParameters(BaseModel):
         return self
 
 
-class VaccineParameters(BaseModel):
+class ProphylacticVaccineParameters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     target_year: NormalDistParameters | None = None
@@ -253,6 +253,61 @@ class VaccineParameters(BaseModel):
         self.increase_in_progression_time_to_aids = _apply_proportion_defaults(
             self.increase_in_progression_time_to_aids
         )
+        return self
+
+
+class TherapeuticVaccineParameters(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_year: NormalDistParameters | None = None
+    target_coverage: CoverageValue
+    reduction_in_mortality: NormalDistParameters
+    reduction_in_infectiousness: NormalDistParameters
+    vaccine_duration_years: NormalDistParameters
+
+    @model_validator(mode="after")
+    def _apply_constraints(self) -> Self:
+        self.target_year = _apply_year_constraint(self.target_year)
+        self.target_coverage = _apply_coverage_defaults(self.target_coverage)
+        self.reduction_in_mortality = _apply_proportion_defaults(self.reduction_in_mortality)
+        self.reduction_in_infectiousness = _apply_proportion_defaults(self.reduction_in_infectiousness)
+        return self
+
+
+FunctionalCurePopulationNames = Literal["High risk adults", "Low risk adults", "Children"]
+
+
+class FunctionalCureTarget(BaseModel):
+    """Target population for functional cure: high/low risk adults or children.
+
+    Unlike ``VaccineCureTarget``, there is no sex dimension and no PLHIV-wide mode —
+    coverage is specified separately for each of the 3 population groups.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    risk_group: FunctionalCurePopulationNames
+    target_coverage: CoverageValue
+
+    @model_validator(mode="after")
+    def _validate(self) -> Self:
+        self.target_coverage = _apply_coverage_defaults(self.target_coverage)
+        return self
+
+
+class FunctionalCureParameters(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_year: NormalDistParameters | None = None
+    reduction_in_mortality: NormalDistParameters
+    reduction_in_infectiousness: NormalDistParameters
+    duration_of_cure: NormalDistParameters
+
+    @model_validator(mode="after")
+    def _apply_constraints(self) -> Self:
+        self.target_year = _apply_year_constraint(self.target_year)
+        self.reduction_in_mortality = _apply_proportion_defaults(self.reduction_in_mortality)
+        self.reduction_in_infectiousness = _apply_proportion_defaults(self.reduction_in_infectiousness)
         return self
 
 
@@ -414,12 +469,19 @@ class PrepInterventionDef(BaseModel):
         return self
 
 
-class VaccineInterventionDef(BaseModel):
+class ProphylacticVaccineInterventionDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    product: Literal["Vaccine"]
+    product: Literal["Prophylactic vaccine"]
     targets: list[VaccineCureTarget] = Field(min_length=1)
-    parameters: VaccineParameters
+    parameters: ProphylacticVaccineParameters
+
+
+class TherapeuticVaccineInterventionDef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product: Literal["Therapeutic vaccine"]
+    parameters: TherapeuticVaccineParameters
 
 
 class CureInterventionDef(BaseModel):
@@ -428,6 +490,14 @@ class CureInterventionDef(BaseModel):
     product: Literal["Cure (adults and children)"]
     targets: list[VaccineCureTarget] = Field(min_length=1)
     parameters: CureParameters
+
+
+class FunctionalCureInterventionDef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product: Literal["Functional cure"]
+    targets: list[FunctionalCureTarget] = Field(min_length=1)
+    parameters: FunctionalCureParameters
 
 
 class CureNeonateInterventionDef(BaseModel):
@@ -494,8 +564,10 @@ class AdultARTInterventionDef(BaseModel):
 
 AnyInterventionDef = Annotated[
     PrepInterventionDef
-    | VaccineInterventionDef
+    | ProphylacticVaccineInterventionDef
+    | TherapeuticVaccineInterventionDef
     | CureInterventionDef
+    | FunctionalCureInterventionDef
     | CureNeonateInterventionDef
     | VMMInterventionDef
     | AHDTreatmentDef
@@ -528,9 +600,9 @@ def _intervention_coverages(iv: "AnyInterventionDef") -> list[CoverageValue]:
 
 def _intervention_keys(iv: "AnyInterventionDef") -> list[tuple]:
     """Return the uniqueness keys for *iv* used to detect duplicate interventions."""
-    if isinstance(iv, (PrepInterventionDef, VaccineInterventionDef, CureInterventionDef)):
+    if isinstance(iv, (PrepInterventionDef, ProphylacticVaccineInterventionDef, CureInterventionDef)):
         return [(iv.product, t.risk_group, t.sex) for t in iv.targets]
-    if isinstance(iv, (CureNeonateInterventionDef, VMMInterventionDef)):
+    if isinstance(iv, (CureNeonateInterventionDef, VMMInterventionDef, FunctionalCureInterventionDef)):
         return [(iv.product, t.risk_group) for t in iv.targets]
     if isinstance(iv, AdultARTInterventionDef):
         return [(iv.product, t.sex) for t in iv.targets]

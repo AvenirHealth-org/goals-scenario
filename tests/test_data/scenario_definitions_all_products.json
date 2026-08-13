@@ -289,7 +289,7 @@
           }
         },
         {
-          "product": "Vaccine",
+          "product": "Prophylactic vaccine",
           "targets": [
             {
               "risk_group": "Medium risk heterosexual",
@@ -326,6 +326,31 @@
           }
         },
         {
+          "product": "Therapeutic vaccine",
+          "parameters": {
+            "target_year": {
+              "mean": 2035,
+              "sd": 0.0
+            },
+            "target_coverage": {
+              "mean": 0.4,
+              "sd": 0.0
+            },
+            "reduction_in_mortality": {
+              "mean": 0.4,
+              "sd": 0.0
+            },
+            "reduction_in_infectiousness": {
+              "mean": 0.5,
+              "sd": 0.0
+            },
+            "vaccine_duration_years": {
+              "mean": 5.0,
+              "sd": 0.0
+            }
+          }
+        },
+        {
           "product": "Cure (adults and children)",
           "targets": [
             {
@@ -343,6 +368,50 @@
             },
             "efficacy": {
               "mean": 0.85,
+              "sd": 0.0
+            },
+            "duration_of_cure": {
+              "mean": 5.0,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "Functional cure",
+          "targets": [
+            {
+              "risk_group": "High risk adults",
+              "target_coverage": {
+                "mean": 0.3,
+                "sd": 0.0
+              }
+            },
+            {
+              "risk_group": "Low risk adults",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.0
+              }
+            },
+            {
+              "risk_group": "Children",
+              "target_coverage": {
+                "mean": 0.15,
+                "sd": 0.0
+              }
+            }
+          ],
+          "parameters": {
+            "target_year": {
+              "mean": 2035,
+              "sd": 0.0
+            },
+            "reduction_in_mortality": {
+              "mean": 0.6,
+              "sd": 0.0
+            },
+            "reduction_in_infectiousness": {
+              "mean": 0.7,
               "sd": 0.0
             },
             "duration_of_cure": {

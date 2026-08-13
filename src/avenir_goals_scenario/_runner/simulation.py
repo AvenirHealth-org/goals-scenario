@@ -71,7 +71,7 @@ _interv_map: dict[str, int] = {
     "implantable_prep": RN_PrEPImplant,
     "bnabs": RN_PrEPbNABs,
     "pep": RN_PrEP_PEP,
-    "vaccine": RN_Vaccines,
+    "prophylactic_vaccine": RN_Vaccines,
     "cure_adults_and_children": RN_CureAdultsChildren,
     "cure_neonates": RN_CureNeonates,
     "vaginal_microbiome_modification": RN_VMM,
@@ -158,7 +158,7 @@ class _PrepDraw(TypedDict):
     duration: float | None
 
 
-class _VaccineDraw(TypedDict):
+class _ProphylacticVaccineDraw(TypedDict):
     target_year: int
     target_coverages: list[TargetCoverage]
     reduction_in_susceptibility: float
@@ -169,10 +169,26 @@ class _VaccineDraw(TypedDict):
     targeting: str
 
 
+class _TherapeuticVaccineDraw(TypedDict):
+    target_year: int
+    target_coverage: float
+    reduction_in_mortality: float
+    reduction_in_infectiousness: float
+    vaccine_duration_years: float
+
+
 class _CureDraw(TypedDict):
     target_year: int
     target_coverages: list[TargetCoverage]
     efficacy: float
+    duration_of_cure: float
+
+
+class _FunctionalCureDraw(TypedDict):
+    target_year: int
+    target_coverages: list[TargetCoverage]
+    reduction_in_mortality: float
+    reduction_in_infectiousness: float
     duration_of_cure: float
 
 
@@ -214,8 +230,10 @@ class _LongActingTreatmentDraw(TypedDict):
 
 _Draw: TypeAlias = (
     _PrepDraw
-    | _VaccineDraw
+    | _ProphylacticVaccineDraw
+    | _TherapeuticVaccineDraw
     | _CureDraw
+    | _FunctionalCureDraw
     | _CureNeonateDraw
     | _VMMDraw
     | _AHDTreatmentDraw
@@ -413,7 +431,7 @@ def _apply_all_prep(
         )
 
 
-def _apply_vaccine(lp: LeapfrogParams, draw: _VaccineDraw, base_year: int) -> None:
+def _apply_prophylactic_vaccine(lp: LeapfrogParams, draw: _ProphylacticVaccineDraw, base_year: int) -> None:
     base_idx = _base_year_idx(lp, base_year)
     target_idx = _maybe_target_year_idx(lp, draw)
     for tc in draw["target_coverages"]:
@@ -470,6 +488,15 @@ def _apply_vaccine(lp: LeapfrogParams, draw: _VaccineDraw, base_year: int) -> No
         raise ValueError(msg)
 
 
+def _apply_therapeutic_vaccine(lp: LeapfrogParams, draw: _TherapeuticVaccineDraw, base_year: int) -> None:
+    base_idx = _base_year_idx(lp, base_year)
+    target_idx = _maybe_target_year_idx(lp, draw)
+    _ramp_to_target(lp["therapeutic_vac_cov"], base_idx, target_idx, draw["target_coverage"])
+    lp["therapeutic_vac_reduce_mort"] = draw["reduction_in_mortality"]
+    lp["therapeutic_vac_reduce_inf"] = draw["reduction_in_infectiousness"]
+    lp["therapeutic_vac_duration"] = draw["vaccine_duration_years"]
+
+
 def _apply_cure(lp: LeapfrogParams, draw: _CureDraw, base_year: int) -> None:
     base_idx = _base_year_idx(lp, base_year)
     target_idx = _maybe_target_year_idx(lp, draw)
@@ -498,6 +525,24 @@ def _apply_cure(lp: LeapfrogParams, draw: _CureDraw, base_year: int) -> None:
             )
     lp["rn_cure_effect"][RN_Efficacy] = draw["efficacy"]
     lp["rn_cure_effect"][RN_Duration] = draw["duration_of_cure"]
+
+
+_FUNC_CURE_COV_KEY: dict[str, str] = {
+    "High risk adults": "func_cure_HR_cov",
+    "Low risk adults": "func_cure_LR_cov",
+    "Children": "func_cure_children_cov",
+}
+
+
+def _apply_functional_cure(lp: LeapfrogParams, draw: _FunctionalCureDraw, base_year: int) -> None:
+    base_idx = _base_year_idx(lp, base_year)
+    target_idx = _maybe_target_year_idx(lp, draw)
+    for tc in draw["target_coverages"]:
+        key = _FUNC_CURE_COV_KEY[cast(str, tc.risk_group)]
+        _ramp_to_target(lp[key], base_idx, target_idx, tc.coverage)
+    lp["func_cure_reduce_mort"] = draw["reduction_in_mortality"]
+    lp["func_cure_reduce_inf"] = draw["reduction_in_infectiousness"]
+    lp["func_cure_duration"] = draw["duration_of_cure"]
 
 
 def _apply_cure_neonates(lp: LeapfrogParams, draw: _CureNeonateDraw, base_year: int) -> None:
@@ -608,20 +653,23 @@ def _apply_poc(lp: LeapfrogParams, poc_type: int, draw: _POCTestDraw, base_year:
 
 def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict, base_year: int) -> None:
     match iv.id:
-        case "vaccine":
-            _apply_vaccine(lp, cast(_VaccineDraw, draw), base_year)
+        case "prophylactic_vaccine":
+            _apply_prophylactic_vaccine(lp, cast(_ProphylacticVaccineDraw, draw), base_year)
+        case "therapeutic_vaccine":
+            _apply_therapeutic_vaccine(lp, cast(_TherapeuticVaccineDraw, draw), base_year)
         case "cure_adults_and_children":
             _apply_cure(lp, cast(_CureDraw, draw), base_year)
+        case "functional_cure":
+            _apply_functional_cure(lp, cast(_FunctionalCureDraw, draw), base_year)
         case "cure_neonates":
             _apply_cure_neonates(lp, cast(_CureNeonateDraw, draw), base_year)
         case "vaginal_microbiome_modification":
             _apply_vmm(lp, cast(_VMMDraw, draw), base_year)
         case "ahd_treatment":
             _apply_ahd(lp, cast(_AHDTreatmentDraw, draw), base_year)
-        case "poc_vl_test":
-            _apply_poc(lp, RN_POC_VL_Int, cast(_POCTestDraw, draw), base_year)
-        case "poc_cd4_test":
-            _apply_poc(lp, RN_POC_CD4_Int, cast(_POCTestDraw, draw), base_year)
+        case "poc_vl_test" | "poc_cd4_test":
+            poc_type = RN_POC_CD4_Int if iv.id == "poc_cd4_test" else RN_POC_VL_Int
+            _apply_poc(lp, poc_type, cast(_POCTestDraw, draw), base_year)
         case "adult_art":
             _apply_adult_art(lp, cast(_AdultARTDraw, draw), base_year)
         case _:
