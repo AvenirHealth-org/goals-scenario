@@ -10,6 +10,7 @@ from avenir_goals_scenario.models.scenario_definition import (
     CureNeonateParameters,
     CureNeonateTarget,
     CureParameters,
+    CureTarget,
     FunctionalCureInterventionDef,
     FunctionalCureParameters,
     FunctionalCureTarget,
@@ -171,6 +172,54 @@ def test_vaccine_cure_target_risk_group_both_is_valid():
 
 def test_vaccine_cure_target_coverage_gets_proportion_bounds():
     t = VaccineCureTarget(risk_group="PLHIV", sex="Both", target_coverage=NormalDistParameters(mean=0.5, sd=0.1))
+    assert isinstance(t.target_coverage, NormalDistParameters)
+    assert t.target_coverage.min_value == 0.0
+    assert t.target_coverage.max_value == 1.0
+
+
+# ---------------------------------------------------------------------------
+# CureTarget validation
+# ---------------------------------------------------------------------------
+
+
+def test_cure_target_adults_both_is_valid():
+    t = CureTarget(risk_group="Adults", sex="Both", target_coverage=_ANY_COV)
+    assert t.risk_group == "Adults"
+    assert t.sex == "Both"
+
+
+def test_cure_target_adults_none_is_valid():
+    t = CureTarget(risk_group="Adults", target_coverage=_ANY_COV)
+    assert t.sex is None
+
+
+def test_cure_target_adults_male_raises():
+    with pytest.raises(ValidationError, match="'Adults' target must have sex='Both' or sex=None"):
+        CureTarget(risk_group="Adults", sex="Male", target_coverage=_ANY_COV)
+
+
+def test_cure_target_children_female_raises():
+    with pytest.raises(ValidationError, match="'Children' target must have sex='Both' or sex=None"):
+        CureTarget(risk_group="Children", sex="Female", target_coverage=_ANY_COV)
+
+
+def test_cure_target_rejects_plhiv():
+    with pytest.raises(ValidationError):
+        CureTarget.model_validate({"risk_group": "PLHIV", "target_coverage": _ANY_COV})
+
+
+def test_cure_target_risk_group_msm_female_raises():
+    with pytest.raises(ValidationError, match="cannot have sex='Female'"):
+        CureTarget(risk_group="Men who have sex with men", sex="Female", target_coverage=_ANY_COV)
+
+
+def test_cure_target_risk_group_both_is_valid():
+    t = CureTarget(risk_group="High risk heterosexual", sex="Both", target_coverage=_ANY_COV)
+    assert t.sex == "Both"
+
+
+def test_cure_target_coverage_gets_proportion_bounds():
+    t = CureTarget(risk_group="Adults", sex="Both", target_coverage=NormalDistParameters(mean=0.5, sd=0.1))
     assert isinstance(t.target_coverage, NormalDistParameters)
     assert t.target_coverage.min_value == 0.0
     assert t.target_coverage.max_value == 1.0

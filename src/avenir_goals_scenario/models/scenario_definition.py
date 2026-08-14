@@ -311,6 +311,38 @@ class FunctionalCureParameters(BaseModel):
         return self
 
 
+CureRiskGroupNames = Literal[RiskGroupNames, "Adults", "Children"]
+
+
+class CureTarget(BaseModel):
+    """Target population for cure interventions.
+
+    Either targets all Adults (risk_group="Adults", sex="Both" or None), all
+    Children (risk_group="Children", sex="Both" or None), or a specific risk group
+    with the standard MSM sex restriction. Unlike ``VaccineCureTarget``, "PLHIV" is
+    not a valid population.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    risk_group: CureRiskGroupNames
+    sex: SexName | None = None
+    target_coverage: CoverageValue
+
+    @model_validator(mode="after")
+    def _validate(self) -> Self:
+        if self.risk_group in ("Adults", "Children"):
+            if self.sex not in (None, "Both"):
+                msg = f"{self.risk_group!r} target must have sex='Both' or sex=None (not 'Male' or 'Female')."
+                raise ValueError(msg)
+        else:
+            if self.risk_group == "Men who have sex with men" and self.sex == "Female":
+                msg = "Risk group 'Men who have sex with men' cannot have sex='Female'."
+                raise ValueError(msg)
+        self.target_coverage = _apply_coverage_defaults(self.target_coverage)
+        return self
+
+
 class CureParameters(BaseModel):
     """Parameters for the "Cure (adults and children)" product.
 
@@ -505,7 +537,7 @@ class CureInterventionDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     product: Literal["Cure (adults and children)"]
-    targets: list[VaccineCureTarget] = Field(min_length=1)
+    targets: list[CureTarget] = Field(min_length=1)
     parameters: CureParameters
 
 

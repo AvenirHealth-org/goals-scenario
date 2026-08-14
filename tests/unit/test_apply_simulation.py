@@ -78,6 +78,8 @@ def _cure_params() -> dict:
     return {
         "projection_start_year": _START_YEAR,
         "rn_cure_coverage_type": 0,
+        "rn_cure_coverage_all": np.zeros(_N_YEARS),
+        "rn_cure_coverage_children": np.zeros(_N_YEARS),
         "rn_cure_coverage_rg": np.zeros((_N_VAC_POPS, _N_YEARS)),
         "rn_cure_effect": np.zeros(4),  # Efficacy=0, Duration=3
     }
@@ -505,12 +507,12 @@ def test_prophylactic_vaccine_invalid_targeting_raises():
 # ---------------------------------------------------------------------------
 
 
-def test_cure_plhiv_target_writes_all_risk():
+def test_cure_adults_target_writes_all_and_sets_single():
     lp = _cure_params()
     ivs = _iv("cure_adults_and_children", "Cure (adults and children)")
     sim = _sim(
         "cure_adults_and_children",
-        target_coverages=[{"sex": "Both", "risk_group": "PLHIV", "coverage": 0.30}],
+        target_coverages=[{"sex": None, "risk_group": "Adults", "coverage": 0.30}],
         efficacy=0.80,
         duration_of_cure=5.0,
     )
@@ -518,9 +520,26 @@ def test_cure_plhiv_target_writes_all_risk():
     apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_cure_coverage_type"] == RN_Single
-    assert lp["rn_cure_coverage_rg"][RN_AllRisk, _TARGET_YEAR_IDX] == pytest.approx(0.30)
+    assert lp["rn_cure_coverage_all"][_TARGET_YEAR_IDX] == pytest.approx(0.30)
     assert lp["rn_cure_effect"][RN_Efficacy] == pytest.approx(0.80)
     assert lp["rn_cure_effect"][RN_Duration] == pytest.approx(5.0)
+
+
+def test_cure_children_target_writes_children_coverage():
+    lp = _cure_params()
+    ivs = _iv("cure_adults_and_children", "Cure (adults and children)")
+    sim = _sim(
+        "cure_adults_and_children",
+        target_coverages=[{"sex": None, "risk_group": "Children", "coverage": 0.25}],
+        efficacy=0.75,
+        duration_of_cure=3.0,
+    )
+
+    apply_simulation(lp, ivs, sim, _START_YEAR)
+
+    assert lp["rn_cure_coverage_children"][_TARGET_YEAR_IDX] == pytest.approx(0.25)
+    assert lp["rn_cure_effect"][RN_Efficacy] == pytest.approx(0.75)
+    assert lp["rn_cure_effect"][RN_Duration] == pytest.approx(3.0)
 
 
 def test_cure_risk_group_female_writes_female_index():
@@ -556,6 +575,26 @@ def test_cure_risk_group_both_writes_male_and_female():
     assert lp["rn_cure_coverage_type"] == RN_Diff
     assert lp["rn_cure_coverage_rg"][RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.20)
     assert lp["rn_cure_coverage_rg"][RN_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.20)
+
+
+def test_cure_adults_and_children_targets_write_both():
+    lp = _cure_params()
+    ivs = _iv("cure_adults_and_children", "Cure (adults and children)")
+    sim = _sim(
+        "cure_adults_and_children",
+        target_coverages=[
+            {"sex": None, "risk_group": "Adults", "coverage": 0.20},
+            {"sex": None, "risk_group": "Children", "coverage": 0.15},
+        ],
+        efficacy=0.70,
+        duration_of_cure=4.0,
+    )
+
+    apply_simulation(lp, ivs, sim, _START_YEAR)
+
+    assert lp["rn_cure_coverage_type"] == RN_Single
+    assert lp["rn_cure_coverage_all"][_TARGET_YEAR_IDX] == pytest.approx(0.20)
+    assert lp["rn_cure_coverage_children"][_TARGET_YEAR_IDX] == pytest.approx(0.15)
 
 
 # ---------------------------------------------------------------------------

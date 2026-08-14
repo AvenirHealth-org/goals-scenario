@@ -439,18 +439,19 @@ No `targets` field — coverage applies globally.
 `product`: `"Cure (adults and children)"`
 
 `targets`: one or more entries (one or more required), each with its own target coverage.
-Same two targeting modes as Vaccine:
+Three targeting modes:
 
-- **PLHIV** — `risk_group: "PLHIV"` with `sex: "Both"` or omit `sex`.
-- **Risk group** — targets a specific risk group. `"Both"` applies coverage to both male and female indices.
+- **Adults** — applies coverage across all adult risk groups regardless of risk group. Use `risk_group: "Adults"` with `sex: "Both"` or omit `sex`.
+- **Children** — applies coverage to children. Use `risk_group: "Children"` with `sex: "Both"` or omit `sex`.
+- **Risk group** — targets a specific adult risk group. `"Both"` applies coverage to both male and female indices for that group.
 
 | Field | Values |
 |---|---|
-| `risk_group` | `"Low risk heterosexual"`, `"Medium risk heterosexual"`, `"High risk heterosexual"`, `"People who inject drugs"`, `"Men who have sex with men"`, `"PLHIV"` |
-| `sex` | `"Male"`, `"Female"`, `"Both"`. Optional — omitting it behaves the same as `"Both"`. For `risk_group: "PLHIV"`, only `"Both"` (or omitting `sex`) is allowed; `"Male"`/`"Female"` are rejected there since PLHIV coverage applies regardless of sex |
+| `risk_group` | `"Low risk heterosexual"`, `"Medium risk heterosexual"`, `"High risk heterosexual"`, `"People who inject drugs"`, `"Men who have sex with men"`, `"Adults"`, `"Children"` |
+| `sex` | `"Male"`, `"Female"`, `"Both"`. Optional — omitting it behaves the same as `"Both"`. For `risk_group: "Adults"` or `"Children"`, only `"Both"` (or omitting `sex`) is allowed; `"Male"`/`"Female"` are rejected there |
 | `target_coverage` | Distribution parameters (`mean` & `sd`) or an array of per-year coverages for this target — see [per-year coverage arrays](#per-year-coverage-arrays) |
 
-`"Men who have sex with men"` cannot have `sex: "Female"`. `"PLHIV"` cannot have `sex: "Male"` or `"Female"`.
+`"Men who have sex with men"` cannot have `sex: "Female"`. `"Adults"` and `"Children"` cannot have `sex: "Male"` or `"Female"`. `"PLHIV"` is not a valid population for Cure.
 
 `parameters`:
 
@@ -464,7 +465,8 @@ Same two targeting modes as Vaccine:
 {
   "product": "Cure (adults and children)",
   "targets": [
-    {"risk_group": "PLHIV", "target_coverage": {"mean": 0.20, "sd": 0.05}}
+    {"risk_group": "Adults",   "target_coverage": {"mean": 0.20, "sd": 0.05}},
+    {"risk_group": "Children", "target_coverage": {"mean": 0.15, "sd": 0.05}}
   ],
   "parameters": {
     "target_year":      {"mean": 2035, "sd": 3},

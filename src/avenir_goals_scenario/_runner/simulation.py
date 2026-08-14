@@ -510,9 +510,12 @@ def _apply_cure(lp: LeapfrogParams, draw: _CureDraw, base_year: int) -> None:
     base_idx = _base_year_idx(lp, base_year)
     target_idx = _maybe_target_year_idx(lp, draw)
     for tc in draw["target_coverages"]:
-        if tc.risk_group == "PLHIV":
+        if tc.risk_group == "Adults":
             lp["rn_cure_coverage_type"] = RN_Single
-            _ramp_to_target(lp["rn_cure_coverage_rg"][RN_AllRisk], base_idx, target_idx, tc.coverage)
+            _ramp_to_target(lp["rn_cure_coverage_all"], base_idx, target_idx, tc.coverage)
+        elif tc.risk_group == "Children":
+            lp["rn_cure_coverage_type"] = RN_Single
+            _ramp_to_target(lp["rn_cure_coverage_children"], base_idx, target_idx, tc.coverage)
         elif tc.sex == "Both" or tc.sex is None:
             lp["rn_cure_coverage_type"] = RN_Diff
             for female in (False, True):

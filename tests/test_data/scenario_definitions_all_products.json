@@ -354,7 +354,14 @@
           "product": "Cure (adults and children)",
           "targets": [
             {
-              "risk_group": "PLHIV",
+              "risk_group": "Adults",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.0
+              }
+            },
+            {
+              "risk_group": "Children",
               "target_coverage": {
                 "mean": 0.2,
                 "sd": 0.0
