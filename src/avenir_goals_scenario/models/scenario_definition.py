@@ -311,6 +311,38 @@ class FunctionalCureParameters(BaseModel):
         return self
 
 
+CureRiskGroupNames = Literal[RiskGroupNames, "Adults", "Children"]
+
+
+class CureTarget(BaseModel):
+    """Target population for cure interventions.
+
+    Either targets all Adults (risk_group="Adults", sex="Both" or None), all
+    Children (risk_group="Children", sex="Both" or None), or a specific risk group
+    with the standard MSM sex restriction. Unlike ``VaccineCureTarget``, "PLHIV" is
+    not a valid population.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    risk_group: CureRiskGroupNames
+    sex: SexName | None = None
+    target_coverage: CoverageValue
+
+    @model_validator(mode="after")
+    def _validate(self) -> Self:
+        if self.risk_group in ("Adults", "Children"):
+            if self.sex not in (None, "Both"):
+                msg = f"{self.risk_group!r} target must have sex='Both' or sex=None (not 'Male' or 'Female')."
+                raise ValueError(msg)
+        else:
+            if self.risk_group == "Men who have sex with men" and self.sex == "Female":
+                msg = "Risk group 'Men who have sex with men' cannot have sex='Female'."
+                raise ValueError(msg)
+        self.target_coverage = _apply_coverage_defaults(self.target_coverage)
+        return self
+
+
 class CureParameters(BaseModel):
     """Parameters for the "Cure (adults and children)" product.
 
@@ -421,6 +453,23 @@ class AdultARTParameters(BaseModel):
         return self
 
 
+class CoverageOnlyParameters(BaseModel):
+    """Shared parameters for target-less, coverage-only products (VMMC, FSW outreach,
+    MSM outreach, ART interruption): a single scale-up coverage and its target year,
+    with no other product-specific inputs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    target_year: NormalDistParameters | None = None
+    target_coverage: CoverageValue
+
+    @model_validator(mode="after")
+    def _apply_constraints(self) -> Self:
+        self.target_year = _apply_year_constraint(self.target_year)
+        self.target_coverage = _apply_coverage_defaults(self.target_coverage)
+        return self
+
+
 # ---------------------------------------------------------------------------
 # Intervention definition models (discriminated on product)
 # ---------------------------------------------------------------------------
@@ -488,7 +537,7 @@ class CureInterventionDef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     product: Literal["Cure (adults and children)"]
-    targets: list[VaccineCureTarget] = Field(min_length=1)
+    targets: list[CureTarget] = Field(min_length=1)
     parameters: CureParameters
 
 
@@ -562,6 +611,37 @@ class AdultARTInterventionDef(BaseModel):
     parameters: AdultARTParameters
 
 
+class VMMCInterventionDef(BaseModel):
+    """Voluntary medical male circumcision. Not to be confused with
+    ``VMMInterventionDef`` ("Vaginal microbiome modification"), a distinct product."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    product: Literal["VMMC"]
+    parameters: CoverageOnlyParameters
+
+
+class FSWOutreachInterventionDef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product: Literal["FSW outreach"]
+    parameters: CoverageOnlyParameters
+
+
+class MSMOutreachInterventionDef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product: Literal["MSM outreach"]
+    parameters: CoverageOnlyParameters
+
+
+class ARTInterruptionInterventionDef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product: Literal["ART interruption"]
+    parameters: CoverageOnlyParameters
+
+
 AnyInterventionDef = Annotated[
     PrepInterventionDef
     | ProphylacticVaccineInterventionDef
@@ -574,7 +654,11 @@ AnyInterventionDef = Annotated[
     | POCViralLoadTestDef
     | POCCD4TestDef
     | LongActingTreatmentDef
-    | AdultARTInterventionDef,
+    | AdultARTInterventionDef
+    | VMMCInterventionDef
+    | FSWOutreachInterventionDef
+    | MSMOutreachInterventionDef
+    | ARTInterruptionInterventionDef,
     Field(discriminator="product"),
 ]
 

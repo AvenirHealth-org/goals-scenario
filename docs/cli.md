@@ -247,8 +247,9 @@ Every intervention has a `parameters` object. Products that target specific popu
 microbiome modification, Adult ART) also have a `targets` list, and for those products
 `target_coverage` lives **inside each target**, not in `parameters` — each target gets
 its own coverage. The target-less products (Therapeutic vaccine, AHD treatment, POC
-tests, Long-acting treatment) have no `targets` list, so `target_coverage` lives directly
-in `parameters` instead, since there is only one population to specify coverage for.
+tests, Long-acting treatment, VMMC, FSW outreach, MSM outreach, ART interruption) have
+no `targets` list, so `target_coverage` lives directly in `parameters` instead, since
+there is only one population to specify coverage for.
 
 #### Per-year coverage arrays
 
@@ -438,18 +439,19 @@ No `targets` field — coverage applies globally.
 `product`: `"Cure (adults and children)"`
 
 `targets`: one or more entries (one or more required), each with its own target coverage.
-Same two targeting modes as Vaccine:
+Three targeting modes:
 
-- **PLHIV** — `risk_group: "PLHIV"` with `sex: "Both"` or omit `sex`.
-- **Risk group** — targets a specific risk group. `"Both"` applies coverage to both male and female indices.
+- **Adults** — applies coverage across all adult risk groups regardless of risk group. Use `risk_group: "Adults"` with `sex: "Both"` or omit `sex`.
+- **Children** — applies coverage to children. Use `risk_group: "Children"` with `sex: "Both"` or omit `sex`.
+- **Risk group** — targets a specific adult risk group. `"Both"` applies coverage to both male and female indices for that group.
 
 | Field | Values |
 |---|---|
-| `risk_group` | `"Low risk heterosexual"`, `"Medium risk heterosexual"`, `"High risk heterosexual"`, `"People who inject drugs"`, `"Men who have sex with men"`, `"PLHIV"` |
-| `sex` | `"Male"`, `"Female"`, `"Both"`. Optional — omitting it behaves the same as `"Both"`. For `risk_group: "PLHIV"`, only `"Both"` (or omitting `sex`) is allowed; `"Male"`/`"Female"` are rejected there since PLHIV coverage applies regardless of sex |
+| `risk_group` | `"Low risk heterosexual"`, `"Medium risk heterosexual"`, `"High risk heterosexual"`, `"People who inject drugs"`, `"Men who have sex with men"`, `"Adults"`, `"Children"` |
+| `sex` | `"Male"`, `"Female"`, `"Both"`. Optional — omitting it behaves the same as `"Both"`. For `risk_group: "Adults"` or `"Children"`, only `"Both"` (or omitting `sex`) is allowed; `"Male"`/`"Female"` are rejected there |
 | `target_coverage` | Distribution parameters (`mean` & `sd`) or an array of per-year coverages for this target — see [per-year coverage arrays](#per-year-coverage-arrays) |
 
-`"Men who have sex with men"` cannot have `sex: "Female"`. `"PLHIV"` cannot have `sex: "Male"` or `"Female"`.
+`"Men who have sex with men"` cannot have `sex: "Female"`. `"Adults"` and `"Children"` cannot have `sex: "Male"` or `"Female"`. `"PLHIV"` is not a valid population for Cure.
 
 `parameters`:
 
@@ -463,7 +465,8 @@ Same two targeting modes as Vaccine:
 {
   "product": "Cure (adults and children)",
   "targets": [
-    {"risk_group": "PLHIV", "target_coverage": {"mean": 0.20, "sd": 0.05}}
+    {"risk_group": "Adults",   "target_coverage": {"mean": 0.20, "sd": 0.05}},
+    {"risk_group": "Children", "target_coverage": {"mean": 0.15, "sd": 0.05}}
   ],
   "parameters": {
     "target_year":      {"mean": 2035, "sd": 3},
@@ -731,6 +734,98 @@ number for the whole run, not a per-year series.
     "target_coverage":               {"mean": 0.30, "sd": 0.05},
     "interruption_rate_reduction":   {"mean": 0.20, "sd": 0.05},
     "viral_load_suppression_ratio":  {"mean": 0.75, "sd": 0.05}
+  }
+}
+```
+
+---
+
+##### VMMC
+
+`product`: `"VMMC"`
+
+No `targets` field — coverage applies globally (voluntary medical male
+circumcision). Not to be confused with [Vaginal microbiome
+modification](#vaginal-microbiome-modification), a distinct product.
+
+`parameters`:
+
+| Parameter | Description |
+|---|---|
+| `target_year` | Target implementation year. Ignored if `target_coverage` is passed as an array — see [per-year coverage arrays](#per-year-coverage-arrays) |
+| `target_coverage` | Distribution parameters (`mean` & `sd`) or an array of per-year coverages — see [per-year coverage arrays](#per-year-coverage-arrays) |
+
+```json
+{
+  "product": "VMMC",
+  "parameters": {
+    "target_year":     {"mean": 2028, "sd": 1},
+    "target_coverage": {"mean": 0.70, "sd": 0.08}
+  }
+}
+```
+
+---
+
+##### FSW outreach
+
+`product`: `"FSW outreach"`
+
+No `targets` field — coverage applies globally. Same `parameters` structure as
+VMMC.
+
+```json
+{
+  "product": "FSW outreach",
+  "parameters": {
+    "target_year":     {"mean": 2028, "sd": 1},
+    "target_coverage": {"mean": 0.60, "sd": 0.08}
+  }
+}
+```
+
+---
+
+##### MSM outreach
+
+`product`: `"MSM outreach"`
+
+No `targets` field — coverage applies globally. Same `parameters` structure as
+VMMC.
+
+```json
+{
+  "product": "MSM outreach",
+  "parameters": {
+    "target_year":     {"mean": 2028, "sd": 1},
+    "target_coverage": {"mean": 0.60, "sd": 0.08}
+  }
+}
+```
+
+---
+
+##### ART interruption
+
+`product`: `"ART interruption"`
+
+No `targets` field — writes directly into the model's ART interruption
+(loss-to-follow-up) rate. `target_coverage` here is the **interruption rate**
+(0–1), not a population-coverage proportion.
+
+`parameters`:
+
+| Parameter | Description |
+|---|---|
+| `target_year` | Target implementation year. Ignored if `target_coverage` is passed as an array — see [per-year coverage arrays](#per-year-coverage-arrays) |
+| `target_coverage` | Distribution parameters (`mean` & `sd`) or an array of per-year interruption rates — see [per-year coverage arrays](#per-year-coverage-arrays) |
+
+```json
+{
+  "product": "ART interruption",
+  "parameters": {
+    "target_year":     {"mean": 2028, "sd": 1},
+    "target_coverage": {"mean": 0.10, "sd": 0.03}
   }
 }
 ```

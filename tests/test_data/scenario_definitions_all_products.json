@@ -354,7 +354,14 @@
           "product": "Cure (adults and children)",
           "targets": [
             {
-              "risk_group": "PLHIV",
+              "risk_group": "Adults",
+              "target_coverage": {
+                "mean": 0.2,
+                "sd": 0.0
+              }
+            },
+            {
+              "risk_group": "Children",
               "target_coverage": {
                 "mean": 0.2,
                 "sd": 0.0
@@ -599,6 +606,58 @@
           "parameters": {
             "target_year": {
               "mean": 2030,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "VMMC",
+          "parameters": {
+            "target_year": {
+              "mean": 2028,
+              "sd": 0.0
+            },
+            "target_coverage": {
+              "mean": 0.7,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "FSW outreach",
+          "parameters": {
+            "target_year": {
+              "mean": 2028,
+              "sd": 0.0
+            },
+            "target_coverage": {
+              "mean": 0.6,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "MSM outreach",
+          "parameters": {
+            "target_year": {
+              "mean": 2028,
+              "sd": 0.0
+            },
+            "target_coverage": {
+              "mean": 0.6,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "ART interruption",
+          "parameters": {
+            "target_year": {
+              "mean": 2028,
+              "sd": 0.0
+            },
+            "target_coverage": {
+              "mean": 0.1,
               "sd": 0.0
             }
           }

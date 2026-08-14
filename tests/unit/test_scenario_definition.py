@@ -6,9 +6,11 @@ from pydantic import ValidationError
 from avenir_goals_scenario.models.scenario_definition import (
     AdultARTParameters,
     AdultARTTarget,
+    CoverageOnlyParameters,
     CureNeonateParameters,
     CureNeonateTarget,
     CureParameters,
+    CureTarget,
     FunctionalCureInterventionDef,
     FunctionalCureParameters,
     FunctionalCureTarget,
@@ -176,6 +178,54 @@ def test_vaccine_cure_target_coverage_gets_proportion_bounds():
 
 
 # ---------------------------------------------------------------------------
+# CureTarget validation
+# ---------------------------------------------------------------------------
+
+
+def test_cure_target_adults_both_is_valid():
+    t = CureTarget(risk_group="Adults", sex="Both", target_coverage=_ANY_COV)
+    assert t.risk_group == "Adults"
+    assert t.sex == "Both"
+
+
+def test_cure_target_adults_none_is_valid():
+    t = CureTarget(risk_group="Adults", target_coverage=_ANY_COV)
+    assert t.sex is None
+
+
+def test_cure_target_adults_male_raises():
+    with pytest.raises(ValidationError, match="'Adults' target must have sex='Both' or sex=None"):
+        CureTarget(risk_group="Adults", sex="Male", target_coverage=_ANY_COV)
+
+
+def test_cure_target_children_female_raises():
+    with pytest.raises(ValidationError, match="'Children' target must have sex='Both' or sex=None"):
+        CureTarget(risk_group="Children", sex="Female", target_coverage=_ANY_COV)
+
+
+def test_cure_target_rejects_plhiv():
+    with pytest.raises(ValidationError):
+        CureTarget.model_validate({"risk_group": "PLHIV", "target_coverage": _ANY_COV})
+
+
+def test_cure_target_risk_group_msm_female_raises():
+    with pytest.raises(ValidationError, match="cannot have sex='Female'"):
+        CureTarget(risk_group="Men who have sex with men", sex="Female", target_coverage=_ANY_COV)
+
+
+def test_cure_target_risk_group_both_is_valid():
+    t = CureTarget(risk_group="High risk heterosexual", sex="Both", target_coverage=_ANY_COV)
+    assert t.sex == "Both"
+
+
+def test_cure_target_coverage_gets_proportion_bounds():
+    t = CureTarget(risk_group="Adults", sex="Both", target_coverage=NormalDistParameters(mean=0.5, sd=0.1))
+    assert isinstance(t.target_coverage, NormalDistParameters)
+    assert t.target_coverage.min_value == 0.0
+    assert t.target_coverage.max_value == 1.0
+
+
+# ---------------------------------------------------------------------------
 # TherapeuticVaccineParameters constraints
 # ---------------------------------------------------------------------------
 
@@ -242,7 +292,7 @@ def test_functional_cure_target_accepts_all_populations(population):
 
 def test_functional_cure_target_rejects_unknown_population():
     with pytest.raises(ValidationError):
-        FunctionalCureTarget(risk_group="Medium risk heterosexual", target_coverage=_ANY_COV)
+        FunctionalCureTarget.model_validate({"risk_group": "Medium risk heterosexual", "target_coverage": _ANY_COV})
 
 
 def test_functional_cure_target_coverage_gets_proportion_bounds():
@@ -521,6 +571,25 @@ def test_adult_art_parameters_applies_constraints():
 
 
 # ---------------------------------------------------------------------------
+# CoverageOnlyParameters constraints (shared by VMMC, FSW outreach,
+# MSM outreach, ART interruption)
+# ---------------------------------------------------------------------------
+
+
+def test_coverage_only_parameters_applies_defaults():
+    params = CoverageOnlyParameters(
+        target_year=NormalDistParameters(mean=2028, sd=1),
+        target_coverage=NormalDistParameters(mean=0.6, sd=0.05),
+    )
+    assert params.target_year is not None
+    assert isinstance(params.target_coverage, NormalDistParameters)
+    assert params.target_year.integer is True
+    assert params.target_year.min_value == 1970
+    assert params.target_coverage.min_value == 0.0
+    assert params.target_coverage.max_value == 1.0
+
+
+# ---------------------------------------------------------------------------
 # SingleScenarioDef duplicate-product validation
 # ---------------------------------------------------------------------------
 
@@ -545,6 +614,23 @@ def test_single_scenario_duplicate_no_target_product_raises():
             "interventions": [
                 {"product": "AHD treatment", "parameters": _AHD_PARAMS},
                 {"product": "AHD treatment", "parameters": _AHD_PARAMS},
+            ],
+        })
+
+
+_VMMC_PARAMS = {
+    "target_year": {"mean": 2028, "sd": 1},
+    "target_coverage": {"mean": 0.7, "sd": 0.05},
+}
+
+
+def test_single_scenario_duplicate_vmmc_raises():
+    with pytest.raises(ValidationError, match="duplicate product 'VMMC'"):
+        SingleScenarioDef.model_validate({
+            "id": "s1",
+            "interventions": [
+                {"product": "VMMC", "parameters": _VMMC_PARAMS},
+                {"product": "VMMC", "parameters": _VMMC_PARAMS},
             ],
         })
 

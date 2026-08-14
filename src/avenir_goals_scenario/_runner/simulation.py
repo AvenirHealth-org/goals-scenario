@@ -3,12 +3,14 @@ from typing import TypeAlias, TypedDict, assert_never, cast, get_args
 import numpy as np
 from leapfrog_goals import run_goals
 from SpectrumCommon.Const.RN import (
+    RN_FSW,
     RN_HRH,
     RN_HRH_F,
     RN_IDU,
     RN_IDU_F,
     RN_LRH,
     RN_LRH_F,
+    RN_MC15_49,
     RN_MRH,
     RN_MRH_F,
     RN_MSM,
@@ -27,6 +29,7 @@ from SpectrumCommon.Const.RN import (
     RN_Effectiveness,
     RN_Efficacy,
     RN_Infectiousness,
+    RN_MSMOutreach,
     RN_POC_CD4_Int,
     RN_POC_VL_Int,
     RN_PrEP_PEP,
@@ -210,6 +213,11 @@ class _AHDTreatmentDraw(TypedDict):
     reduction_in_mortality: float
 
 
+class _CoverageOnlyDraw(TypedDict):
+    target_year: int
+    target_coverage: float
+
+
 class _POCTestDraw(TypedDict):
     target_year: int
     target_coverage: float
@@ -237,6 +245,7 @@ _Draw: TypeAlias = (
     | _CureNeonateDraw
     | _VMMDraw
     | _AHDTreatmentDraw
+    | _CoverageOnlyDraw
     | _POCTestDraw
     | _AdultARTDraw
     | _LongActingTreatmentDraw
@@ -501,9 +510,12 @@ def _apply_cure(lp: LeapfrogParams, draw: _CureDraw, base_year: int) -> None:
     base_idx = _base_year_idx(lp, base_year)
     target_idx = _maybe_target_year_idx(lp, draw)
     for tc in draw["target_coverages"]:
-        if tc.risk_group == "PLHIV":
+        if tc.risk_group == "Adults":
             lp["rn_cure_coverage_type"] = RN_Single
-            _ramp_to_target(lp["rn_cure_coverage_rg"][RN_AllRisk], base_idx, target_idx, tc.coverage)
+            _ramp_to_target(lp["rn_cure_coverage_all"], base_idx, target_idx, tc.coverage)
+        elif tc.risk_group == "Children":
+            lp["rn_cure_coverage_type"] = RN_Single
+            _ramp_to_target(lp["rn_cure_coverage_children"], base_idx, target_idx, tc.coverage)
         elif tc.sex == "Both" or tc.sex is None:
             lp["rn_cure_coverage_type"] = RN_Diff
             for female in (False, True):
@@ -574,6 +586,25 @@ def _apply_ahd(lp: LeapfrogParams, draw: _AHDTreatmentDraw, base_year: int) -> N
     target_idx = _maybe_target_year_idx(lp, draw)
     _ramp_to_target(lp["rn_ahd_treat_cov"], base_idx, target_idx, draw["target_coverage"])
     lp["rn_ahd_treat_reduc_mort"] = draw["reduction_in_mortality"]
+
+
+# (leapfrog params key, row index into that key if 2-D else None) for each
+# coverage-only intervention that has no product-specific parameters beyond
+# target_year/target_coverage.
+_COVERAGE_ONLY_TARGETS: dict[str, tuple[str, int | None]] = {
+    "vmmc": ("rn_coverage", RN_MC15_49),
+    "fsw_outreach": ("rn_coverage", RN_FSW),
+    "msm_outreach": ("rn_coverage", RN_MSMOutreach),
+    "art_interruption": ("art_interrupt_rate", None),
+}
+
+
+def _apply_coverage_only(lp: LeapfrogParams, intervention_id: str, draw: _CoverageOnlyDraw, base_year: int) -> None:
+    base_idx = _base_year_idx(lp, base_year)
+    target_idx = _maybe_target_year_idx(lp, draw)
+    key, row = _COVERAGE_ONLY_TARGETS[intervention_id]
+    series = lp[key][row] if row is not None else lp[key]
+    _ramp_to_target(series, base_idx, target_idx, draw["target_coverage"])
 
 
 def _apply_adult_art(lp: LeapfrogParams, draw: _AdultARTDraw, base_year: int) -> None:
@@ -651,7 +682,7 @@ def _apply_poc(lp: LeapfrogParams, poc_type: int, draw: _POCTestDraw, base_year:
     lp["rn_poc_effect"][rn_poc] = draw["effect"]
 
 
-def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict, base_year: int) -> None:
+def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict, base_year: int) -> None:  # noqa: C901 - one case per intervention type; each branch is a single trivial call
     match iv.id:
         case "prophylactic_vaccine":
             _apply_prophylactic_vaccine(lp, cast(_ProphylacticVaccineDraw, draw), base_year)
@@ -667,6 +698,8 @@ def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict, base_year: in
             _apply_vmm(lp, cast(_VMMDraw, draw), base_year)
         case "ahd_treatment":
             _apply_ahd(lp, cast(_AHDTreatmentDraw, draw), base_year)
+        case "vmmc" | "fsw_outreach" | "msm_outreach" | "art_interruption":
+            _apply_coverage_only(lp, iv.id, cast(_CoverageOnlyDraw, draw), base_year)
         case "poc_vl_test" | "poc_cd4_test":
             poc_type = RN_POC_CD4_Int if iv.id == "poc_cd4_test" else RN_POC_VL_Int
             _apply_poc(lp, poc_type, cast(_POCTestDraw, draw), base_year)
