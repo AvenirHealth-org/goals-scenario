@@ -602,6 +602,58 @@
               "sd": 0.0
             }
           }
+        },
+        {
+          "product": "VMMC",
+          "parameters": {
+            "target_year": {
+              "mean": 2028,
+              "sd": 0.0
+            },
+            "target_coverage": {
+              "mean": 0.7,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "FSW outreach",
+          "parameters": {
+            "target_year": {
+              "mean": 2028,
+              "sd": 0.0
+            },
+            "target_coverage": {
+              "mean": 0.6,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "MSM outreach",
+          "parameters": {
+            "target_year": {
+              "mean": 2028,
+              "sd": 0.0
+            },
+            "target_coverage": {
+              "mean": 0.6,
+              "sd": 0.0
+            }
+          }
+        },
+        {
+          "product": "ART interruption",
+          "parameters": {
+            "target_year": {
+              "mean": 2028,
+              "sd": 0.0
+            },
+            "target_coverage": {
+              "mean": 0.1,
+              "sd": 0.0
+            }
+          }
         }
       ],
       "pjnz_names": [

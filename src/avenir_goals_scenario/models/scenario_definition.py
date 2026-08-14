@@ -421,6 +421,23 @@ class AdultARTParameters(BaseModel):
         return self
 
 
+class CoverageOnlyParameters(BaseModel):
+    """Shared parameters for target-less, coverage-only products (VMMC, FSW outreach,
+    MSM outreach, ART interruption): a single scale-up coverage and its target year,
+    with no other product-specific inputs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    target_year: NormalDistParameters | None = None
+    target_coverage: CoverageValue
+
+    @model_validator(mode="after")
+    def _apply_constraints(self) -> Self:
+        self.target_year = _apply_year_constraint(self.target_year)
+        self.target_coverage = _apply_coverage_defaults(self.target_coverage)
+        return self
+
+
 # ---------------------------------------------------------------------------
 # Intervention definition models (discriminated on product)
 # ---------------------------------------------------------------------------
@@ -562,6 +579,37 @@ class AdultARTInterventionDef(BaseModel):
     parameters: AdultARTParameters
 
 
+class VMMCInterventionDef(BaseModel):
+    """Voluntary medical male circumcision. Not to be confused with
+    ``VMMInterventionDef`` ("Vaginal microbiome modification"), a distinct product."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    product: Literal["VMMC"]
+    parameters: CoverageOnlyParameters
+
+
+class FSWOutreachInterventionDef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product: Literal["FSW outreach"]
+    parameters: CoverageOnlyParameters
+
+
+class MSMOutreachInterventionDef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product: Literal["MSM outreach"]
+    parameters: CoverageOnlyParameters
+
+
+class ARTInterruptionInterventionDef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product: Literal["ART interruption"]
+    parameters: CoverageOnlyParameters
+
+
 AnyInterventionDef = Annotated[
     PrepInterventionDef
     | ProphylacticVaccineInterventionDef
@@ -574,7 +622,11 @@ AnyInterventionDef = Annotated[
     | POCViralLoadTestDef
     | POCCD4TestDef
     | LongActingTreatmentDef
-    | AdultARTInterventionDef,
+    | AdultARTInterventionDef
+    | VMMCInterventionDef
+    | FSWOutreachInterventionDef
+    | MSMOutreachInterventionDef
+    | ARTInterruptionInterventionDef,
     Field(discriminator="product"),
 ]
 

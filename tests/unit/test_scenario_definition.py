@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from avenir_goals_scenario.models.scenario_definition import (
     AdultARTParameters,
     AdultARTTarget,
+    CoverageOnlyParameters,
     CureNeonateParameters,
     CureNeonateTarget,
     CureParameters,
@@ -242,7 +243,7 @@ def test_functional_cure_target_accepts_all_populations(population):
 
 def test_functional_cure_target_rejects_unknown_population():
     with pytest.raises(ValidationError):
-        FunctionalCureTarget(risk_group="Medium risk heterosexual", target_coverage=_ANY_COV)
+        FunctionalCureTarget.model_validate({"risk_group": "Medium risk heterosexual", "target_coverage": _ANY_COV})
 
 
 def test_functional_cure_target_coverage_gets_proportion_bounds():
@@ -521,6 +522,25 @@ def test_adult_art_parameters_applies_constraints():
 
 
 # ---------------------------------------------------------------------------
+# CoverageOnlyParameters constraints (shared by VMMC, FSW outreach,
+# MSM outreach, ART interruption)
+# ---------------------------------------------------------------------------
+
+
+def test_coverage_only_parameters_applies_defaults():
+    params = CoverageOnlyParameters(
+        target_year=NormalDistParameters(mean=2028, sd=1),
+        target_coverage=NormalDistParameters(mean=0.6, sd=0.05),
+    )
+    assert params.target_year is not None
+    assert isinstance(params.target_coverage, NormalDistParameters)
+    assert params.target_year.integer is True
+    assert params.target_year.min_value == 1970
+    assert params.target_coverage.min_value == 0.0
+    assert params.target_coverage.max_value == 1.0
+
+
+# ---------------------------------------------------------------------------
 # SingleScenarioDef duplicate-product validation
 # ---------------------------------------------------------------------------
 
@@ -545,6 +565,23 @@ def test_single_scenario_duplicate_no_target_product_raises():
             "interventions": [
                 {"product": "AHD treatment", "parameters": _AHD_PARAMS},
                 {"product": "AHD treatment", "parameters": _AHD_PARAMS},
+            ],
+        })
+
+
+_VMMC_PARAMS = {
+    "target_year": {"mean": 2028, "sd": 1},
+    "target_coverage": {"mean": 0.7, "sd": 0.05},
+}
+
+
+def test_single_scenario_duplicate_vmmc_raises():
+    with pytest.raises(ValidationError, match="duplicate product 'VMMC'"):
+        SingleScenarioDef.model_validate({
+            "id": "s1",
+            "interventions": [
+                {"product": "VMMC", "parameters": _VMMC_PARAMS},
+                {"product": "VMMC", "parameters": _VMMC_PARAMS},
             ],
         })
 

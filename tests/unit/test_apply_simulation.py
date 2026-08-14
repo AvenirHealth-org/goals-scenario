@@ -3,8 +3,10 @@
 import numpy as np
 import pytest
 from SpectrumCommon.Const.RN import (
+    RN_FSW,
     RN_HRH,
     RN_HRH_F,
+    RN_MC15_49,
     RN_MSM,
     RN_POC_CD4,
     RN_POC_VL,
@@ -15,6 +17,8 @@ from SpectrumCommon.Const.RN import (
     RN_Effectiveness,
     RN_Efficacy,
     RN_Infectiousness,
+    RN_MaxInterventions,
+    RN_MSMOutreach,
     RN_Progression,
     RN_Single,
     RN_Substitution,
@@ -123,6 +127,20 @@ def _lat_params() -> dict:
         "long_act_treat_cov": np.zeros(_N_YEARS),
         "long_act_treat_eff_vls": 0.0,
         "long_act_treat_eff_ltfu": 0.0,
+    }
+
+
+def _rn_coverage_params() -> dict:
+    return {
+        "projection_start_year": _START_YEAR,
+        "rn_coverage": np.zeros((RN_MaxInterventions + 1, _N_YEARS)),
+    }
+
+
+def _art_interruption_params() -> dict:
+    return {
+        "projection_start_year": _START_YEAR,
+        "art_interrupt_rate": np.zeros(_N_YEARS),
     }
 
 
@@ -622,6 +640,43 @@ def test_ahd_treatment_writes_coverage_and_mortality_reduction():
 
 
 # ---------------------------------------------------------------------------
+# VMMC, FSW outreach, MSM outreach — rn_coverage row writes
+# ---------------------------------------------------------------------------
+
+_RN_COVERAGE_CASES = [
+    ("vmmc", "VMMC", RN_MC15_49),
+    ("fsw_outreach", "FSW outreach", RN_FSW),
+    ("msm_outreach", "MSM outreach", RN_MSMOutreach),
+]
+
+
+@pytest.mark.parametrize("pid,product,rn_row", _RN_COVERAGE_CASES)
+def test_rn_coverage_intervention_writes_coverage(pid, product, rn_row):
+    lp = _rn_coverage_params()
+    ivs = _iv(pid, product)
+    sim = _sim(pid, target_coverage=0.65)
+
+    apply_simulation(lp, ivs, sim, _START_YEAR)
+
+    assert lp["rn_coverage"][rn_row, _TARGET_YEAR_IDX] == pytest.approx(0.65)
+
+
+# ---------------------------------------------------------------------------
+# ART interruption
+# ---------------------------------------------------------------------------
+
+
+def test_art_interruption_writes_rate():
+    lp = _art_interruption_params()
+    ivs = _iv("art_interruption", "ART interruption")
+    sim = _sim("art_interruption", target_coverage=0.30)
+
+    apply_simulation(lp, ivs, sim, _START_YEAR)
+
+    assert lp["art_interrupt_rate"][_TARGET_YEAR_IDX] == pytest.approx(0.30)
+
+
+# ---------------------------------------------------------------------------
 # POC tests — not yet fully implemented
 # ---------------------------------------------------------------------------
 
@@ -800,6 +855,35 @@ def test_ahd_coverage_interpolates_down_from_higher_base_value():
     apply_simulation(lp, ivs, sim, _BASE_YEAR)
 
     cov = lp["rn_ahd_treat_cov"]
+    assert cov[0] == pytest.approx(0.9)
+    np.testing.assert_allclose(cov[_BASE_YEAR_IDX : _TARGET_YEAR_IDX + 1], [0.9, 0.8, 0.7, 0.6, 0.5])
+    np.testing.assert_allclose(cov[_TARGET_YEAR_IDX:], 0.5)
+
+
+@pytest.mark.parametrize("pid,product,rn_row", _RN_COVERAGE_CASES)
+def test_rn_coverage_intervention_interpolates_down_from_higher_base_value(pid, product, rn_row):
+    lp = _rn_coverage_params()
+    lp["rn_coverage"][rn_row, :] = 0.9
+    ivs = _iv(pid, product)
+    sim = _sim(pid, target_coverage=0.50)
+
+    apply_simulation(lp, ivs, sim, _BASE_YEAR)
+
+    cov = lp["rn_coverage"][rn_row]
+    assert cov[0] == pytest.approx(0.9)
+    np.testing.assert_allclose(cov[_BASE_YEAR_IDX : _TARGET_YEAR_IDX + 1], [0.9, 0.8, 0.7, 0.6, 0.5])
+    np.testing.assert_allclose(cov[_TARGET_YEAR_IDX:], 0.5)
+
+
+def test_art_interruption_interpolates_down_from_higher_base_value():
+    lp = _art_interruption_params()
+    lp["art_interrupt_rate"][:] = 0.9
+    ivs = _iv("art_interruption", "ART interruption")
+    sim = _sim("art_interruption", target_coverage=0.50)
+
+    apply_simulation(lp, ivs, sim, _BASE_YEAR)
+
+    cov = lp["art_interrupt_rate"]
     assert cov[0] == pytest.approx(0.9)
     np.testing.assert_allclose(cov[_BASE_YEAR_IDX : _TARGET_YEAR_IDX + 1], [0.9, 0.8, 0.7, 0.6, 0.5])
     np.testing.assert_allclose(cov[_TARGET_YEAR_IDX:], 0.5)
