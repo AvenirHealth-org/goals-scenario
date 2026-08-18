@@ -20,7 +20,6 @@ from SpectrumCommon.Const.RN import (
     RN_VMM,
     RN_Adherence,
     RN_AHDTreatment,
-    RN_AllRisk,
     RN_CureAdultsChildren,
     RN_CureNeonates,
     RN_DegreeAction,
@@ -112,18 +111,24 @@ def _risk_group_idx(risk_group: RiskGroupNames, *, female: bool = False) -> int:
     Pass ``female=True`` for vaccine/cure coverage arrays, where male and
     female populations have distinct indices. For PrEP, the sex dimension is
     a separate axis, so always use the default ``female=False``.
+
+    leapfrog-core's ``RG_`` enum (goals_simulation.hpp) is 0-based with
+    ``RG_NONE`` first (``RG_NONE=0, RG_LRH=1, ..., RG_MSM=5, RG_NONE_F3=11,
+    RG_LRH_F3=12, ..., RG_MSM_F3=16``), one less than the ``RN_LRH``-style
+    constants below (which count ``RN_None=1`` as the first risk group), so
+    every branch subtracts 1 to land on the row leapfrog actually reads.
     """
     match risk_group:
         case "Low risk heterosexual":
-            return RN_LRH_F if female else RN_LRH
+            return (RN_LRH_F if female else RN_LRH) - 1
         case "Medium risk heterosexual":
-            return RN_MRH_F if female else RN_MRH
+            return (RN_MRH_F if female else RN_MRH) - 1
         case "High risk heterosexual":
-            return RN_HRH_F if female else RN_HRH
+            return (RN_HRH_F if female else RN_HRH) - 1
         case "People who inject drugs":
-            return RN_IDU_F if female else RN_IDU
+            return (RN_IDU_F if female else RN_IDU) - 1
         case "Men who have sex with men":
-            return RN_MSM_F if female else RN_MSM
+            return (RN_MSM_F if female else RN_MSM) - 1
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -446,7 +451,7 @@ def _apply_prophylactic_vaccine(lp: LeapfrogParams, draw: _ProphylacticVaccineDr
     for tc in draw["target_coverages"]:
         if tc.risk_group == "PLHIV":
             lp["rn_vac_cov_type"] = RN_Single
-            _ramp_to_target(lp["rn_vac_coverage_rg"][RN_AllRisk], base_idx, target_idx, tc.coverage)
+            _ramp_to_target(lp["rn_vac_coverage_all"], base_idx, target_idx, tc.coverage)
         elif tc.sex == "Both" or tc.sex is None:
             lp["rn_vac_cov_type"] = RN_Diff
             for female in (False, True):

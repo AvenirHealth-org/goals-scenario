@@ -11,7 +11,6 @@ from SpectrumCommon.Const.RN import (
     RN_POC_CD4,
     RN_POC_VL,
     RN_Adherence,
-    RN_AllRisk,
     RN_Diff,
     RN_Duration,
     RN_Effectiveness,
@@ -36,6 +35,13 @@ _START_YEAR = 2020
 _TARGET_YEAR = 2025
 _TARGET_YEAR_IDX = _TARGET_YEAR - _START_YEAR  # 5
 
+# prep_cov / rn_vac_coverage_rg / rn_cure_coverage_rg all use _risk_group_idx(), which is
+# one less than the RN_ constants imported above (leapfrog-core's RG_ enum is 0-based with
+# RG_NONE=0 first; the RN_ constants count RG_NONE as 1).
+_RG_HRH = RN_HRH - 1
+_RG_HRH_F = RN_HRH_F - 1
+_RG_MSM = RN_MSM - 1
+
 # prep_effectiveness shape: (n_prep_products=10, n_effectiveness=4)
 # see SpectrumEngine n_effectiveness constants are
 # 0 - effectiveness, 1 - adherence, 2 - substitution, 3 - duration
@@ -47,8 +53,10 @@ _N_SEXES = 2
 _N_POPS = 7
 _N_YEARS = 20
 
-# rn_vac/cure_coverage: pop indices go up to female MSM (17), give 18 rows
-_N_VAC_POPS = 18
+# rn_vac/cure_coverage_rg: leapfrog-core's RG_ enum is RG_NONE..RG_MSM_F3 (0..16), 17 rows.
+# "PLHIV"/"Adults" targets go through the separate rn_vac_coverage_all/rn_cure_coverage_all
+# fields, not this array.
+_N_VAC_POPS = 17
 
 # ---------------------------------------------------------------------------
 # Leapfrog param builders — each returns only the keys the intervention touches
@@ -68,6 +76,7 @@ def _prophylactic_vaccine_params() -> dict:
     return {
         "projection_start_year": _START_YEAR,
         "rn_vac_cov_type": 0,
+        "rn_vac_coverage_all": np.zeros(_N_YEARS),
         "rn_vac_coverage_rg": np.zeros((_N_VAC_POPS, _N_YEARS)),
         "rn_vac_params": np.zeros(5),  # Efficacy=0, Infectiousness=1, Progression=2, Duration=3, Type=4
         "rn_vac_targetting": 0,
@@ -194,9 +203,9 @@ def test_prep_sets_effectiveness_and_coverage(pid, product, offset):
     eff = lp["prep_effectiveness"]
     assert eff[offset, RN_Effectiveness] == pytest.approx(0.95)
     assert eff[offset, RN_Adherence] == pytest.approx(0.85)
-    assert lp["prep_cov"][1, RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.30)
+    assert lp["prep_cov"][1, _RG_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.30)
     # Single product → 100% method mix weight
-    assert lp["prep_method_mix"][1, RN_HRH, offset, _TARGET_YEAR_IDX] == pytest.approx(1.0)
+    assert lp["prep_method_mix"][1, _RG_HRH, offset, _TARGET_YEAR_IDX] == pytest.approx(1.0)
 
 
 def test_prep_multiple_targets_writes_each_population():
@@ -214,10 +223,10 @@ def test_prep_multiple_targets_writes_each_population():
 
     apply_simulation(lp, ivs, sim, _START_YEAR)
 
-    assert lp["prep_cov"][1, RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.20)
-    assert lp["prep_cov"][0, RN_MSM, _TARGET_YEAR_IDX] == pytest.approx(0.15)
-    assert lp["prep_method_mix"][1, RN_HRH, 0, _TARGET_YEAR_IDX] == pytest.approx(1.0)
-    assert lp["prep_method_mix"][0, RN_MSM, 0, _TARGET_YEAR_IDX] == pytest.approx(1.0)
+    assert lp["prep_cov"][1, _RG_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.20)
+    assert lp["prep_cov"][0, _RG_MSM, _TARGET_YEAR_IDX] == pytest.approx(0.15)
+    assert lp["prep_method_mix"][1, _RG_HRH, 0, _TARGET_YEAR_IDX] == pytest.approx(1.0)
+    assert lp["prep_method_mix"][0, _RG_MSM, 0, _TARGET_YEAR_IDX] == pytest.approx(1.0)
 
 
 def test_prep_does_not_write_other_products():
@@ -313,15 +322,15 @@ def test_prep_multi_product_aggregates_cov_and_sets_method_mix():
 
     apply_simulation(lp, ivs, sim, _START_YEAR)
 
-    assert lp["prep_cov"][1, RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.50)
+    assert lp["prep_cov"][1, _RG_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.50)
     # daily (offset 0): 0.30 / 0.50 = 0.6
-    assert lp["prep_method_mix"][1, RN_HRH, 0, _TARGET_YEAR_IDX] == pytest.approx(0.6)
+    assert lp["prep_method_mix"][1, _RG_HRH, 0, _TARGET_YEAR_IDX] == pytest.approx(0.6)
     # two-month injectable (offset 4): 0.20 / 0.50 = 0.4
-    assert lp["prep_method_mix"][1, RN_HRH, 4, _TARGET_YEAR_IDX] == pytest.approx(0.4)
+    assert lp["prep_method_mix"][1, _RG_HRH, 4, _TARGET_YEAR_IDX] == pytest.approx(0.4)
     # all other method slots zeroed
     for m in range(_N_PREP):
         if m not in (0, 4):
-            assert lp["prep_method_mix"][1, RN_HRH, m, _TARGET_YEAR_IDX] == 0.0
+            assert lp["prep_method_mix"][1, _RG_HRH, m, _TARGET_YEAR_IDX] == 0.0
 
 
 def test_prep_coverage_over_1_clamps_to_1():
@@ -349,9 +358,9 @@ def test_prep_coverage_over_1_clamps_to_1():
 
     apply_simulation(lp, ivs, sim, _START_YEAR)
 
-    assert lp["prep_cov"][1, RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(1.0)
-    assert lp["prep_method_mix"][1, RN_HRH, 0, _TARGET_YEAR_IDX] == pytest.approx(0.70 / 1.20)
-    assert lp["prep_method_mix"][1, RN_HRH, 4, _TARGET_YEAR_IDX] == pytest.approx(0.50 / 1.20)
+    assert lp["prep_cov"][1, _RG_HRH, _TARGET_YEAR_IDX] == pytest.approx(1.0)
+    assert lp["prep_method_mix"][1, _RG_HRH, 0, _TARGET_YEAR_IDX] == pytest.approx(0.70 / 1.20)
+    assert lp["prep_method_mix"][1, _RG_HRH, 4, _TARGET_YEAR_IDX] == pytest.approx(0.50 / 1.20)
 
 
 def test_prep_zero_coverage_does_not_raise():
@@ -367,11 +376,11 @@ def test_prep_zero_coverage_does_not_raise():
         }),
     }
     apply_simulation(lp, ivs, sim, _START_YEAR)
-    assert lp["prep_cov"][1, RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.0)
+    assert lp["prep_cov"][1, _RG_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.0)
 
 
 # ---------------------------------------------------------------------------
-# Prophylactic vaccine — not yet fully implemented; partial coverage write is expected
+# Prophylactic vaccine
 # ---------------------------------------------------------------------------
 
 
@@ -385,7 +394,7 @@ _VAC_SIM_BASE = {
 }
 
 
-def test_prophylactic_vaccine_plhiv_target_writes_all_risk():
+def test_prophylactic_vaccine_plhiv_target_writes_coverage_all():
     lp = _prophylactic_vaccine_params()
     ivs = _iv("prophylactic_vaccine", "Prophylactic vaccine")
     sim = _sim(
@@ -397,7 +406,7 @@ def test_prophylactic_vaccine_plhiv_target_writes_all_risk():
     apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_vac_cov_type"] == RN_Single
-    assert lp["rn_vac_coverage_rg"][RN_AllRisk, _TARGET_YEAR_IDX] == pytest.approx(0.50)
+    assert lp["rn_vac_coverage_all"][_TARGET_YEAR_IDX] == pytest.approx(0.50)
     assert lp["rn_vac_params"][RN_Efficacy] == pytest.approx(0.6)
     assert lp["rn_vac_params"][RN_Infectiousness] == pytest.approx(0.4)
     assert lp["rn_vac_params"][RN_Progression] == pytest.approx(0.2)
@@ -405,7 +414,7 @@ def test_prophylactic_vaccine_plhiv_target_writes_all_risk():
     assert lp["rn_vac_targetting"] == 0
 
 
-def test_prophylactic_vaccine_plhiv_target_sex_none_writes_all_risk():
+def test_prophylactic_vaccine_plhiv_target_sex_none_writes_coverage_all():
     lp = _prophylactic_vaccine_params()
     ivs = _iv("prophylactic_vaccine", "Prophylactic vaccine")
     sim = _sim(
@@ -417,7 +426,7 @@ def test_prophylactic_vaccine_plhiv_target_sex_none_writes_all_risk():
     apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_vac_cov_type"] == RN_Single
-    assert lp["rn_vac_coverage_rg"][RN_AllRisk, _TARGET_YEAR_IDX] == pytest.approx(0.45)
+    assert lp["rn_vac_coverage_all"][_TARGET_YEAR_IDX] == pytest.approx(0.45)
 
 
 def test_prophylactic_vaccine_risk_group_female_writes_female_index():
@@ -432,7 +441,7 @@ def test_prophylactic_vaccine_risk_group_female_writes_female_index():
     apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_vac_cov_type"] == RN_Diff
-    assert lp["rn_vac_coverage_rg"][RN_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.40)
+    assert lp["rn_vac_coverage_rg"][_RG_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.40)
     assert lp["rn_vac_targetting"] == 1
 
 
@@ -448,8 +457,8 @@ def test_prophylactic_vaccine_risk_group_both_writes_male_and_female():
     apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_vac_cov_type"] == RN_Diff
-    assert lp["rn_vac_coverage_rg"][RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.35)
-    assert lp["rn_vac_coverage_rg"][RN_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.35)
+    assert lp["rn_vac_coverage_rg"][_RG_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.35)
+    assert lp["rn_vac_coverage_rg"][_RG_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.35)
 
 
 def test_prophylactic_vaccine_action_type_is_mapped():
@@ -555,7 +564,7 @@ def test_cure_risk_group_female_writes_female_index():
     apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_cure_coverage_type"] == RN_Diff
-    assert lp["rn_cure_coverage_rg"][RN_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.25)
+    assert lp["rn_cure_coverage_rg"][_RG_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.25)
     assert lp["rn_cure_effect"][RN_Efficacy] == pytest.approx(0.75)
     assert lp["rn_cure_effect"][RN_Duration] == pytest.approx(3.0)
 
@@ -573,8 +582,8 @@ def test_cure_risk_group_both_writes_male_and_female():
     apply_simulation(lp, ivs, sim, _START_YEAR)
 
     assert lp["rn_cure_coverage_type"] == RN_Diff
-    assert lp["rn_cure_coverage_rg"][RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.20)
-    assert lp["rn_cure_coverage_rg"][RN_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.20)
+    assert lp["rn_cure_coverage_rg"][_RG_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.20)
+    assert lp["rn_cure_coverage_rg"][_RG_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.20)
 
 
 def test_cure_adults_and_children_targets_write_both():
@@ -876,7 +885,7 @@ def test_prophylactic_vaccine_coverage_interpolates_linearly_and_holds_at_target
 
     apply_simulation(lp, ivs, sim, _BASE_YEAR)
 
-    cov = lp["rn_vac_coverage_rg"][RN_AllRisk]
+    cov = lp["rn_vac_coverage_all"]
     # Before the base year: untouched.
     assert cov[0] == 0.0
     # Linear ramp 0 → 0.40 over indices 1..5.
@@ -1021,12 +1030,12 @@ def test_prep_coverage_interpolates_and_mix_constant_for_single_product():
 
     apply_simulation(lp, ivs, sim, _BASE_YEAR)
 
-    cov = lp["prep_cov"][1, RN_HRH]
+    cov = lp["prep_cov"][1, _RG_HRH]
     assert cov[0] == 0.0
     np.testing.assert_allclose(cov[_BASE_YEAR_IDX : _TARGET_YEAR_IDX + 1], [0.0, 0.05, 0.10, 0.15, 0.20])
     np.testing.assert_allclose(cov[_TARGET_YEAR_IDX:], 0.20)
     # Sole product: 100% of the mix in every year with nonzero coverage.
-    mix = lp["prep_method_mix"][1, RN_HRH, 0]
+    mix = lp["prep_method_mix"][1, _RG_HRH, 0]
     np.testing.assert_allclose(mix[_BASE_YEAR_IDX + 1 :], 1.0)
 
 
@@ -1058,12 +1067,12 @@ def test_prep_products_with_different_target_years_ramp_independently():
     # Daily product done ramping at its own target year, injectable still going.
     daily_at_target = 0.20
     injectable_at_target = 0.40 * (_TARGET_YEAR_IDX - _BASE_YEAR_IDX) / (late_idx - _BASE_YEAR_IDX)
-    assert lp["prep_cov"][1, RN_HRH, _TARGET_YEAR_IDX] == pytest.approx(daily_at_target + injectable_at_target)
-    assert lp["prep_cov"][1, RN_HRH, late_idx] == pytest.approx(0.60)
+    assert lp["prep_cov"][1, _RG_HRH, _TARGET_YEAR_IDX] == pytest.approx(daily_at_target + injectable_at_target)
+    assert lp["prep_cov"][1, _RG_HRH, late_idx] == pytest.approx(0.60)
     # Mix reflects each product's per-year share.
     total = daily_at_target + injectable_at_target
-    assert lp["prep_method_mix"][1, RN_HRH, 0, _TARGET_YEAR_IDX] == pytest.approx(daily_at_target / total)
-    assert lp["prep_method_mix"][1, RN_HRH, 4, _TARGET_YEAR_IDX] == pytest.approx(injectable_at_target / total)
+    assert lp["prep_method_mix"][1, _RG_HRH, 0, _TARGET_YEAR_IDX] == pytest.approx(daily_at_target / total)
+    assert lp["prep_method_mix"][1, _RG_HRH, 4, _TARGET_YEAR_IDX] == pytest.approx(injectable_at_target / total)
 
 
 # ---------------------------------------------------------------------------

@@ -218,7 +218,9 @@ def test_apply_prep_mixes_array_and_ramp():
         })
     }
     apply_simulation(lp, ivs, sim, base_year)
-    assert np.allclose(lp["prep_cov"][1, RN_HRH, base_idx:], arr)
+    # prep_cov uses _risk_group_idx(), one less than RN_HRH (see _RG_HRH in
+    # test_apply_simulation.py: leapfrog-core's RG_ enum is 0-based with RG_NONE first).
+    assert np.allclose(lp["prep_cov"][1, RN_HRH - 1, base_idx:], arr)
 
 
 # ---------------------------------------------------------------------------
