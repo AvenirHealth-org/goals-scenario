@@ -403,7 +403,7 @@ _INDICATOR_SPECS: dict[str, IndicatorSpec] = {
         "Number of children eligible for ART by disease stage, transmission timing, age, and sex.",
         dims=(_hc1_disease_stage, _transmission_timing, _hc_ag_end, _sex),
     ),
-    "ctx_need": IndicatorSpec(
+    "cotrim_need": IndicatorSpec(
         "Number of children needing co-trimoxazole prophylaxis.",
         dims=(),
     ),
