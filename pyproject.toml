@@ -1,6 +1,6 @@
 [project]
 name = "avenir-goals-scenario"
-version = "0.0.25"
+version = "0.0.26"
 description = "Goals scenario analysis"
 authors = [{ name = "Rob Ashton", email = "rashton@avenirhealth.org" }]
 readme = "README.md"

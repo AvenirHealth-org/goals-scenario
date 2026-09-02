@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from avenir_goals_scenario.models.scenario_definition import (
     AdultARTParameters,
     AdultARTTarget,
+    ARTViralSuppressionParameters,
     CoverageOnlyParameters,
     CureNeonateParameters,
     CureNeonateTarget,
@@ -587,6 +588,54 @@ def test_coverage_only_parameters_applies_defaults():
     assert params.target_year.min_value == 1970
     assert params.target_coverage.min_value == 0.0
     assert params.target_coverage.max_value == 1.0
+
+
+# ---------------------------------------------------------------------------
+# ARTViralSuppressionParameters constraints
+# ---------------------------------------------------------------------------
+
+
+def test_art_viral_suppression_parameters_applies_defaults():
+    params = ARTViralSuppressionParameters(
+        target_year=NormalDistParameters(mean=2030, sd=2),
+        viral_load_suppression=NormalDistParameters(mean=0.95, sd=0.02),
+    )
+    assert params.target_year is not None
+    assert params.target_year.integer is True
+    assert params.target_year.min_value == 1970
+    assert isinstance(params.viral_load_suppression, NormalDistParameters)
+    assert params.viral_load_suppression.min_value == 0.0
+    assert params.viral_load_suppression.max_value == 1.0
+
+
+def test_art_viral_suppression_array_accepted_without_target_year():
+    params = ARTViralSuppressionParameters(viral_load_suppression=[0.8, 0.85, 0.9])
+    assert params.target_year is None
+    assert params.viral_load_suppression == [0.8, 0.85, 0.9]
+
+
+def test_art_viral_suppression_distribution_without_target_year_rejected():
+    with pytest.raises(ValidationError, match="target_year' is required"):
+        ARTViralSuppressionParameters(viral_load_suppression=NormalDistParameters(mean=0.95, sd=0.02))
+
+
+def test_art_viral_suppression_rejects_unknown_key():
+    with pytest.raises(ValidationError):
+        ARTViralSuppressionParameters.model_validate({
+            "viral_load_suppression": [0.9],
+            "reduction_in_infectiousness": {"mean": 0.1, "sd": 0.0},
+        })
+
+
+def test_single_scenario_duplicate_art_viral_suppression_raises():
+    with pytest.raises(ValidationError, match="duplicate product 'ART viral suppression'"):
+        SingleScenarioDef.model_validate({
+            "id": "s1",
+            "interventions": [
+                {"product": "ART viral suppression", "parameters": {"viral_load_suppression": [0.9]}},
+                {"product": "ART viral suppression", "parameters": {"viral_load_suppression": [0.9]}},
+            ],
+        })
 
 
 # ---------------------------------------------------------------------------

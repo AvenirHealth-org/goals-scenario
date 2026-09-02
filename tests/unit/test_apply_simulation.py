@@ -1076,6 +1076,41 @@ def test_prep_products_with_different_target_years_ramp_independently():
 
 
 # ---------------------------------------------------------------------------
+# ART viral suppression
+# ---------------------------------------------------------------------------
+
+
+def test_art_viral_suppression_distribution_ramps_from_base_year():
+    lp = {"projection_start_year": _START_YEAR, "epi_inf_mult_art": np.full(20, 0.25)}
+    ivs = _iv("art_viral_suppression", "ART viral suppression")
+    # VLS 0.95 -> epi_inf_mult_art target of 1 - 0.95 = 0.05.
+    sim = _sim("art_viral_suppression", viral_load_suppression=0.95)
+
+    apply_simulation(lp, ivs, sim, _BASE_YEAR)
+
+    mult = lp["epi_inf_mult_art"]
+    np.testing.assert_allclose(mult[_BASE_YEAR_IDX : _TARGET_YEAR_IDX + 1], [0.25, 0.20, 0.15, 0.10, 0.05])
+    np.testing.assert_allclose(mult[_TARGET_YEAR_IDX:], 0.05)
+    # Years before the base year (incl. the reference year) are untouched.
+    np.testing.assert_allclose(mult[:_BASE_YEAR_IDX], 0.25)
+
+
+def test_art_viral_suppression_array_written_verbatim_as_one_minus_value():
+    n = 6
+    lp = {"projection_start_year": _START_YEAR, "epi_inf_mult_art": np.full(n, 0.25)}
+    ivs = _iv("art_viral_suppression", "ART viral suppression")
+    sim = {
+        "art_viral_suppression": InterventionSimulation({
+            "viral_load_suppression": [0.80, 0.85, 0.90, 0.92, 0.95, 0.95]
+        })
+    }
+
+    apply_simulation(lp, ivs, sim, _START_YEAR)
+
+    np.testing.assert_allclose(lp["epi_inf_mult_art"], [0.20, 0.15, 0.10, 0.08, 0.05, 0.05])
+
+
+# ---------------------------------------------------------------------------
 # Unknown intervention
 # ---------------------------------------------------------------------------
 

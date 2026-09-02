@@ -241,6 +241,11 @@ class _LongActingTreatmentDraw(TypedDict):
     viral_load_suppression_ratio: float
 
 
+class _ARTViralSuppressionDraw(TypedDict):
+    target_year: int
+    viral_load_suppression: float | list[float]
+
+
 _Draw: TypeAlias = (
     _PrepDraw
     | _ProphylacticVaccineDraw
@@ -254,6 +259,7 @@ _Draw: TypeAlias = (
     | _POCTestDraw
     | _AdultARTDraw
     | _LongActingTreatmentDraw
+    | _ARTViralSuppressionDraw
 )
 
 
@@ -629,6 +635,23 @@ def _apply_adult_art(lp: LeapfrogParams, draw: _AdultARTDraw, base_year: int) ->
             lp["art15plus_isperc"][sex_idx, base_idx:] = 1
 
 
+def _apply_art_viral_suppression(lp: LeapfrogParams, draw: _ARTViralSuppressionDraw, base_year: int) -> None:
+    """Write viral load suppression into ``epi_inf_mult_art`` as ``1 - value``.
+
+    ``epi_inf_mult_art`` is the per-year infectiousness multiplier for people on
+    ART (the model reads it as "proportion not virally suppressed"). A linear
+    ramp on suppression is a linear ramp on ``1 - suppression``, so the scalar
+    case reuses ``_ramp_to_target`` directly; an array is written verbatim.
+    Years before the base year — including the reference year the Goals
+    ART-mortality calc reads — are left untouched.
+    """
+    base_idx = _base_year_idx(lp, base_year)
+    target_idx = _maybe_target_year_idx(lp, draw)
+    vls = draw["viral_load_suppression"]
+    target = [1.0 - v for v in vls] if isinstance(vls, list) else 1.0 - vls
+    _ramp_to_target(lp["epi_inf_mult_art"], base_idx, target_idx, target)
+
+
 def _apply_all_long_acting_treatment(
     lp: LeapfrogParams,
     lat_draws: list[tuple[str, dict]],
@@ -710,6 +733,8 @@ def _dispatch(lp: LeapfrogParams, iv: InterventionOut, draw: dict, base_year: in
             _apply_poc(lp, poc_type, cast(_POCTestDraw, draw), base_year)
         case "adult_art":
             _apply_adult_art(lp, cast(_AdultARTDraw, draw), base_year)
+        case "art_viral_suppression":
+            _apply_art_viral_suppression(lp, cast(_ARTViralSuppressionDraw, draw), base_year)
         case _:
             msg = f"Unknown intervention: {iv.id!r}"
             raise ValueError(msg)

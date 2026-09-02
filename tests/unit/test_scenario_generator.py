@@ -668,3 +668,44 @@ def test_vmm_sampling_round_trip():
     coverages = cast(list[TargetCoverage], params["target_coverages"])
     assert {c.risk_group for c in coverages} == {"Not sexually active", "High risk heterosexual"}
     assert all(c.sex is None for c in coverages)
+
+
+def test_art_viral_suppression_distribution_sampling_round_trip():
+    definition = ScenarioInput.model_validate({
+        "scenarios": [
+            {
+                "id": "1",
+                "interventions": [
+                    {
+                        "product": "ART viral suppression",
+                        "parameters": {
+                            "target_year": {"mean": 2030, "sd": 2},
+                            "viral_load_suppression": {"mean": 0.95, "sd": 0.02},
+                        },
+                    }
+                ],
+            }
+        ]
+    })
+    output = gen_simulations(definition, n_simulations=1, rng=_seeded_rng())
+    params = output.scenarios[0].simulations[0]["art_viral_suppression"].root
+    assert set(params.keys()) == {"target_year", "viral_load_suppression"}
+    assert isinstance(params["viral_load_suppression"], float)
+
+
+def test_art_viral_suppression_array_passed_through_and_omits_target_year():
+    definition = ScenarioInput.model_validate({
+        "scenarios": [
+            {
+                "id": "1",
+                "interventions": [
+                    {"product": "ART viral suppression", "parameters": {"viral_load_suppression": [0.8, 0.85, 0.9]}}
+                ],
+            }
+        ]
+    })
+    output = gen_simulations(definition, n_simulations=3, rng=_seeded_rng())
+    for sim in output.scenarios[0].simulations:
+        root = sim["art_viral_suppression"].root
+        assert root["viral_load_suppression"] == [0.8, 0.85, 0.9]
+        assert "target_year" not in root

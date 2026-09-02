@@ -249,7 +249,9 @@ microbiome modification, Adult ART) also have a `targets` list, and for those pr
 its own coverage. The target-less products (Therapeutic vaccine, AHD treatment, POC
 tests, Long-acting treatment, VMMC, FSW outreach, MSM outreach, ART interruption) have
 no `targets` list, so `target_coverage` lives directly in `parameters` instead, since
-there is only one population to specify coverage for.
+there is only one population to specify coverage for. ART viral suppression is also
+target-less, but names its coverage-like input `viral_load_suppression` rather than
+`target_coverage`.
 
 #### Per-year coverage arrays
 
@@ -694,6 +696,40 @@ proportions (ratio between 0 and 1); `art15plus_isperc` is automatically set to
   ],
   "parameters": {
     "target_year": {"mean": 2028, "sd": 2}
+  }
+}
+```
+
+---
+
+##### ART viral suppression
+
+`product`: `"ART viral suppression"`
+
+No `targets` field — the value applies to everyone on ART.
+
+`parameters`:
+
+| Parameter | Description |
+|---|---|
+| `viral_load_suppression` | Proportion of people on ART who are virally suppressed (0–1). Distribution parameters (`mean` & `sd`) or an array of per-year values — see [per-year coverage arrays](#per-year-coverage-arrays) |
+| `target_year` | Target implementation year (integer ≥ 1970). Required when `viral_load_suppression` is a distribution; ignored when it is an array |
+
+Written into the Goals `epi_inf_mult_art` series (the infectiousness multiplier
+for people on ART) as `1 - viral_load_suppression`. A distribution ramps
+linearly from the model's base-year value to `1 - viral_load_suppression` at
+`target_year` and is held thereafter; an array is written verbatim from the base
+year onward. Years before the base year — including the reference year the Goals
+ART-mortality reduction reads — are left untouched. Raising suppression also
+lowers ART mortality via that reduction, and stacks multiplicatively with the
+viral-suppression effects of `POC VL test` and `Long-acting treatment`.
+
+```json
+{
+  "product": "ART viral suppression",
+  "parameters": {
+    "target_year":            {"mean": 2030, "sd": 2},
+    "viral_load_suppression": {"mean": 0.95, "sd": 0.02}
   }
 }
 ```

@@ -453,6 +453,29 @@ class AdultARTParameters(BaseModel):
         return self
 
 
+class ARTViralSuppressionParameters(BaseModel):
+    """Population-wide viral load suppression among people on ART.
+
+    ``viral_load_suppression`` is the proportion virally suppressed (0-1), given
+    either as a distribution ramped to ``target_year`` or as a per-year array.
+    It is written into the Goals ``epi_inf_mult_art`` series as ``1 - value``
+    (the infectiousness multiplier for people on ART)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    target_year: NormalDistParameters | None = None
+    viral_load_suppression: CoverageValue
+
+    @model_validator(mode="after")
+    def _apply_constraints(self) -> Self:
+        self.target_year = _apply_year_constraint(self.target_year)
+        self.viral_load_suppression = _apply_coverage_defaults(self.viral_load_suppression)
+        # SingleScenarioDef._validate_target_year only inspects ``target_coverage``,
+        # so enforce the target_year rule for this differently-named field here.
+        _require_target_year([self.viral_load_suppression], self.target_year)
+        return self
+
+
 class CoverageOnlyParameters(BaseModel):
     """Shared parameters for target-less, coverage-only products (VMMC, FSW outreach,
     MSM outreach, ART interruption): a single scale-up coverage and its target year,
@@ -642,6 +665,13 @@ class ARTInterruptionInterventionDef(BaseModel):
     parameters: CoverageOnlyParameters
 
 
+class ARTViralSuppressionInterventionDef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product: Literal["ART viral suppression"]
+    parameters: ARTViralSuppressionParameters
+
+
 AnyInterventionDef = Annotated[
     PrepInterventionDef
     | ProphylacticVaccineInterventionDef
@@ -658,7 +688,8 @@ AnyInterventionDef = Annotated[
     | VMMCInterventionDef
     | FSWOutreachInterventionDef
     | MSMOutreachInterventionDef
-    | ARTInterruptionInterventionDef,
+    | ARTInterruptionInterventionDef
+    | ARTViralSuppressionInterventionDef,
     Field(discriminator="product"),
 ]
 
