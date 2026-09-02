@@ -661,6 +661,19 @@
               "sd": 0.0
             }
           }
+        },
+        {
+          "product": "ART viral suppression",
+          "parameters": {
+            "target_year": {
+              "mean": 2028,
+              "sd": 0.0
+            },
+            "viral_load_suppression": {
+              "mean": 0.95,
+              "sd": 0.0
+            }
+          }
         }
       ],
       "pjnz_names": [

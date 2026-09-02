@@ -278,3 +278,20 @@ def test_validate_series_lengths_targeted_coverage_array():
     )
     with pytest.raises(ValueError, match="needs 6"):
         _validate_series_lengths([pjnz], {pjnz: 2050}, sims, 2045, None)
+
+
+def test_validate_series_lengths_art_viral_suppression_array():
+    pjnz = Path("Zimbabwe.PJNZ")
+    sims = ScenarioSimulations(
+        scenarios=[
+            ScenarioSimulation(
+                id="1",
+                interventions=[InterventionOut(id="art_viral_suppression", product="ART viral suppression")],
+                simulations=[
+                    {"art_viral_suppression": InterventionSimulation({"viral_load_suppression": [0.9, 0.92, 0.95]})}
+                ],
+            )
+        ]
+    )
+    with pytest.raises(ValueError, match="needs 6"):
+        _validate_series_lengths([pjnz], {pjnz: 2050}, sims, 2045, None)
