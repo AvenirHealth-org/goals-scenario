@@ -106,6 +106,10 @@ RiskGroupNames = Literal[
 ]
 RiskGroupAndPlhivNames = Literal[RiskGroupNames, "PLHIV"]
 
+# Prophylactic vaccine can additionally target the "Not sexually active" population
+# (leapfrog's RG_NONE / RG_NONE_F3 rows).
+VaccineTargetNames = Literal[RiskGroupNames, "PLHIV", "Not sexually active"]
+
 SexName = Literal["Male", "Female", "Both"]
 
 
@@ -126,15 +130,16 @@ class PrepTarget(BaseModel):
 
 
 class VaccineCureTarget(BaseModel):
-    """Target population for vaccine or cure interventions.
+    """Target population for the prophylactic vaccine intervention.
 
     Either targets all PLHIV (risk_group="PLHIV", sex="Both" or None) or a
-    specific risk group with the standard MSM sex restriction.
+    specific risk group (including "Not sexually active") with the standard MSM
+    sex restriction.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    risk_group: RiskGroupAndPlhivNames
+    risk_group: VaccineTargetNames
     sex: SexName | None = None
     target_coverage: CoverageValue
 

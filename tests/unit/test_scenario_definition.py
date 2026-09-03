@@ -171,6 +171,17 @@ def test_vaccine_cure_target_risk_group_both_is_valid():
     assert t.sex == "Both"
 
 
+def test_vaccine_cure_target_not_sexually_active_is_valid():
+    t = VaccineCureTarget(risk_group="Not sexually active", target_coverage=_ANY_COV)
+    assert t.risk_group == "Not sexually active"
+    assert t.sex is None
+
+
+def test_vaccine_cure_target_not_sexually_active_female_is_valid():
+    t = VaccineCureTarget(risk_group="Not sexually active", sex="Female", target_coverage=_ANY_COV)
+    assert t.sex == "Female"
+
+
 def test_vaccine_cure_target_coverage_gets_proportion_bounds():
     t = VaccineCureTarget(risk_group="PLHIV", sex="Both", target_coverage=NormalDistParameters(mean=0.5, sd=0.1))
     assert isinstance(t.target_coverage, NormalDistParameters)

@@ -1,4 +1,4 @@
-from typing import TypeAlias, TypedDict, assert_never, cast, get_args
+from typing import Literal, TypeAlias, TypedDict, assert_never, cast, get_args
 
 import numpy as np
 from leapfrog_goals import run_goals
@@ -29,6 +29,8 @@ from SpectrumCommon.Const.RN import (
     RN_Efficacy,
     RN_Infectiousness,
     RN_MSMOutreach,
+    RN_None,
+    RN_None_F,
     RN_POC_CD4_Int,
     RN_POC_VL_Int,
     RN_PrEP_PEP,
@@ -105,7 +107,12 @@ _VMM_RG_IDX: dict[str, int] = {
 }
 
 
-def _risk_group_idx(risk_group: RiskGroupNames, *, female: bool = False) -> int:
+# Risk groups accepted by _risk_group_idx. "Not sexually active" (leapfrog's
+# RG_NONE / RG_NONE_F3) is only a valid target for the prophylactic vaccine.
+RiskGroupIdxNames: TypeAlias = RiskGroupNames | Literal["Not sexually active"]
+
+
+def _risk_group_idx(risk_group: RiskGroupIdxNames, *, female: bool = False) -> int:
     """Return the leapfrog risk group index for *risk_group*.
 
     Pass ``female=True`` for vaccine/cure coverage arrays, where male and
@@ -119,6 +126,8 @@ def _risk_group_idx(risk_group: RiskGroupNames, *, female: bool = False) -> int:
     every branch subtracts 1 to land on the row leapfrog actually reads.
     """
     match risk_group:
+        case "Not sexually active":
+            return (RN_None_F if female else RN_None) - 1
         case "Low risk heterosexual":
             return (RN_LRH_F if female else RN_LRH) - 1
         case "Medium risk heterosexual":
@@ -462,7 +471,7 @@ def _apply_prophylactic_vaccine(lp: LeapfrogParams, draw: _ProphylacticVaccineDr
             lp["rn_vac_cov_type"] = RN_Diff
             for female in (False, True):
                 _ramp_to_target(
-                    lp["rn_vac_coverage_rg"][_risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=female)],
+                    lp["rn_vac_coverage_rg"][_risk_group_idx(cast(RiskGroupIdxNames, tc.risk_group), female=female)],
                     base_idx,
                     target_idx,
                     tc.coverage,
@@ -471,7 +480,7 @@ def _apply_prophylactic_vaccine(lp: LeapfrogParams, draw: _ProphylacticVaccineDr
             lp["rn_vac_cov_type"] = RN_Diff
             _ramp_to_target(
                 lp["rn_vac_coverage_rg"][
-                    _risk_group_idx(cast(RiskGroupNames, tc.risk_group), female=(tc.sex == "Female"))
+                    _risk_group_idx(cast(RiskGroupIdxNames, tc.risk_group), female=(tc.sex == "Female"))
                 ],
                 base_idx,
                 target_idx,

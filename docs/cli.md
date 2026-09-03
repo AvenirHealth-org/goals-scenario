@@ -363,11 +363,11 @@ Implantable PrEP with a `duration` (months), and Oral PrEP plus contraceptive wi
 Two targeting modes:
 
 - **PLHIV** — applies coverage across all PLHIV regardless of risk group. Use `risk_group: "PLHIV"` with `sex: "Both"` or omit `sex`.
-- **Risk group** — targets a specific risk group. `"Both"` applies coverage to both male and female indices for that group.
+- **Risk group** — targets a specific risk group (including `"Not sexually active"`). `"Both"` applies coverage to both male and female indices for that group.
 
 | Field | Values |
 |---|---|
-| `risk_group` | `"Low risk heterosexual"`, `"Medium risk heterosexual"`, `"High risk heterosexual"`, `"People who inject drugs"`, `"Men who have sex with men"`, `"PLHIV"` |
+| `risk_group` | `"Not sexually active"`, `"Low risk heterosexual"`, `"Medium risk heterosexual"`, `"High risk heterosexual"`, `"People who inject drugs"`, `"Men who have sex with men"`, `"PLHIV"` |
 | `sex` | `"Male"`, `"Female"`, `"Both"`. Optional — omitting it behaves the same as `"Both"`. For `risk_group: "PLHIV"`, only `"Both"` (or omitting `sex`) is allowed; `"Male"`/`"Female"` are rejected there since PLHIV coverage applies regardless of sex |
 | `target_coverage` | Distribution parameters (`mean` & `sd`) or an array of per-year coverages for this target — see [per-year coverage arrays](#per-year-coverage-arrays) |
 

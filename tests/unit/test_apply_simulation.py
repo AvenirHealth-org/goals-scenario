@@ -18,6 +18,8 @@ from SpectrumCommon.Const.RN import (
     RN_Infectiousness,
     RN_MaxInterventions,
     RN_MSMOutreach,
+    RN_None,
+    RN_None_F,
     RN_Progression,
     RN_Single,
     RN_Substitution,
@@ -41,6 +43,8 @@ _TARGET_YEAR_IDX = _TARGET_YEAR - _START_YEAR  # 5
 _RG_HRH = RN_HRH - 1
 _RG_HRH_F = RN_HRH_F - 1
 _RG_MSM = RN_MSM - 1
+_RG_NONE = RN_None - 1  # 0 (RG_NONE)
+_RG_NONE_F = RN_None_F - 1  # 11 (RG_NONE_F3)
 
 # prep_effectiveness shape: (n_prep_products=10, n_effectiveness=4)
 # see SpectrumEngine n_effectiveness constants are
@@ -459,6 +463,38 @@ def test_prophylactic_vaccine_risk_group_both_writes_male_and_female():
     assert lp["rn_vac_cov_type"] == RN_Diff
     assert lp["rn_vac_coverage_rg"][_RG_HRH, _TARGET_YEAR_IDX] == pytest.approx(0.35)
     assert lp["rn_vac_coverage_rg"][_RG_HRH_F, _TARGET_YEAR_IDX] == pytest.approx(0.35)
+
+
+def test_prophylactic_vaccine_not_sexually_active_female_writes_female_index():
+    lp = _prophylactic_vaccine_params()
+    ivs = _iv("prophylactic_vaccine", "Prophylactic vaccine")
+    sim = _sim(
+        "prophylactic_vaccine",
+        target_coverages=[{"sex": "Female", "risk_group": "Not sexually active", "coverage": 0.25}],
+        **_VAC_SIM_BASE,
+    )
+
+    apply_simulation(lp, ivs, sim, _START_YEAR)
+
+    assert lp["rn_vac_cov_type"] == RN_Diff
+    assert lp["rn_vac_coverage_rg"][_RG_NONE_F, _TARGET_YEAR_IDX] == pytest.approx(0.25)
+    assert lp["rn_vac_coverage_rg"][_RG_NONE, _TARGET_YEAR_IDX] == pytest.approx(0.0)
+
+
+def test_prophylactic_vaccine_not_sexually_active_both_writes_male_and_female():
+    lp = _prophylactic_vaccine_params()
+    ivs = _iv("prophylactic_vaccine", "Prophylactic vaccine")
+    sim = _sim(
+        "prophylactic_vaccine",
+        target_coverages=[{"sex": "Both", "risk_group": "Not sexually active", "coverage": 0.30}],
+        **_VAC_SIM_BASE,
+    )
+
+    apply_simulation(lp, ivs, sim, _START_YEAR)
+
+    assert lp["rn_vac_cov_type"] == RN_Diff
+    assert lp["rn_vac_coverage_rg"][_RG_NONE, _TARGET_YEAR_IDX] == pytest.approx(0.30)
+    assert lp["rn_vac_coverage_rg"][_RG_NONE_F, _TARGET_YEAR_IDX] == pytest.approx(0.30)
 
 
 def test_prophylactic_vaccine_action_type_is_mapped():
