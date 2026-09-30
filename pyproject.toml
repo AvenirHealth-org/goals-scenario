@@ -1,6 +1,6 @@
 [project]
 name = "avenir-goals-scenario"
-version = "1.0.1"
+version = "1.0.2"
 description = "Goals scenario analysis"
 authors = [{ name = "Rob Ashton", email = "rashton@avenirhealth.org" }]
 readme = "README.md"
@@ -15,7 +15,7 @@ dependencies = [
     "pandas>=3.0.3",
     "loguru>=0.7.3",
     "avenir-spectrum-common>=0.1.26",
-    "leapfrog-goals>=1.0.6",
+    "leapfrog-goals>=1.0.7",
     "avenir-spectrum-import-pjnz>=0.1.16",
 ]
 classifiers = [
